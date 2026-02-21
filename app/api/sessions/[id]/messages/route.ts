@@ -77,7 +77,7 @@ Core teaching principles:
 - Break complex problems into smaller steps
 - If a student is stuck, provide a hint, not the solution`
 
-    const messages = session.messages.map((m) => ({
+    const messages = session.messages.map((m: { role: string; content: string }) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }))
