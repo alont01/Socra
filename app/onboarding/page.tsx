@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useRouter } from 'next/navigation'
 import { StepIndicator } from '@/components/onboarding/StepIndicator'
 import { Step1 } from '@/components/onboarding/steps/Step1'
 import { Step2 } from '@/components/onboarding/steps/Step2'
@@ -25,10 +26,18 @@ interface ProfileData {
 }
 
 export default function OnboardingPage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loading && user?.role === 'PARENT') {
+      router.replace('/dashboard')
+    }
+  }, [user, loading, router])
+
   const [step, setStep] = useState(0)
   const [profile, setProfile] = useState<ProfileData>({
-    name: user?.studentProfile?.name || user?.parentProfile?.name || '',
+    name: user?.studentProfile?.name || '',
     role: (user?.role as 'STUDENT' | 'PARENT') || 'STUDENT',
     gradeLevel: '',
     mathTopics: [],

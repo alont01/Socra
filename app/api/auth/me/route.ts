@@ -21,7 +21,17 @@ export async function GET() {
       where: { id: payload.userId },
       include: {
         studentProfile: true,
-        parentProfile: true,
+        parentProfile: {
+          include: {
+            children: {
+              include: {
+                sessions: {
+                  select: { id: true },
+                },
+              },
+            },
+          },
+        },
       },
     })
 
@@ -35,7 +45,18 @@ export async function GET() {
         email: user.email,
         role: user.role,
         studentProfile: user.studentProfile,
-        parentProfile: user.parentProfile,
+        parentProfile: user.parentProfile ? {
+          id: user.parentProfile.id,
+          name: user.parentProfile.name,
+          children: user.parentProfile.children.map(child => ({
+            id: child.id,
+            name: child.name,
+            gradeLevel: child.gradeLevel,
+            onboardingDone: child.onboardingDone,
+            sessionsCount: child.sessions.length,
+            mathTopics: child.mathTopics,
+          })),
+        } : null,
       },
     })
   } catch (err) {

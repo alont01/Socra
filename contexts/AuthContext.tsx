@@ -18,6 +18,14 @@ export interface AuthUser {
   parentProfile?: {
     id: string
     name: string
+    children: Array<{
+      id: string
+      name: string
+      gradeLevel: string
+      onboardingDone: boolean
+      sessionsCount: number
+      mathTopics: string
+    }>
   } | null
 }
 

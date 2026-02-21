@@ -116,15 +116,62 @@ export default function DashboardPage() {
         </div>
 
         {isParent ? (
-          <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
-            <div className="text-4xl mb-4">👨‍👩‍👧</div>
-            <h2 className="text-xl font-bold text-stone-900 mb-2">Parent Dashboard</h2>
-            <p className="text-stone-500 mb-6">
-              As a parent, you can monitor your child&apos;s progress. Child management features coming soon!
-            </p>
-            <Link href="/auth">
-              <Button variant="secondary">Add a Child</Button>
-            </Link>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-stone-900 text-lg">Your Children</h2>
+              <Link href="/dashboard/add-child">
+                <Button size="sm">+ Add a Child</Button>
+              </Link>
+            </div>
+
+            {user?.parentProfile?.children?.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-10 text-center">
+                <div className="text-5xl mb-4">👧</div>
+                <h3 className="font-semibold text-stone-900 mb-2">No children added yet</h3>
+                <p className="text-stone-500 mb-6 text-sm">
+                  Create a Socra account for your child so they can start their personalized math journey.
+                </p>
+                <Link href="/dashboard/add-child">
+                  <Button>Add Your First Child →</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {user?.parentProfile?.children?.map((child) => (
+                  <div
+                    key={child.id}
+                    className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-600">
+                        {child.name[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-stone-900">{child.name}</p>
+                        <p className="text-xs text-stone-400">{child.gradeLevel || 'Grade not set'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500">{child.sessionsCount} session{child.sessionsCount !== 1 ? 's' : ''}</span>
+                      {child.onboardingDone ? (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active</span>
+                      ) : (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Onboarding pending</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <Link href="/dashboard/add-child">
+                  <div className="bg-white rounded-2xl border-2 border-dashed border-orange-200 p-5 h-full min-h-[120px] flex items-center justify-center hover:border-orange-400 transition-colors cursor-pointer">
+                    <div className="text-center">
+                      <div className="text-2xl mb-1">+</div>
+                      <p className="text-sm font-medium text-stone-500">Add another child</p>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
