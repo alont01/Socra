@@ -5,7 +5,7 @@ const createJestConfig = nextJest({
   dir: './',
 })
 
-const config: Config = {
+const customConfig: Config = {
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
@@ -20,4 +20,9 @@ const config: Config = {
   ],
 }
 
-export default createJestConfig(config)
+// Wrap to override transformIgnorePatterns after next/jest sets its own
+export default async () => {
+  const config = await createJestConfig(customConfig)()
+  config.transformIgnorePatterns = ['node_modules/(?!(jose)/)']
+  return config
+}

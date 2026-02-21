@@ -69,7 +69,7 @@ describe('Button', () => {
     const { container } = render(<Button loading>Submit</Button>)
     const svg = container.querySelector('svg')
     expect(svg).toBeInTheDocument()
-    expect(svg?.className).toContain('animate-spin')
+    expect(svg?.classList.contains('animate-spin')).toBe(true)
   })
 
   it('calls onClick when clicked', () => {
