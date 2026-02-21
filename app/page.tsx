@@ -44,7 +44,7 @@ export default function LandingPage() {
               Start Learning Free →
             </Button>
           </Link>
-          <Link href="/auth">
+          <Link href="/auth?role=parent">
             <Button variant="ghost" size="lg" className="text-base">
               I&apos;m a Parent
             </Button>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -11,8 +11,10 @@ type Tab = 'login' | 'signup'
 type Role = 'STUDENT' | 'PARENT'
 
 export default function AuthPage() {
+  const searchParams = useSearchParams()
+  const initialRole: Role = searchParams.get('role') === 'parent' ? 'PARENT' : 'STUDENT'
   const [tab, setTab] = useState<Tab>('signup')
-  const [role, setRole] = useState<Role>('STUDENT')
+  const [role, setRole] = useState<Role>(initialRole)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
