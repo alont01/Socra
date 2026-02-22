@@ -10,7 +10,7 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
   role         String   @default("STUDENT")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -49,16 +49,40 @@ model ParentProfile {
 }
 
 model Session {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studentId String?
-  student   StudentProfile? @relation(fields: [studentId], references: [id])
-  title     String    @default("Math Session")
-  topic     String    @default("")
-  messages  Message[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String             @id @default(cuid())
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId  String?
+  student    StudentProfile?    @relation(fields: [studentId], references: [id])
+  title      String             @default("Math Session")
+  topic      String             @default("")
+  messages   Message[]
+  objectives LessonObjective[]
+  attempts   PracticeAttempt[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+}
+
+model LessonObjective {
+  id          String    @id @default(cuid())
+  sessionId   String
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  order       Int
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model PracticeAttempt {
+  id            String   @id @default(cuid())
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  problem       String
+  studentAnswer String   @default("")
+  correct       Boolean?
+  attemptedAt   DateTime @default(now())
 }
 
 model Message {

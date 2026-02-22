@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { hashPassword } from '@/lib/password'
 
 export async function POST(request: Request) {
   try {
@@ -15,9 +14,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, email, password, gradeLevel } = await request.json()
+    const { name, email, gradeLevel } = await request.json()
 
-    if (!name || !email || !password) {
+    if (!name || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -36,13 +35,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
     }
 
-    const passwordHash = await hashPassword(password)
-
     // Create child user + student profile linked to parent
     const childUser = await prisma.user.create({
       data: {
         email,
-        passwordHash,
+        passwordHash: null,
         role: 'STUDENT',
         studentProfile: {
           create: {

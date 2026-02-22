@@ -20,7 +20,6 @@ export default function AddChildPage() {
   const { refresh } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [gradeLevel, setGradeLevel] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,7 +33,7 @@ export default function AddChildPage() {
       const res = await fetch('/api/parent/add-child', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, gradeLevel }),
+        body: JSON.stringify({ name, email, gradeLevel }),
       })
 
       const data = await res.json()
@@ -112,16 +111,6 @@ export default function AddChildPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-              />
-
-              <Input
-                label="Password"
-                type="password"
-                placeholder="At least 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={8}
               />
 
               {error && (

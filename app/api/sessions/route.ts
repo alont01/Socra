@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { generateObjectives } from '@/lib/ai/lesson-engine'
 
 export async function GET() {
   try {
@@ -48,14 +49,25 @@ export async function POST(request: Request) {
       include: { studentProfile: true },
     })
 
+    const student = user?.studentProfile
+
     const session = await prisma.session.create({
       data: {
         userId: payload.userId,
-        studentId: studentId || user?.studentProfile?.id || null,
+        studentId: studentId || student?.id || null,
         title: title || 'Math Session',
         topic: topic || '',
       },
     })
+
+    if (topic) {
+      generateObjectives(
+        session.id,
+        topic,
+        student?.gradeLevel ?? '',
+        student?.goals ?? ''
+      ).catch((err) => console.error('Objective generation failed:', err))
+    }
 
     return NextResponse.json({ session })
   } catch (err) {

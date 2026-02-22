@@ -11,7 +11,7 @@ export async function middleware(request: NextRequest) {
 
   const isProtected = protectedRoutes.some((route) =>
     pathname.startsWith(route)
-  )
+  ) && !pathname.startsWith('/onboarding/role')
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route))
 
   if (isProtected) {
