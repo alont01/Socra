@@ -4,7 +4,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth()
 
   if (!session?.user?.id) {
@@ -36,9 +36,8 @@ export async function GET() {
 
   const destination = onboardingDone ? '/dashboard' : '/onboarding'
 
-  const response = NextResponse.redirect(
-    new URL(destination, process.env.NEXTAUTH_URL || 'http://localhost:3000')
-  )
+  const base = process.env.AUTH_URL || new URL(request.url).origin
+  const response = NextResponse.redirect(new URL(destination, base))
   response.cookies.set('token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
