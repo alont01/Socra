@@ -8,6 +8,10 @@ const VISUAL_KEYWORDS = [
   'intercept', 'geometry', 'geometric', 'shape', 'angle', 'vertex', 'tangent',
   'curve', 'ellipse', 'hyperbola', 'vector', 'transformation', 'reflect',
   'rotate', 'translate', 'scale', 'visualize', 'show me', 'illustrate',
+  'picture', 'visual', 'look like', 'looks like', 'what does', 'sketch',
+  'inequality', 'number line', 'unit circle', 'quadrant', 'derivative',
+  'integral', 'area under', 'histogram', 'bar chart', 'pie chart', 'venn',
+  'pythagorean', 'right triangle', 'similar triangles', 'congruent',
 ]
 
 export function mightBenefitFromVisual(message: string, topic: string): boolean {

@@ -51,7 +51,8 @@ Core teaching principles:
 - Use LaTeX for all math: inline $...$ and block $$...$$
 - Be warm, encouraging, and patient
 - Break complex problems into smaller steps
-- If a student is stuck, provide a hint, not the solution`
+- If a student is stuck, provide a hint, not the solution
+- NEVER use ASCII art or text-based diagrams (dashes, pipes, slashes to draw shapes) — proper SVG diagrams are generated separately when needed`
 
   if (topic) {
     system += `\n\nCurrent session topic: ${topic}`
@@ -169,13 +170,13 @@ export async function* orchestrate(
       yield { type: 'practice_problem', problem }
     }
   } else {
-    // explain / general — stream Claude, optionally add visual for visual topics
+    // explain / general — stream Claude, optionally add visual
     for await (const chunk of streamClaudeRaw(userMessage, system, messageHistory)) {
       fullText += chunk
       yield { type: 'text', text: chunk }
     }
 
-    if (intent === 'explain' && mightBenefitFromVisual(userMessage, topic)) {
+    if (mightBenefitFromVisual(userMessage, topic)) {
       const svg = await generateSVG({ userMessage, topic, assistantTextSoFar: fullText })
       if (svg) {
         yield { type: 'visual', svg }
