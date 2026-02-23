@@ -3,9 +3,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ChatMessage } from '@/components/ChatMessage'
 import { PracticeProblemCard } from '@/components/session/PracticeProblemCard'
+import { CharacterBubble } from '@/components/character/CharacterBubble'
 import { Button } from '@/components/ui/Button'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import type { PracticeProblem } from '@/lib/ai/types'
+import type { WizardEmotion } from '@/components/character/Wizard'
 
 interface Message {
   id: string
@@ -31,6 +33,8 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
   const [pendingProblems, setPendingProblems] = useState<PracticeProblem[]>([])
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  const [archieEmotion, setArchieEmotion] = useState<WizardEmotion>('idle')
+  const [archieMessage, setArchieMessage] = useState<string | undefined>()
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -62,6 +66,8 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
     setStreamingContent('')
     setPendingSvg(null)
     setPendingProblems([])
+    setArchieEmotion('thinking')
+    setArchieMessage(undefined)
 
     // Convert image to base64 if present
     let imageBase64: string | undefined
@@ -121,6 +127,9 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
                 setPendingSvg(parsed.svg)
               } else if (parsed.type === 'objective_complete') {
                 onObjectiveComplete?.(parsed.objectiveId)
+                setArchieEmotion('celebrate')
+                setArchieMessage('Objective complete! ⭐')
+                setTimeout(() => setArchieEmotion('idle'), 2500)
               } else if (parsed.type === 'practice_problem') {
                 finalProblems.push(parsed.problem)
                 setPendingProblems((prev) => [...prev, parsed.problem])
@@ -148,8 +157,11 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
       setStreamingContent('')
       setPendingSvg(null)
       setPendingProblems([])
+      setArchieEmotion('idle')
     } catch (err) {
       console.error(err)
+      setArchieEmotion('encourage')
+      setTimeout(() => setArchieEmotion('idle'), 2000)
       setMessages((prev) => [
         ...prev,
         {
@@ -180,7 +192,8 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden relative">
+      <CharacterBubble emotion={archieEmotion} message={archieMessage} />
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && !streaming && (

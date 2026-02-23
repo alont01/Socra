@@ -17,6 +17,7 @@ function AuthForm() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { refresh } = useAuth()
@@ -25,6 +26,12 @@ function AuthForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (tab === 'signup' && password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -112,7 +119,7 @@ function AuthForm() {
         {(['login', 'signup'] as Tab[]).map((t) => (
           <button
             key={t}
-            onClick={() => { setTab(t); setError('') }}
+            onClick={() => { setTab(t); setError(''); setConfirmPassword('') }}
             className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
               tab === t
                 ? 'bg-white text-stone-900 shadow-sm'
@@ -165,15 +172,38 @@ function AuthForm() {
           required
         />
 
-        <Input
-          label="Password"
-          type="password"
-          placeholder={tab === 'signup' ? 'At least 8 characters' : 'Your password'}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={tab === 'signup' ? 8 : undefined}
-        />
+        <div>
+          <Input
+            label="Password"
+            type="password"
+            placeholder={tab === 'signup' ? 'At least 8 characters' : 'Your password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={tab === 'signup' ? 8 : undefined}
+          />
+          {tab === 'login' && (
+            <div className="mt-1 text-right">
+              <a
+                href="/auth/forgot-password"
+                className="text-xs text-orange-500 hover:text-orange-600 transition-colors"
+              >
+                Forgot password?
+              </a>
+            </div>
+          )}
+        </div>
+
+        {tab === 'signup' && (
+          <Input
+            label="Confirm Password"
+            type="password"
+            placeholder="Repeat your password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+        )}
 
         {error && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
