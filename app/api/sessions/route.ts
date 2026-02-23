@@ -7,29 +7,34 @@ import { generateObjectives } from '@/lib/ai/lesson-engine'
 
 const anthropic = new Anthropic()
 
-async function generateFirstSessionIntro(
+async function generateSessionOpener(
   sessionId: string,
-  student: { name: string; gradeLevel: string; mathTopics: string }
+  student: { name: string; gradeLevel: string; mathTopics: string },
+  topic: string,
+  isFirstSession: boolean
 ) {
   const topics = (() => {
     try { return JSON.parse(student.mathTopics || '[]') as string[] } catch { return [] }
   })()
   const topicStr = topics.length > 0 ? topics.join(', ') : 'general math'
   const grade = student.gradeLevel || 'their grade level'
+  const sessionTopic = topic || topicStr
+
+  const prompt = isFirstSession
+    ? `You are Archie, a friendly math wizard tutor. Write a SHORT welcome message (2-3 sentences) to ${student.name}, a ${grade} student studying ${topicStr}. Introduce yourself warmly in one sentence. Then immediately ask ONE specific practice question appropriate for ${grade} level ${sessionTopic} — not simpler topics. End with multiple choice options in this exact format: <mc>["A. option", "B. option", "C. option", "D. option"]</mc>. Use LaTeX for math ($...$). Use 1 emoji. Output only the message.`
+    : `You are Archie, a friendly math wizard tutor. Write a SHORT session opener (1-2 sentences) for ${student.name}, a ${grade} student. Greet them briefly and ask ONE specific practice question for ${grade} level ${sessionTopic}. End with multiple choice options in this exact format: <mc>["A. option", "B. option", "C. option", "D. option"]</mc>. Use LaTeX for math ($...$). Output only the message.`
 
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 280,
-    messages: [
-      {
-        role: 'user',
-        content: `You are Archie, a friendly clownfish math tutor. Write a SHORT first message (2-3 sentences) to ${student.name}, a ${grade} student whose math topics are: ${topicStr}. Introduce yourself in one sentence. Then ask them ONE specific practice problem that directly targets ${topicStr} at the ${grade} level — do NOT fall back to basic arithmetic or simpler topics unless that is what they study. The problem should feel like a real homework or exam question for their level. Use LaTeX for math ($...$). Use 1 emoji. Output the message only.`,
-      },
-    ],
+    max_tokens: 320,
+    messages: [{ role: 'user', content: prompt }],
   })
 
-  const content =
+  let content =
     response.content[0].type === 'text' ? response.content[0].text : ''
+
+  // Strip <mc> from saved message (choices are shown via UI buttons, not raw text)
+  content = content.replace(/<mc>[\s\S]*?<\/mc>/, '').trim()
 
   await prisma.message.create({
     data: { sessionId, role: 'assistant', content },
@@ -104,11 +109,14 @@ export async function POST(request: Request) {
       ).catch((err) => console.error('Objective generation failed:', err))
     }
 
-    // First session ever — generate Archie's intro + diagnostic question
-    if (priorSessionCount === 0 && student) {
-      await generateFirstSessionIntro(session.id, student).catch((err) =>
-        console.error('First session intro failed:', err)
-      )
+    // Always generate Archie's opening message for every new session
+    if (student) {
+      generateSessionOpener(
+        session.id,
+        student,
+        topic || '',
+        priorSessionCount === 0
+      ).catch((err) => console.error('Session opener failed:', err))
     }
 
     return NextResponse.json({ session })

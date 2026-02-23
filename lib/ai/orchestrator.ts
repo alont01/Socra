@@ -52,7 +52,13 @@ Core teaching principles:
 - Be warm, encouraging, and patient
 - Break complex problems into smaller steps
 - If a student is stuck, provide a hint, not the solution
-- NEVER use ASCII art or text-based diagrams (dashes, pipes, slashes to draw shapes) — proper SVG diagrams are generated separately when needed`
+- NEVER use ASCII art or text-based diagrams (dashes, pipes, slashes to draw shapes) — proper SVG diagrams are generated separately when needed
+
+Multiple choice:
+- For most questions (comprehension checks, diagnostic questions, concept quizzes), include multiple choice options at the very END of your response using this exact format:
+<mc>["A. option one", "B. option two", "C. option three", "D. option four"]</mc>
+- Include 3–4 choices. Exactly one must be correct; distractors should reflect common mistakes.
+- Skip <mc> only for: open-ended reflection prompts, multi-step calculation problems where showing work matters more, or when the student just asked a conceptual question mid-explanation.`
 
   if (topic) {
     system += `\n\nCurrent session topic: ${topic}`

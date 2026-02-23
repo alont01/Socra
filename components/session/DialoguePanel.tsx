@@ -32,6 +32,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
   const [streamingContent, setStreamingContent] = useState('')
   const [pendingSvg, setPendingSvg] = useState<string | null>(null)
   const [pendingProblems, setPendingProblems] = useState<PracticeProblem[]>([])
+  const [pendingChoices, setPendingChoices] = useState<string[]>([])
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -56,11 +57,12 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const send = useCallback(async () => {
-    const content = input.trim()
+  const send = useCallback(async (choiceOverride?: string) => {
+    const content = choiceOverride ?? input.trim()
     if (!content || streaming) return
 
-    setInput('')
+    if (!choiceOverride) setInput('')
+    setPendingChoices([])
     setStreaming(true)
     setStreamingContent('')
     setPendingSvg(null)
@@ -87,6 +89,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
       content: imageFile ? `[Image attached] ${content}` : content,
       createdAt: new Date().toISOString(),
     }
+
     setMessages((prev) => [...prev, userMsg])
 
     try {
@@ -119,7 +122,8 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
 
               if (parsed.type === 'text') {
                 fullText += parsed.text
-                setStreamingContent(fullText)
+                // Strip any <mc>...</mc> block from streaming display
+                setStreamingContent(fullText.replace(/<mc>[\s\S]*?<\/mc>/, '').trim())
               } else if (parsed.type === 'visual') {
                 finalSvg = parsed.svg
                 setPendingSvg(parsed.svg)
@@ -127,6 +131,8 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
                 onObjectiveComplete?.(parsed.objectiveId)
                 onCharacterUpdate?.('celebrate', 'Objective complete! ⭐')
                 setTimeout(() => onCharacterUpdate?.('idle'), 2500)
+              } else if (parsed.type === 'choices') {
+                setPendingChoices(parsed.choices)
               } else if (parsed.type === 'practice_problem') {
                 finalProblems.push(parsed.problem)
                 setPendingProblems((prev) => [...prev, parsed.problem])
@@ -145,7 +151,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: fullText,
+        content: fullText.replace(/<mc>[\s\S]*?<\/mc>/, '').trim(),
         createdAt: new Date().toISOString(),
         svg: finalSvg,
         problems: finalProblems.length > 0 ? finalProblems : undefined,
@@ -204,7 +210,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
           </div>
         )}
 
-        {messages.map((msg) => (
+        {messages.map((msg, idx) => (
           <div key={msg.id}>
             <ChatMessage role={msg.role} content={msg.content} />
             {msg.svg && (
@@ -220,6 +226,23 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
                 ))}
               </div>
             )}
+            {/* Choice buttons on the last assistant message when streaming is done */}
+            {msg.role === 'assistant' &&
+              idx === messages.length - 1 &&
+              !streaming &&
+              pendingChoices.length > 0 && (
+                <div className="mt-3 ml-11 flex flex-wrap gap-2">
+                  {pendingChoices.map((choice, i) => (
+                    <button
+                      key={i}
+                      onClick={() => send(choice)}
+                      className="px-4 py-2 rounded-xl border-2 border-purple-200 bg-white text-stone-700 text-sm font-medium hover:border-purple-400 hover:bg-purple-50 transition-colors text-left"
+                    >
+                      {choice}
+                    </button>
+                  ))}
+                </div>
+              )}
           </div>
         ))}
 
@@ -312,7 +335,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
             style={{ minHeight: '44px', maxHeight: '160px' }}
             disabled={streaming}
           />
-          <Button onClick={send} disabled={!input.trim() || streaming} className="shrink-0 h-11">
+          <Button onClick={() => send()} disabled={!input.trim() || streaming} className="shrink-0 h-11">
             Send →
           </Button>
         </div>

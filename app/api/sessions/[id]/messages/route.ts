@@ -83,10 +83,29 @@ export async function POST(
             )
           }
 
-          // Save assistant message
+          // Extract and strip <mc> choices from the assistant text
+          const mcMatch = assistantText.match(/<mc>(\[[\s\S]*?\])<\/mc>/)
+          let choices: string[] | null = null
+          if (mcMatch) {
+            try {
+              choices = JSON.parse(mcMatch[1]) as string[]
+              assistantText = assistantText.replace(/<mc>[\s\S]*?<\/mc>/, '').trim()
+            } catch {
+              // malformed — ignore
+            }
+          }
+
+          // Save clean assistant message
           await prisma.message.create({
             data: { sessionId, role: 'assistant', content: assistantText },
           })
+
+          // Emit choices event after text is done
+          if (choices && choices.length > 0) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ type: 'choices', choices })}\n\n`)
+            )
+          }
 
           // Update session timestamp
           await prisma.session.update({

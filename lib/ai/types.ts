@@ -5,6 +5,7 @@ export type SSEEvent =
   | { type: 'visual'; svg: string }
   | { type: 'objective_complete'; objectiveId: string }
   | { type: 'practice_problem'; problem: PracticeProblem }
+  | { type: 'choices'; choices: string[] }
 
 export interface PracticeProblem {
   id: string
