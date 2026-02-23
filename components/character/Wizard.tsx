@@ -6,31 +6,30 @@ export type WizardEmotion = 'idle' | 'thinking' | 'celebrate' | 'encourage'
 
 interface WizardProps {
   emotion?: WizardEmotion
-  size?: 'sm' | 'lg'
+  size?: 'xs' | 'sm' | 'lg'
 }
 
-const MATH_SYMBOLS = ['∑', 'π', '∫', '√', '∞', '△', 'θ', '±']
+const SPARKLES = ['✦', '★', '✧', '⭐', '✨', '∑', 'π', '∞']
 
 type Particle = { id: number; symbol: string; x: number; delay: number }
 
-// Clownfish character (Marlin-inspired) — orange body, white stripes, big eyes
+// Portrait wizard: viewBox 80×100
 export function Wizard({ emotion = 'idle', size = 'lg' }: WizardProps) {
   const [particles, setParticles] = useState<Particle[]>([])
 
-  // viewBox 120×100, aspect ratio 6:5
-  const w = size === 'lg' ? 132 : 72
-  const h = Math.round(w * (100 / 120))
+  const w = size === 'lg' ? 80 : size === 'sm' ? 60 : 40
+  const h = Math.round(w * (100 / 80))
 
   useEffect(() => {
     if (emotion !== 'celebrate') return
-    const spawned: Particle[] = Array.from({ length: 5 }, (_, i) => ({
+    const spawned: Particle[] = Array.from({ length: 6 }, (_, i) => ({
       id: Date.now() + i,
-      symbol: MATH_SYMBOLS[Math.floor(Math.random() * MATH_SYMBOLS.length)],
-      x: (Math.random() - 0.5) * 60,
-      delay: i * 0.13,
+      symbol: SPARKLES[Math.floor(Math.random() * SPARKLES.length)],
+      x: (Math.random() - 0.5) * 50,
+      delay: i * 0.12,
     }))
     setParticles(spawned)
-    const t = setTimeout(() => setParticles([]), 1300)
+    const t = setTimeout(() => setParticles([]), 1400)
     return () => clearTimeout(t)
   }, [emotion])
 
@@ -41,28 +40,64 @@ export function Wizard({ emotion = 'idle', size = 'lg' }: WizardProps) {
     encourage: 'animate-wizard-wave',
   }[emotion]
 
-  // Mouth at the right (front) of the fish
+  // Iris position shifts per emotion
+  const leftIris =
+    emotion === 'thinking'
+      ? { cx: 31, cy: 51 }   // looking up
+      : emotion === 'encourage'
+      ? { cx: 31, cy: 55 }   // soft downward (warm look)
+      : { cx: 31, cy: 53 }   // idle / celebrate (celebrate uses arcs instead)
+
+  const rightIris =
+    emotion === 'thinking'
+      ? { cx: 49, cy: 51 }
+      : emotion === 'encourage'
+      ? { cx: 49, cy: 55 }
+      : { cx: 49, cy: 53 }
+
+  // Eyebrow paths
+  const leftBrow =
+    emotion === 'thinking'
+      ? 'M 23,44 Q 30,39 37,43'   // raised & arched
+      : emotion === 'celebrate'
+      ? 'M 23,44 Q 30,40 37,44'   // lifted excitement
+      : emotion === 'encourage'
+      ? 'M 24,47 Q 30,44 36,47'   // gentle & soft
+      : 'M 24,46 Q 30,43 36,46'   // idle
+
+  const rightBrow =
+    emotion === 'thinking'
+      ? 'M 43,43 Q 50,39 57,44'
+      : emotion === 'celebrate'
+      ? 'M 43,44 Q 50,40 57,44'
+      : emotion === 'encourage'
+      ? 'M 44,47 Q 50,44 56,47'
+      : 'M 44,46 Q 50,43 56,46'
+
+  // Mouth paths
   const mouth =
     emotion === 'celebrate'
-      ? 'M 97,52 Q 106,60 97,68'
+      ? 'M 30,67 Q 40,77 50,67'      // big open grin
       : emotion === 'thinking'
-      ? 'M 100,57 L 100,63'
-      : 'M 100,55 Q 106,60 100,65'
+      ? 'M 36,68 Q 40,66 44,68'      // flat / barely curved
+      : emotion === 'encourage'
+      ? 'M 33,67 Q 40,73 47,67'      // warm wide smile
+      : 'M 33,67 Q 40,72 47,67'      // idle gentle smile
 
   return (
     <div
       className="relative inline-flex items-end justify-center"
       style={{ width: w, height: h }}
     >
-      {/* Math bubbles float up on celebrate */}
+      {/* Sparkle particles on celebrate */}
       {particles.map((p) => (
         <span
           key={p.id}
-          className="absolute font-bold pointer-events-none select-none animate-float-up text-orange-400"
+          className="absolute font-bold pointer-events-none select-none animate-float-up text-yellow-400"
           style={{
             left: `calc(50% + ${p.x}px)`,
-            top: '0',
-            fontSize: size === 'lg' ? 16 : 9,
+            top: '5%',
+            fontSize: size === 'lg' ? 13 : size === 'sm' ? 9 : 6,
             animationDelay: `${p.delay}s`,
           }}
         >
@@ -72,137 +107,162 @@ export function Wizard({ emotion = 'idle', size = 'lg' }: WizardProps) {
 
       <div className={wrapperAnim} style={{ width: w, height: h }}>
         <svg
-          viewBox="0 0 120 100"
+          viewBox="0 0 80 100"
           xmlns="http://www.w3.org/2000/svg"
           width={w}
           height={h}
         >
-          <defs>
-            {/* Clip path to keep stripes inside the body */}
-            <clipPath id="archie-body-clip">
-              <ellipse cx="57" cy="52" rx="42" ry="28" />
-            </clipPath>
-          </defs>
+          {/* Ground shadow */}
+          <ellipse cx="40" cy="98" rx="18" ry="3.5" fill="rgba(0,0,0,0.07)" />
 
-          {/* Water shadow */}
-          <ellipse cx="58" cy="88" rx="36" ry="6" fill="rgba(0,0,0,0.06)" />
-
-          {/* ── TAIL FIN (behind body) ── */}
+          {/* ── ROBE ── */}
           <path
-            d="M 16,42 Q 2,34 1,50 Q 2,66 16,58 Q 13,52 16,42 Z"
-            fill="#c2410c"
+            d="M 27,72 Q 14,86 11,98 L 69,98 Q 66,86 53,72 Z"
+            fill="#5b21b6"
           />
-          {/* Tail fin lines */}
-          <line x1="16" y1="50" x2="4" y2="42" stroke="#9a3412" strokeWidth="1" opacity="0.5" />
-          <line x1="16" y1="50" x2="4" y2="50" stroke="#9a3412" strokeWidth="1" opacity="0.5" />
-          <line x1="16" y1="50" x2="4" y2="58" stroke="#9a3412" strokeWidth="1" opacity="0.5" />
-
-          {/* ── BODY ── */}
-          <ellipse cx="57" cy="52" rx="42" ry="28" fill="#f97316" />
-
-          {/* ── WHITE STRIPES (clipped to body) ── */}
-          <g clipPath="url(#archie-body-clip)">
-            {/* Tail-side stripe */}
-            <ellipse cx="29" cy="52" rx="6" ry="30" fill="white" />
-            <ellipse cx="29" cy="52" rx="6" ry="30" fill="none" stroke="#1c1917" strokeWidth="1.5" />
-            {/* Middle stripe */}
-            <ellipse cx="49" cy="52" rx="7" ry="30" fill="white" />
-            <ellipse cx="49" cy="52" rx="7" ry="30" fill="none" stroke="#1c1917" strokeWidth="1.5" />
-            {/* Head stripe (near eye) */}
-            <ellipse cx="71" cy="52" rx="7" ry="30" fill="white" />
-            <ellipse cx="71" cy="52" rx="7" ry="30" fill="none" stroke="#1c1917" strokeWidth="1.5" />
-          </g>
-
-          {/* Body outline */}
-          <ellipse cx="57" cy="52" rx="42" ry="28" fill="none" stroke="#c2410c" strokeWidth="2" />
-
-          {/* ── DORSAL FIN (top) ── */}
+          {/* Robe sheen */}
           <path
-            d="M 40,24 Q 52,7 64,24"
-            fill="#fb923c"
-            stroke="#c2410c"
-            strokeWidth="1"
-            opacity="0.85"
+            d="M 35,73 Q 30,84 29,98"
+            stroke="#7c3aed"
+            strokeWidth="1.5"
+            fill="none"
+            opacity="0.35"
+          />
+          {/* Robe star decorations */}
+          <circle cx="40" cy="84" r="2" fill="#a78bfa" opacity="0.85" />
+          <circle cx="29" cy="91" r="1.5" fill="#a78bfa" opacity="0.65" />
+          <circle cx="52" cy="89" r="1.5" fill="#a78bfa" opacity="0.65" />
+          <circle cx="43" cy="94" r="1" fill="#c4b5fd" opacity="0.6" />
+
+          {/* ── COLLAR / NECK ── */}
+          <path d="M 27,72 Q 36,81 40,76 Q 44,81 53,72" fill="#7c3aed" />
+          {/* Collar jewel */}
+          <circle cx="40" cy="74" r="3.5" fill="#fbbf24" />
+          <circle cx="40" cy="74" r="3.5" fill="none" stroke="#f59e0b" strokeWidth="0.8" />
+          <circle cx="41" cy="73" r="1" fill="white" opacity="0.7" />
+
+          {/* ── HEAD ── */}
+          <circle cx="40" cy="53" r="22" fill="#fef3c7" />
+          <circle cx="40" cy="53" r="22" fill="none" stroke="#fde68a" strokeWidth="1" />
+
+          {/* ── HAT BRIM ── */}
+          <ellipse cx="40" cy="33" rx="28" ry="6" fill="#4c1d95" />
+          <ellipse cx="40" cy="33" rx="28" ry="6" fill="none" stroke="#3b0764" strokeWidth="1" />
+
+          {/* ── HAT CONE ── */}
+          <path d="M 40,2 L 14,33 L 66,33 Z" fill="#5b21b6" />
+          {/* Cone shading */}
+          <path d="M 40,2 L 16,30" stroke="#4c1d95" strokeWidth="2" opacity="0.4" />
+          {/* Cone highlight */}
+          <path d="M 40,2 L 58,26" stroke="#7c3aed" strokeWidth="1.2" opacity="0.3" />
+
+          {/* ── HAT STAR ── */}
+          <polygon
+            points="40,6 41.8,11.5 47.5,11.5 43,14.8 44.8,20 40,16.8 35.2,20 37,14.8 32.5,11.5 38.2,11.5"
+            fill="#fbbf24"
+          />
+          <polygon
+            points="40,6 41.8,11.5 47.5,11.5 43,14.8 44.8,20 40,16.8 35.2,20 37,14.8 32.5,11.5 38.2,11.5"
+            fill="none"
+            stroke="#f59e0b"
+            strokeWidth="0.5"
           />
 
-          {/* ── PECTORAL FIN (small, side) ── */}
-          <ellipse
-            cx="80"
-            cy="68"
-            rx="13"
-            ry="6"
-            fill="#fb923c"
-            stroke="#c2410c"
-            strokeWidth="1"
-            opacity="0.75"
-            transform="rotate(-28 80 68)"
+          {/* ── CHEEKS ── */}
+          <circle cx="21" cy="58" r="6" fill="#f87171" opacity="0.18" />
+          <circle cx="59" cy="58" r="6" fill="#f87171" opacity="0.18" />
+
+          {/* ── EYEBROWS ── */}
+          <path
+            d={leftBrow}
+            stroke="#92400e"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+          />
+          <path
+            d={rightBrow}
+            stroke="#92400e"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
           />
 
-          {/* ── EYE (Pixar-large!) ── */}
-          {/* White sclera */}
-          <circle cx="87" cy="44" r="14" fill="white" />
-          <circle cx="87" cy="44" r="14" fill="none" stroke="#c2410c" strokeWidth="1.5" />
-
+          {/* ── EYES ── */}
           {emotion === 'celebrate' ? (
             <>
-              {/* Happy squint arc */}
+              {/* Happy squint arcs */}
               <path
-                d="M 73,44 Q 87,32 101,44"
-                stroke="#1c1917" strokeWidth="3" fill="none" strokeLinecap="round"
+                d="M 24,51 Q 31,44 38,51"
+                stroke="#1c1917"
+                strokeWidth="2.5"
+                fill="none"
+                strokeLinecap="round"
               />
-            </>
-          ) : emotion === 'thinking' ? (
-            <>
-              {/* Eye looking up */}
-              <circle cx="87" cy="41" r="9" fill="#fb923c" />
-              <circle cx="87" cy="40" r="6" fill="#1c1917" />
-              <circle cx="90" cy="37" r="2.5" fill="white" />
-              {/* Raised eyebrow fin */}
               <path
-                d="M 77,28 Q 87,24 97,28"
-                stroke="#c2410c" strokeWidth="2" fill="none" strokeLinecap="round"
+                d="M 42,51 Q 49,44 56,51"
+                stroke="#1c1917"
+                strokeWidth="2.5"
+                fill="none"
+                strokeLinecap="round"
               />
             </>
           ) : (
             <>
-              {/* Normal warm eye */}
-              <circle cx="87" cy="46" r="9" fill="#fb923c" />
-              <circle cx="87" cy="47" r="6" fill="#1c1917" />
-              <circle cx="90" cy="43" r="2.5" fill="white" />
+              {/* Left eye */}
+              <circle cx="31" cy="53" r="7.5" fill="white" />
+              <circle cx="31" cy="53" r="7.5" fill="none" stroke="#e8c98a" strokeWidth="0.5" />
+              <circle cx={leftIris.cx} cy={leftIris.cy} r="4.5" fill="#f59e0b" />
+              <circle cx={leftIris.cx} cy={leftIris.cy} r="3" fill="#1c1917" />
+              <circle cx={leftIris.cx + 1.5} cy={leftIris.cy - 2} r="1.5" fill="white" />
+
+              {/* Right eye */}
+              <circle cx="49" cy="53" r="7.5" fill="white" />
+              <circle cx="49" cy="53" r="7.5" fill="none" stroke="#e8c98a" strokeWidth="0.5" />
+              <circle cx={rightIris.cx} cy={rightIris.cy} r="4.5" fill="#f59e0b" />
+              <circle cx={rightIris.cx} cy={rightIris.cy} r="3" fill="#1c1917" />
+              <circle cx={rightIris.cx + 1.5} cy={rightIris.cy - 2} r="1.5" fill="white" />
             </>
           )}
 
-          {/* Thinking bubbles (float toward top-right) */}
-          {emotion === 'thinking' && (
-            <>
-              <circle cx="102" cy="32" r="3" fill="white" stroke="#fb923c" strokeWidth="1">
-                <animate attributeName="opacity" values="0;1;0" dur="1.3s" begin="0s" repeatCount="indefinite" />
-                <animate attributeName="cy" values="35;26;17" dur="1.3s" begin="0s" repeatCount="indefinite" />
-              </circle>
-              <circle cx="108" cy="24" r="3" fill="white" stroke="#f97316" strokeWidth="1">
-                <animate attributeName="opacity" values="0;1;0" dur="1.3s" begin="0.43s" repeatCount="indefinite" />
-                <animate attributeName="cy" values="27;18;9" dur="1.3s" begin="0.43s" repeatCount="indefinite" />
-              </circle>
-              <circle cx="114" cy="16" r="3" fill="white" stroke="#ea580c" strokeWidth="1">
-                <animate attributeName="opacity" values="0;1;0" dur="1.3s" begin="0.86s" repeatCount="indefinite" />
-                <animate attributeName="cy" values="19;10;1" dur="1.3s" begin="0.86s" repeatCount="indefinite" />
-              </circle>
-            </>
-          )}
+          {/* ── NOSE ── */}
+          <ellipse cx="40" cy="60" rx="2" ry="1.5" fill="#e8b48a" />
 
           {/* ── MOUTH ── */}
-          <path d={mouth} stroke="#c2410c" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-
-          {/* Gill line */}
           <path
-            d="M 72,36 Q 75,52 72,68"
-            stroke="#c2410c" strokeWidth="1.2" fill="none" opacity="0.4"
+            d={mouth}
+            stroke="#92400e"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
           />
 
-          {/* Animated scale shimmer */}
-          <ellipse cx="50" cy="48" rx="8" ry="5" fill="white" opacity="0.08">
-            <animate attributeName="opacity" values="0.05;0.12;0.05" dur="2.5s" repeatCount="indefinite" />
-          </ellipse>
+          {/* ── THINKING SPARKLES ── */}
+          {emotion === 'thinking' && (
+            <>
+              <circle cx="60" cy="26" r="3" fill="white" stroke="#a78bfa" strokeWidth="1">
+                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0s" repeatCount="indefinite" />
+                <animate attributeName="cy" values="30;22;14" dur="1.2s" begin="0s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="67" cy="18" r="3" fill="white" stroke="#7c3aed" strokeWidth="1">
+                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+                <animate attributeName="cy" values="22;14;6" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="74" cy="10" r="3" fill="white" stroke="#5b21b6" strokeWidth="1">
+                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+                <animate attributeName="cy" values="14;6;-2" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+              </circle>
+            </>
+          )}
+
+          {/* ── WAND (encourage only) ── */}
+          {emotion === 'encourage' && (
+            <>
+              <line x1="58" y1="72" x2="72" y2="88" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="72" cy="88" r="3" fill="#fbbf24" />
+              <circle cx="72" cy="88" r="3" fill="none" stroke="#f59e0b" strokeWidth="0.8" />
+            </>
+          )}
         </svg>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ChatMessage } from '@/components/ChatMessage'
 import { PracticeProblemCard } from '@/components/session/PracticeProblemCard'
+import { Wizard } from '@/components/character/Wizard'
 import { Button } from '@/components/ui/Button'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import type { PracticeProblem } from '@/lib/ai/types'
@@ -243,9 +244,9 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete,
         )}
 
         {streaming && !streamingContent && (
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-sm font-bold text-white shrink-0">
-              ∑
+          <div className="flex gap-3 items-end">
+            <div className="shrink-0">
+              <Wizard emotion="thinking" size="xs" />
             </div>
             <div className="bg-white border border-orange-100 shadow-sm rounded-2xl rounded-tl-sm px-4 py-3">
               <LoadingDots />

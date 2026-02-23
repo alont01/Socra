@@ -1,6 +1,7 @@
 'use client'
 
 import MathRenderer from './MathRenderer'
+import { Wizard } from '@/components/character/Wizard'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -25,15 +26,15 @@ export function ChatMessage({ role, content, streaming = false }: ChatMessagePro
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       {/* Avatar */}
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-          isUser
-            ? 'bg-stone-200 text-stone-600'
-            : 'bg-orange-500 text-white'
-        }`}
-      >
-        {isUser ? 'S' : '∑'}
-      </div>
+      {isUser ? (
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-stone-200 text-stone-600">
+          S
+        </div>
+      ) : (
+        <div className="shrink-0 self-end">
+          <Wizard emotion={streaming ? 'thinking' : 'idle'} size="xs" />
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 max-w-[80%]">
         {/* Bubble */}
