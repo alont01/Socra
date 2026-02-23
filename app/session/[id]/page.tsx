@@ -136,7 +136,7 @@ export default function SessionPage({
     <div className="h-screen flex flex-col bg-[#FFFBF5] overflow-hidden">
       <SessionHeader title={session.title} topic={session.topic} />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0">
         <LessonPanel
           topic={session.topic}
           studentName={session.student?.name}

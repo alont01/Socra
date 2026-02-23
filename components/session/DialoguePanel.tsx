@@ -192,10 +192,10 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden relative">
+    <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
       <CharacterBubble emotion={archieEmotion} message={archieMessage} />
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {messages.length === 0 && !streaming && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-sm">
