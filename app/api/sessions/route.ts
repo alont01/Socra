@@ -23,7 +23,7 @@ async function generateFirstSessionIntro(
     messages: [
       {
         role: 'user',
-        content: `You are Archie, a friendly magical math wizard. Write a SHORT first message (3 sentences max) to ${student.name}, a ${grade} student. Introduce yourself warmly, then immediately ask them ONE math practice problem appropriate for ${grade} (topics: ${topicStr}). Use LaTeX for math ($...$). Use 1-2 magic-themed emoji. Output the message only.`,
+        content: `You are Archie, a friendly clownfish math tutor. Write a SHORT first message (2-3 sentences) to ${student.name}, a ${grade} student whose math topics are: ${topicStr}. Introduce yourself in one sentence. Then ask them ONE specific practice problem that directly targets ${topicStr} at the ${grade} level — do NOT fall back to basic arithmetic or simpler topics unless that is what they study. The problem should feel like a real homework or exam question for their level. Use LaTeX for math ($...$). Use 1 emoji. Output the message only.`,
       },
     ],
   })

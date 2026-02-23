@@ -23,9 +23,9 @@ export function CharacterBubble({ emotion, message }: CharacterBubbleProps) {
   }, [message])
 
   return (
-    <div className="absolute bottom-[88px] left-4 z-20 flex flex-col items-start gap-1.5 pointer-events-none select-none">
+    <div className="flex flex-col items-start gap-1.5 pointer-events-none select-none">
       {visibleMsg && (
-        <div className="animate-fade-in-up bg-white border border-purple-200 rounded-2xl rounded-bl-sm px-3 py-2 shadow-md max-w-[190px] text-xs text-stone-700 leading-relaxed">
+        <div className="animate-fade-in-up bg-white border border-orange-200 rounded-2xl rounded-bl-sm px-3 py-2 shadow-md max-w-[190px] text-xs text-stone-700 leading-relaxed">
           {visibleMsg}
         </div>
       )}

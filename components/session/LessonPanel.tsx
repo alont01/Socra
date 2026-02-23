@@ -2,15 +2,19 @@
 
 import { useState } from 'react'
 import type { LessonObjective } from '@/lib/ai/types'
+import { CharacterBubble } from '@/components/character/CharacterBubble'
+import type { WizardEmotion } from '@/components/character/Wizard'
 
 interface LessonPanelProps {
   topic: string
   studentName?: string
   gradeLevel?: string
   objectives: LessonObjective[]
+  archieEmotion?: WizardEmotion
+  archieMessage?: string
 }
 
-export function LessonPanel({ topic, studentName, gradeLevel, objectives }: LessonPanelProps) {
+export function LessonPanel({ topic, studentName, gradeLevel, objectives, archieEmotion = 'idle', archieMessage }: LessonPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   const completed = objectives.filter((o) => o.completed).length
@@ -132,9 +136,10 @@ export function LessonPanel({ topic, studentName, gradeLevel, objectives }: Less
         )}
       </div>
 
-      {/* Study tip footer */}
-      <div className="p-4 border-t border-orange-50">
-        <div className="bg-orange-50 rounded-xl p-3 border border-orange-100">
+      {/* Archie character + study tip footer */}
+      <div className="p-4 border-t border-orange-50 flex flex-col items-start gap-3">
+        <CharacterBubble emotion={archieEmotion} message={archieMessage} />
+        <div className="bg-orange-50 rounded-xl p-3 border border-orange-100 w-full">
           <p className="text-xs font-semibold text-orange-700 mb-1">Study Tip</p>
           <p className="text-xs text-stone-600">
             Try explaining concepts in your own words — teaching is the best way to learn!

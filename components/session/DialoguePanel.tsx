@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ChatMessage } from '@/components/ChatMessage'
 import { PracticeProblemCard } from '@/components/session/PracticeProblemCard'
-import { CharacterBubble } from '@/components/character/CharacterBubble'
 import { Button } from '@/components/ui/Button'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import type { PracticeProblem } from '@/lib/ai/types'
@@ -22,9 +21,10 @@ interface DialoguePanelProps {
   sessionId: string
   initialMessages: Message[]
   onObjectiveComplete?: (id: string) => void
+  onCharacterUpdate?: (emotion: WizardEmotion, message?: string) => void
 }
 
-export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete }: DialoguePanelProps) {
+export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete, onCharacterUpdate }: DialoguePanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -33,8 +33,6 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
   const [pendingProblems, setPendingProblems] = useState<PracticeProblem[]>([])
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
-  const [archieEmotion, setArchieEmotion] = useState<WizardEmotion>('idle')
-  const [archieMessage, setArchieMessage] = useState<string | undefined>()
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -66,8 +64,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
     setStreamingContent('')
     setPendingSvg(null)
     setPendingProblems([])
-    setArchieEmotion('thinking')
-    setArchieMessage(undefined)
+    onCharacterUpdate?.('thinking')
 
     // Convert image to base64 if present
     let imageBase64: string | undefined
@@ -127,9 +124,8 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
                 setPendingSvg(parsed.svg)
               } else if (parsed.type === 'objective_complete') {
                 onObjectiveComplete?.(parsed.objectiveId)
-                setArchieEmotion('celebrate')
-                setArchieMessage('Objective complete! ⭐')
-                setTimeout(() => setArchieEmotion('idle'), 2500)
+                onCharacterUpdate?.('celebrate', 'Objective complete! ⭐')
+                setTimeout(() => onCharacterUpdate?.('idle'), 2500)
               } else if (parsed.type === 'practice_problem') {
                 finalProblems.push(parsed.problem)
                 setPendingProblems((prev) => [...prev, parsed.problem])
@@ -157,11 +153,11 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
       setStreamingContent('')
       setPendingSvg(null)
       setPendingProblems([])
-      setArchieEmotion('idle')
+      onCharacterUpdate?.('idle')
     } catch (err) {
       console.error(err)
-      setArchieEmotion('encourage')
-      setTimeout(() => setArchieEmotion('idle'), 2000)
+      onCharacterUpdate?.('encourage')
+      setTimeout(() => onCharacterUpdate?.('idle'), 2000)
       setMessages((prev) => [
         ...prev,
         {
@@ -175,7 +171,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
       setStreaming(false)
       textareaRef.current?.focus()
     }
-  }, [input, streaming, sessionId, selectedImage, onObjectiveComplete])
+  }, [input, streaming, sessionId, selectedImage, onObjectiveComplete, onCharacterUpdate])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -192,8 +188,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
-      <CharacterBubble emotion={archieEmotion} message={archieMessage} />
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
         {messages.length === 0 && !streaming && (
@@ -262,7 +257,7 @@ export function DialoguePanel({ sessionId, initialMessages, onObjectiveComplete 
       </div>
 
       {/* Input */}
-      <div className="border-t border-orange-100 bg-white p-4">
+      <div className="border-t border-orange-100 bg-white p-4 shrink-0">
         {/* Image preview */}
         {imagePreviewUrl && (
           <div className="mb-3 flex items-center gap-2">

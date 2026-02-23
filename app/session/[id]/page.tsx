@@ -8,6 +8,7 @@ import { LessonPanel } from '@/components/session/LessonPanel'
 import { DialoguePanel } from '@/components/session/DialoguePanel'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import type { LessonObjective } from '@/lib/ai/types'
+import type { WizardEmotion } from '@/components/character/Wizard'
 
 interface Message {
   id: string
@@ -39,6 +40,8 @@ export default function SessionPage({
   const [session, setSession] = useState<Session | null>(null)
   const [sessionLoading, setSessionLoading] = useState(true)
   const [objectives, setObjectives] = useState<LessonObjective[]>([])
+  const [archieEmotion, setArchieEmotion] = useState<WizardEmotion>('idle')
+  const [archieMessage, setArchieMessage] = useState<string | undefined>()
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -122,6 +125,11 @@ export default function SessionPage({
     )
   }, [])
 
+  const handleCharacterUpdate = useCallback((emotion: WizardEmotion, message?: string) => {
+    setArchieEmotion(emotion)
+    setArchieMessage(message)
+  }, [])
+
   if (authLoading || sessionLoading) {
     return (
       <div className="min-h-screen bg-[#FFFBF5] flex items-center justify-center">
@@ -142,11 +150,14 @@ export default function SessionPage({
           studentName={session.student?.name}
           gradeLevel={session.student?.gradeLevel}
           objectives={objectives}
+          archieEmotion={archieEmotion}
+          archieMessage={archieMessage}
         />
         <DialoguePanel
           sessionId={id}
           initialMessages={session.messages}
           onObjectiveComplete={handleObjectiveComplete}
+          onCharacterUpdate={handleCharacterUpdate}
         />
       </div>
     </div>

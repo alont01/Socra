@@ -9,23 +9,24 @@ interface WizardProps {
   size?: 'sm' | 'lg'
 }
 
-const MATH_SYMBOLS = ['∑', 'π', '∫', '√', '∞', '±', 'θ', '△']
+const MATH_SYMBOLS = ['∑', 'π', '∫', '√', '∞', '△', 'θ', '±']
 
 type Particle = { id: number; symbol: string; x: number; delay: number }
 
+// Clownfish character (Marlin-inspired) — orange body, white stripes, big eyes
 export function Wizard({ emotion = 'idle', size = 'lg' }: WizardProps) {
   const [particles, setParticles] = useState<Particle[]>([])
 
-  // viewBox is 100×110, aspect ratio 10:11
-  const w = size === 'lg' ? 130 : 58
-  const h = Math.round(w * 1.1)
+  // viewBox 120×100, aspect ratio 6:5
+  const w = size === 'lg' ? 132 : 72
+  const h = Math.round(w * (100 / 120))
 
   useEffect(() => {
     if (emotion !== 'celebrate') return
     const spawned: Particle[] = Array.from({ length: 5 }, (_, i) => ({
       id: Date.now() + i,
       symbol: MATH_SYMBOLS[Math.floor(Math.random() * MATH_SYMBOLS.length)],
-      x: (Math.random() - 0.5) * 70,
+      x: (Math.random() - 0.5) * 60,
       delay: i * 0.13,
     }))
     setParticles(spawned)
@@ -40,27 +41,28 @@ export function Wizard({ emotion = 'idle', size = 'lg' }: WizardProps) {
     encourage: 'animate-wizard-wave',
   }[emotion]
 
+  // Mouth at the right (front) of the fish
   const mouth =
     emotion === 'celebrate'
-      ? 'M 39 87 Q 50 96 61 87'
+      ? 'M 97,52 Q 106,60 97,68'
       : emotion === 'thinking'
-      ? 'M 44 90 L 56 90'
-      : 'M 42 88 Q 50 95 58 88'
+      ? 'M 100,57 L 100,63'
+      : 'M 100,55 Q 106,60 100,65'
 
   return (
     <div
       className="relative inline-flex items-end justify-center"
       style={{ width: w, height: h }}
     >
-      {/* Math symbol particles on celebrate */}
+      {/* Math bubbles float up on celebrate */}
       {particles.map((p) => (
         <span
           key={p.id}
-          className="absolute font-bold pointer-events-none select-none animate-float-up text-violet-500"
+          className="absolute font-bold pointer-events-none select-none animate-float-up text-orange-400"
           style={{
             left: `calc(50% + ${p.x}px)`,
             top: '0',
-            fontSize: size === 'lg' ? 17 : 9,
+            fontSize: size === 'lg' ? 16 : 9,
             animationDelay: `${p.delay}s`,
           }}
         >
@@ -70,128 +72,137 @@ export function Wizard({ emotion = 'idle', size = 'lg' }: WizardProps) {
 
       <div className={wrapperAnim} style={{ width: w, height: h }}>
         <svg
-          viewBox="0 0 100 110"
+          viewBox="0 0 120 100"
           xmlns="http://www.w3.org/2000/svg"
           width={w}
           height={h}
         >
-          {/* ── HAT SHADOW (depth) ── */}
-          <ellipse cx="50" cy="61" rx="35" ry="5" fill="rgba(0,0,0,0.07)" />
+          <defs>
+            {/* Clip path to keep stripes inside the body */}
+            <clipPath id="archie-body-clip">
+              <ellipse cx="57" cy="52" rx="42" ry="28" />
+            </clipPath>
+          </defs>
 
-          {/* ── HAT BODY ── */}
-          {/* Dark side */}
-          <polygon points="50,4 11,59 89,59" fill="#4c1d95" />
-          {/* Lit face */}
-          <polygon points="50,7 14,57 86,57" fill="#6d28d9" />
+          {/* Water shadow */}
+          <ellipse cx="58" cy="88" rx="36" ry="6" fill="rgba(0,0,0,0.06)" />
 
-          {/* Hat sparkle dots */}
-          <circle cx="35" cy="32" r="2" fill="#c4b5fd">
-            <animate attributeName="opacity" values="0.4;1;0.4" dur="2.2s" repeatCount="indefinite" />
-            <animate attributeName="r" values="1.5;2.5;1.5" dur="2.2s" repeatCount="indefinite" />
-          </circle>
-          <circle cx="62" cy="24" r="1.5" fill="#e9d5ff">
-            <animate attributeName="opacity" values="1;0.3;1" dur="1.7s" repeatCount="indefinite" />
-          </circle>
-          <circle cx="44" cy="17" r="1.2" fill="#ddd6fe">
-            <animate attributeName="opacity" values="0.5;1;0.5" dur="3s" repeatCount="indefinite" />
-          </circle>
-          <circle cx="68" cy="42" r="1" fill="#c4b5fd">
-            <animate attributeName="opacity" values="1;0.4;1" dur="2.6s" repeatCount="indefinite" />
-          </circle>
+          {/* ── TAIL FIN (behind body) ── */}
+          <path
+            d="M 16,42 Q 2,34 1,50 Q 2,66 16,58 Q 13,52 16,42 Z"
+            fill="#c2410c"
+          />
+          {/* Tail fin lines */}
+          <line x1="16" y1="50" x2="4" y2="42" stroke="#9a3412" strokeWidth="1" opacity="0.5" />
+          <line x1="16" y1="50" x2="4" y2="50" stroke="#9a3412" strokeWidth="1" opacity="0.5" />
+          <line x1="16" y1="50" x2="4" y2="58" stroke="#9a3412" strokeWidth="1" opacity="0.5" />
 
-          {/* Star at hat tip */}
-          <text x="50" y="36" textAnchor="middle" fontSize="16">⭐</text>
+          {/* ── BODY ── */}
+          <ellipse cx="57" cy="52" rx="42" ry="28" fill="#f97316" />
 
-          {/* ── HAT BRIM ── */}
-          <rect x="7" y="57" width="86" height="10" rx="5" fill="#5b21b6" />
-          {/* Brim highlight */}
-          <rect x="9" y="57" width="82" height="5" rx="4" fill="#7c3aed" opacity="0.6" />
+          {/* ── WHITE STRIPES (clipped to body) ── */}
+          <g clipPath="url(#archie-body-clip)">
+            {/* Tail-side stripe */}
+            <ellipse cx="29" cy="52" rx="6" ry="30" fill="white" />
+            <ellipse cx="29" cy="52" rx="6" ry="30" fill="none" stroke="#1c1917" strokeWidth="1.5" />
+            {/* Middle stripe */}
+            <ellipse cx="49" cy="52" rx="7" ry="30" fill="white" />
+            <ellipse cx="49" cy="52" rx="7" ry="30" fill="none" stroke="#1c1917" strokeWidth="1.5" />
+            {/* Head stripe (near eye) */}
+            <ellipse cx="71" cy="52" rx="7" ry="30" fill="white" />
+            <ellipse cx="71" cy="52" rx="7" ry="30" fill="none" stroke="#1c1917" strokeWidth="1.5" />
+          </g>
 
-          {/* ── FACE (peeks under brim) ── */}
-          <ellipse cx="50" cy="82" rx="26" ry="21" fill="#fde68a" />
-          {/* Subtle bottom shadow */}
-          <ellipse cx="50" cy="97" rx="18" ry="6" fill="#fbbf24" opacity="0.25" />
-          {/* Blush */}
-          <ellipse cx="35" cy="87" rx="6" ry="3.5" fill="#fca5a5" opacity="0.4" />
-          <ellipse cx="65" cy="87" rx="6" ry="3.5" fill="#fca5a5" opacity="0.4" />
+          {/* Body outline */}
+          <ellipse cx="57" cy="52" rx="42" ry="28" fill="none" stroke="#c2410c" strokeWidth="2" />
 
-          {/* ── EYES ── */}
+          {/* ── DORSAL FIN (top) ── */}
+          <path
+            d="M 40,24 Q 52,7 64,24"
+            fill="#fb923c"
+            stroke="#c2410c"
+            strokeWidth="1"
+            opacity="0.85"
+          />
+
+          {/* ── PECTORAL FIN (small, side) ── */}
+          <ellipse
+            cx="80"
+            cy="68"
+            rx="13"
+            ry="6"
+            fill="#fb923c"
+            stroke="#c2410c"
+            strokeWidth="1"
+            opacity="0.75"
+            transform="rotate(-28 80 68)"
+          />
+
+          {/* ── EYE (Pixar-large!) ── */}
+          {/* White sclera */}
+          <circle cx="87" cy="44" r="14" fill="white" />
+          <circle cx="87" cy="44" r="14" fill="none" stroke="#c2410c" strokeWidth="1.5" />
+
           {emotion === 'celebrate' ? (
             <>
-              {/* Happy squint arcs */}
-              <path d="M 36 77 Q 41 72 46 77" stroke="#1c1917" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-              <path d="M 54 77 Q 59 72 64 77" stroke="#1c1917" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+              {/* Happy squint arc */}
+              <path
+                d="M 73,44 Q 87,32 101,44"
+                stroke="#1c1917" strokeWidth="3" fill="none" strokeLinecap="round"
+              />
             </>
           ) : emotion === 'thinking' ? (
             <>
-              {/* Eyes looking up */}
-              <circle cx="41" cy="77" r="7.5" fill="white" />
-              <circle cx="59" cy="77" r="7.5" fill="white" />
-              <circle cx="41" cy="74" r="5" fill="#1c1917" />
-              <circle cx="59" cy="74" r="5" fill="#1c1917" />
-              <circle cx="43" cy="72.5" r="2" fill="white" />
-              <circle cx="61" cy="72.5" r="2" fill="white" />
-              {/* Raised eyebrow */}
-              <path d="M 35 68 Q 41 64 47 68" stroke="#78350f" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+              {/* Eye looking up */}
+              <circle cx="87" cy="41" r="9" fill="#fb923c" />
+              <circle cx="87" cy="40" r="6" fill="#1c1917" />
+              <circle cx="90" cy="37" r="2.5" fill="white" />
+              {/* Raised eyebrow fin */}
+              <path
+                d="M 77,28 Q 87,24 97,28"
+                stroke="#c2410c" strokeWidth="2" fill="none" strokeLinecap="round"
+              />
             </>
           ) : (
             <>
-              {/* Big warm eyes */}
-              <circle cx="41" cy="77" r="7.5" fill="white" />
-              <circle cx="59" cy="77" r="7.5" fill="white" />
-              <circle cx="41" cy="78" r="5" fill="#1c1917" />
-              <circle cx="59" cy="78" r="5" fill="#1c1917" />
-              <circle cx="43" cy="76" r="2" fill="white" />
-              <circle cx="61" cy="76" r="2" fill="white" />
+              {/* Normal warm eye */}
+              <circle cx="87" cy="46" r="9" fill="#fb923c" />
+              <circle cx="87" cy="47" r="6" fill="#1c1917" />
+              <circle cx="90" cy="43" r="2.5" fill="white" />
             </>
           )}
 
-          {/* Thinking bubbles (float up above hat) */}
+          {/* Thinking bubbles (float toward top-right) */}
           {emotion === 'thinking' && (
             <>
-              <circle cx="69" cy="52" r="3" fill="#7c3aed">
-                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0s" repeatCount="indefinite" />
-                <animate attributeName="cy" values="54;46;38" dur="1.2s" begin="0s" repeatCount="indefinite" />
+              <circle cx="102" cy="32" r="3" fill="white" stroke="#fb923c" strokeWidth="1">
+                <animate attributeName="opacity" values="0;1;0" dur="1.3s" begin="0s" repeatCount="indefinite" />
+                <animate attributeName="cy" values="35;26;17" dur="1.3s" begin="0s" repeatCount="indefinite" />
               </circle>
-              <circle cx="76" cy="44" r="3" fill="#6d28d9">
-                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
-                <animate attributeName="cy" values="46;38;30" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+              <circle cx="108" cy="24" r="3" fill="white" stroke="#f97316" strokeWidth="1">
+                <animate attributeName="opacity" values="0;1;0" dur="1.3s" begin="0.43s" repeatCount="indefinite" />
+                <animate attributeName="cy" values="27;18;9" dur="1.3s" begin="0.43s" repeatCount="indefinite" />
               </circle>
-              <circle cx="83" cy="36" r="3" fill="#5b21b6">
-                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
-                <animate attributeName="cy" values="38;30;22" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+              <circle cx="114" cy="16" r="3" fill="white" stroke="#ea580c" strokeWidth="1">
+                <animate attributeName="opacity" values="0;1;0" dur="1.3s" begin="0.86s" repeatCount="indefinite" />
+                <animate attributeName="cy" values="19;10;1" dur="1.3s" begin="0.86s" repeatCount="indefinite" />
               </circle>
             </>
           )}
 
           {/* ── MOUTH ── */}
-          <path d={mouth} stroke="#92400e" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <path d={mouth} stroke="#c2410c" strokeWidth="2.5" fill="none" strokeLinecap="round" />
 
-          {/* ── FLOATING HANDS ── */}
-          {/* Left hand */}
-          <circle cx="13" cy="83" r="9" fill="#fde68a" />
-          <circle cx="13" cy="83" r="9" stroke="#fbbf24" strokeWidth="1.5" fill="none" opacity="0.5" />
-          {/* Knuckle dots */}
-          <circle cx="10" cy="80" r="1.2" fill="#fbbf24" opacity="0.8" />
-          <circle cx="13" cy="79" r="1.2" fill="#fbbf24" opacity="0.8" />
-          <circle cx="16" cy="80" r="1.2" fill="#fbbf24" opacity="0.8" />
+          {/* Gill line */}
+          <path
+            d="M 72,36 Q 75,52 72,68"
+            stroke="#c2410c" strokeWidth="1.2" fill="none" opacity="0.4"
+          />
 
-          {/* Right hand */}
-          <circle cx="87" cy="83" r="9" fill="#fde68a" />
-          <circle cx="87" cy="83" r="9" stroke="#fbbf24" strokeWidth="1.5" fill="none" opacity="0.5" />
-          {/* Knuckle dots */}
-          <circle cx="84" cy="80" r="1.2" fill="#fbbf24" opacity="0.8" />
-          <circle cx="87" cy="79" r="1.2" fill="#fbbf24" opacity="0.8" />
-          <circle cx="90" cy="80" r="1.2" fill="#fbbf24" opacity="0.8" />
-
-          {/* ── WAND (from right hand) ── */}
-          <line x1="93" y1="76" x2="100" y2="64" stroke="#92400e" strokeWidth="2.8" strokeLinecap="round" />
-          <circle cx="100" cy="64" r="4" fill="#fbbf24" />
-          {/* Wand glow */}
-          <circle cx="100" cy="64" r="7" fill="#fbbf24" opacity="0.2">
-            <animate attributeName="r" values="5;9;5" dur="1.8s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.25;0.08;0.25" dur="1.8s" repeatCount="indefinite" />
-          </circle>
+          {/* Animated scale shimmer */}
+          <ellipse cx="50" cy="48" rx="8" ry="5" fill="white" opacity="0.08">
+            <animate attributeName="opacity" values="0.05;0.12;0.05" dur="2.5s" repeatCount="indefinite" />
+          </ellipse>
         </svg>
       </div>
     </div>
