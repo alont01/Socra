@@ -3,8 +3,8 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 
 export const metadata: Metadata = {
-  title: 'Socra — Your AI Math Tutor',
-  description: 'Personalized AI math tutoring using the Socratic method',
+  title: 'Socra — AI-Powered Tutoring Platform',
+  description: 'Live tutoring sessions with AI-powered session analysis, practice, and progress tracking',
 }
 
 export default function RootLayout({

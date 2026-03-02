@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -16,6 +16,7 @@ model User {
   updatedAt    DateTime @updatedAt
   studentProfile       StudentProfile?       @relation("UserProfile")
   parentProfile        ParentProfile?        @relation("UserParent")
+  tutorProfile         TutorProfile?         @relation("UserTutor")
   sessions             Session[]
   passwordResetTokens  PasswordResetToken[]
 }
@@ -47,6 +48,10 @@ model StudentProfile {
   parentId       String?
   parent         ParentProfile? @relation("ParentChildren", fields: [parentId], references: [id])
   sessions       Session[]
+  tutors         TutorStudent[]     @relation("StudentRoster")
+  tutoringSessions TutoringSession[] @relation("TutoringStudent")
+  practiceSets     PracticeSet[]
+  studentProgress  StudentProgress[]
 }
 
 model ParentProfile {
@@ -102,4 +107,106 @@ model Message {
   role      String
   content   String
   createdAt DateTime @default(now())
+}
+
+// ── New models for tutor-student video platform ──
+
+model TutorProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation("UserTutor", fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  specialties String   @default("[]")
+  bio         String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  students    TutorStudent[]      @relation("TutorRoster")
+  tutoringSessions TutoringSession[] @relation("TutoringTutor")
+}
+
+model TutorStudent {
+  id        String         @id @default(cuid())
+  tutorId   String
+  tutor     TutorProfile   @relation("TutorRoster", fields: [tutorId], references: [id], onDelete: Cascade)
+  studentId String
+  student   StudentProfile @relation("StudentRoster", fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@unique([tutorId, studentId])
+}
+
+model TutoringSession {
+  id            String    @id @default(cuid())
+  tutorId       String
+  tutor         TutorProfile   @relation("TutoringTutor", fields: [tutorId], references: [id], onDelete: Cascade)
+  studentId     String?
+  student       StudentProfile? @relation("TutoringStudent", fields: [studentId], references: [id])
+  topic         String    @default("")
+  status        String    @default("scheduled")  // scheduled | active | completed | cancelled
+  scheduledAt   DateTime?
+  startedAt     DateTime?
+  endedAt       DateTime?
+  dailyRoomName String?
+  dailyRoomUrl  String?
+  tutorNotes    String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  transcript    Transcript?
+  analysis      SessionAnalysis?
+  practiceSets  PracticeSet[]
+}
+
+model Transcript {
+  id               String          @id @default(cuid())
+  tutoringSessionId String         @unique
+  tutoringSession  TutoringSession @relation(fields: [tutoringSessionId], references: [id], onDelete: Cascade)
+  content          String          @default("")
+  speakers         String          @default("[]")
+  durationSeconds  Int?
+  createdAt        DateTime        @default(now())
+}
+
+model SessionAnalysis {
+  id                String          @id @default(cuid())
+  tutoringSessionId String          @unique
+  tutoringSession   TutoringSession @relation(fields: [tutoringSessionId], references: [id], onDelete: Cascade)
+  summary           String          @default("")
+  conceptsCovered   String          @default("[]")
+  studentStrengths  String          @default("[]")
+  studentGaps       String          @default("[]")
+  tutorFeedback     String          @default("")
+  createdAt         DateTime        @default(now())
+}
+
+model PracticeSet {
+  id                String           @id @default(cuid())
+  tutoringSessionId String?
+  tutoringSession   TutoringSession? @relation(fields: [tutoringSessionId], references: [id], onDelete: SetNull)
+  studentId         String
+  student           StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title             String           @default("")
+  problems          String           @default("[]")
+  createdAt         DateTime         @default(now())
+  attempts          PracticeSetAttempt[]
+}
+
+model PracticeSetAttempt {
+  id            String      @id @default(cuid())
+  practiceSetId String
+  practiceSet   PracticeSet @relation(fields: [practiceSetId], references: [id], onDelete: Cascade)
+  problemIndex  Int
+  studentAnswer String      @default("")
+  correct       Boolean?
+  attemptedAt   DateTime    @default(now())
+}
+
+model StudentProgress {
+  id        String         @id @default(cuid())
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  topic     String
+  mastery   Float          @default(0)
+  updatedAt DateTime       @updatedAt
+
+  @@unique([studentId, topic])
 }

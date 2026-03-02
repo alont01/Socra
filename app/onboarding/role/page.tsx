@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 
-type Role = 'STUDENT' | 'PARENT'
+type Role = 'STUDENT' | 'TUTOR'
 
 export default function RoleSelectionPage() {
   const router = useRouter()
@@ -70,7 +70,7 @@ export default function RoleSelectionPage() {
             <div>
               <label className="text-sm font-medium text-stone-700 block mb-2">I am a…</label>
               <div className="grid grid-cols-2 gap-3">
-                {(['STUDENT', 'PARENT'] as Role[]).map((r) => (
+                {(['STUDENT', 'TUTOR'] as Role[]).map((r) => (
                   <button
                     key={r}
                     type="button"
@@ -81,7 +81,7 @@ export default function RoleSelectionPage() {
                         : 'border-stone-200 text-stone-600 hover:border-orange-300'
                     }`}
                   >
-                    {r === 'STUDENT' ? '🎓 Student' : '👨‍👩‍👧 Parent'}
+                    {r === 'STUDENT' ? '🎓 Student' : '📚 Tutor'}
                   </button>
                 ))}
               </div>

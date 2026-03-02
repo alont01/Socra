@@ -14,6 +14,8 @@ export function Navbar() {
     router.push('/')
   }
 
+  const isStudent = user?.role === 'STUDENT'
+
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-orange-100">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -28,6 +30,19 @@ export function Navbar() {
               <Link href="/dashboard">
                 <Button variant="ghost" size="sm">Dashboard</Button>
               </Link>
+              {isStudent && (
+                <>
+                  <Link href="/student/practice">
+                    <Button variant="ghost" size="sm">Practice</Button>
+                  </Link>
+                  <Link href="/student/progress">
+                    <Button variant="ghost" size="sm">Progress</Button>
+                  </Link>
+                  <Link href="/student/chat">
+                    <Button variant="ghost" size="sm">Chat</Button>
+                  </Link>
+                </>
+              )}
               <Button variant="ghost" size="sm" onClick={handleLogout}>
                 Sign Out
               </Button>

@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     include: {
       studentProfile: true,
       parentProfile: true,
+      tutorProfile: true,
     },
   })
 
@@ -24,14 +25,13 @@ export async function GET(request: Request) {
   }
 
   // New user — no profile yet, needs role selection
-  if (!user.studentProfile && !user.parentProfile) {
+  if (!user.studentProfile && !user.parentProfile && !user.tutorProfile) {
     redirect('/onboarding/role')
   }
 
   // Issue custom JWT cookie
   const token = await signToken({ userId: user.id, email: user.email, role: user.role })
 
-  const profile = user.studentProfile ?? user.parentProfile
   const onboardingDone = user.studentProfile?.onboardingDone ?? true
 
   const destination = onboardingDone ? '/dashboard' : '/onboarding'

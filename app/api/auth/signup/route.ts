@@ -22,14 +22,18 @@ export async function POST(request: Request) {
 
     const passwordHash = await hashPassword(password)
 
+    const profileData = role === 'STUDENT'
+      ? { studentProfile: { create: { name } } }
+      : role === 'TUTOR'
+      ? { tutorProfile: { create: { name } } }
+      : { parentProfile: { create: { name } } }
+
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
         role,
-        ...(role === 'STUDENT'
-          ? { studentProfile: { create: { name } } }
-          : { parentProfile: { create: { name } } }),
+        ...profileData,
       },
     })
 

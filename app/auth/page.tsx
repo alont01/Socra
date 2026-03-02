@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 
 type Tab = 'login' | 'signup'
-type Role = 'STUDENT' | 'PARENT'
+type Role = 'STUDENT' | 'TUTOR'
 
 function AuthForm() {
   const [tab, setTab] = useState<Tab>('login')
@@ -54,7 +54,11 @@ function AuthForm() {
       await refresh()
 
       if (tab === 'signup') {
-        router.push('/onboarding')
+        if (role === 'TUTOR') {
+          router.push('/dashboard')
+        } else {
+          router.push('/onboarding')
+        }
       } else {
         const profile = data.user?.studentProfile
         if (profile && !profile.onboardingDone) {
@@ -144,7 +148,7 @@ function AuthForm() {
             <div>
               <label className="text-sm font-medium text-stone-700 block mb-2">I am a…</label>
               <div className="grid grid-cols-2 gap-3">
-                {(['STUDENT', 'PARENT'] as Role[]).map((r) => (
+                {(['STUDENT', 'TUTOR'] as Role[]).map((r) => (
                   <button
                     key={r}
                     type="button"
@@ -155,7 +159,7 @@ function AuthForm() {
                         : 'border-stone-200 text-stone-600 hover:border-orange-300'
                     }`}
                   >
-                    {r === 'STUDENT' ? '🎓 Student' : '👨‍👩‍👧 Parent'}
+                    {r === 'STUDENT' ? '🎓 Student' : '📚 Tutor'}
                   </button>
                 ))}
               </div>

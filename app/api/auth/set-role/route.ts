@@ -12,20 +12,20 @@ export async function POST(request: Request) {
 
   const { role, name } = await request.json()
 
-  if (!role || !name || !['STUDENT', 'PARENT'].includes(role)) {
+  if (!role || !name || !['STUDENT', 'PARENT', 'TUTOR'].includes(role)) {
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
   }
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { studentProfile: true, parentProfile: true },
+    include: { studentProfile: true, parentProfile: true, tutorProfile: true },
   })
 
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  if (user.studentProfile || user.parentProfile) {
+  if (user.studentProfile || user.parentProfile || user.tutorProfile) {
     return NextResponse.json({ error: 'Profile already exists' }, { status: 409 })
   }
 
@@ -37,6 +37,10 @@ export async function POST(request: Request) {
 
   if (role === 'STUDENT') {
     await prisma.studentProfile.create({
+      data: { userId: user.id, name },
+    })
+  } else if (role === 'TUTOR') {
+    await prisma.tutorProfile.create({
       data: { userId: user.id, name },
     })
   } else {

@@ -32,6 +32,7 @@ export async function GET() {
             },
           },
         },
+        tutorProfile: true,
       },
     })
 
@@ -56,6 +57,12 @@ export async function GET() {
             sessionsCount: child.sessions.length,
             mathTopics: child.mathTopics,
           })),
+        } : null,
+        tutorProfile: user.tutorProfile ? {
+          id: user.tutorProfile.id,
+          name: user.tutorProfile.name,
+          specialties: user.tutorProfile.specialties,
+          bio: user.tutorProfile.bio,
         } : null,
       },
     })

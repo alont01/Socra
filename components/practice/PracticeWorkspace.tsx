@@ -1,0 +1,189 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
+
+interface Problem {
+  id: string
+  question: string
+  hint: string
+  difficulty: string
+  topic: string
+  answer?: string
+}
+
+interface Attempt {
+  problemIndex: number
+  studentAnswer: string
+  correct: boolean | null
+}
+
+interface PracticeWorkspaceProps {
+  practiceSetId: string
+  problems: Problem[]
+  existingAttempts: Attempt[]
+}
+
+export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }: PracticeWorkspaceProps) {
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    // Start at the first unanswered problem
+    const attempted = new Set(existingAttempts.map((a) => a.problemIndex))
+    const first = problems.findIndex((_, i) => !attempted.has(i))
+    return first >= 0 ? first : 0
+  })
+  const [answer, setAnswer] = useState('')
+  const [showHint, setShowHint] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [attempts, setAttempts] = useState<Map<number, { answer: string; correct: boolean }>>(
+    () => {
+      const map = new Map<number, { answer: string; correct: boolean }>()
+      existingAttempts.forEach((a) => {
+        if (a.correct !== null) {
+          map.set(a.problemIndex, { answer: a.studentAnswer, correct: a.correct })
+        }
+      })
+      return map
+    }
+  )
+
+  const problem = problems[currentIndex]
+  const existingResult = attempts.get(currentIndex)
+
+  const submitAnswer = async () => {
+    if (!answer.trim()) return
+    setSubmitting(true)
+
+    // Simple answer checking — compare with stored answer
+    const correct = problem.answer
+      ? answer.trim().toLowerCase() === problem.answer.trim().toLowerCase()
+      : null
+
+    try {
+      const res = await fetch(`/api/student/practice/${practiceSetId}/attempt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          problemIndex: currentIndex,
+          studentAnswer: answer,
+          correct: correct ?? false,
+        }),
+      })
+
+      if (res.ok) {
+        setAttempts((prev) => new Map(prev).set(currentIndex, { answer, correct: correct ?? false }))
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const difficultyColor = {
+    easy: 'bg-green-100 text-green-700',
+    medium: 'bg-amber-100 text-amber-700',
+    hard: 'bg-red-100 text-red-700',
+  }[problem?.difficulty] || 'bg-stone-100 text-stone-600'
+
+  if (!problem) return null
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      {/* Progress */}
+      <div className="flex items-center gap-2 mb-4">
+        {problems.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => { setCurrentIndex(i); setAnswer(''); setShowHint(false) }}
+            className={`w-8 h-8 rounded-full text-xs font-medium transition-all ${
+              i === currentIndex
+                ? 'bg-orange-500 text-white'
+                : attempts.has(i)
+                ? attempts.get(i)!.correct
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700'
+                : 'bg-stone-100 text-stone-500'
+            }`}
+          >
+            {i + 1}
+          </button>
+        ))}
+      </div>
+
+      {/* Problem Card */}
+      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${difficultyColor}`}>
+            {problem.difficulty}
+          </span>
+          <span className="text-xs text-stone-400">{problem.topic}</span>
+        </div>
+
+        <p className="text-stone-900 font-medium mb-6 text-lg">{problem.question}</p>
+
+        {/* Hint */}
+        {problem.hint && (
+          <div className="mb-4">
+            {showHint ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm text-amber-800">
+                {problem.hint}
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowHint(true)}
+                className="text-sm text-orange-500 hover:text-orange-600"
+              >
+                Show hint
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Answer area */}
+        {existingResult ? (
+          <div className={`rounded-xl px-4 py-3 ${existingResult.correct ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            <p className="text-sm font-medium mb-1">
+              {existingResult.correct ? 'Correct!' : 'Not quite.'}
+            </p>
+            <p className="text-xs text-stone-500">Your answer: {existingResult.answer}</p>
+            {!existingResult.correct && problem.answer && (
+              <p className="text-xs text-stone-500 mt-1">Correct answer: {problem.answer}</p>
+            )}
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submitAnswer()}
+              placeholder="Type your answer..."
+              className="flex-1 px-4 py-2 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-orange-400"
+            />
+            <Button onClick={submitAnswer} loading={submitting} size="sm">
+              Submit
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between mt-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setCurrentIndex((i) => Math.max(0, i - 1)); setAnswer(''); setShowHint(false) }}
+          disabled={currentIndex === 0}
+        >
+          Previous
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setCurrentIndex((i) => Math.min(problems.length - 1, i + 1)); setAnswer(''); setShowHint(false) }}
+          disabled={currentIndex === problems.length - 1}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  )
+}

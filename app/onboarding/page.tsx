@@ -3,76 +3,50 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
-import { StepIndicator } from '@/components/onboarding/StepIndicator'
-import { Step1 } from '@/components/onboarding/steps/Step1'
-import { Step2 } from '@/components/onboarding/steps/Step2'
-import { Step3 } from '@/components/onboarding/steps/Step3'
-import { Step4 } from '@/components/onboarding/steps/Step4'
-import { Step5 } from '@/components/onboarding/steps/Step5'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import Link from 'next/link'
 
-const STEP_LABELS = ['Welcome', 'Topics', 'Skills', 'Style', 'Your Plan']
-
-interface ProfileData {
-  name: string
-  role: 'STUDENT' | 'PARENT'
-  gradeLevel: string
-  mathTopics: string[]
-  strengthAreas: string[]
-  weaknessAreas: string[]
-  learningStyle: string
-  goals: string
-}
+const GRADE_LEVELS = ['3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th']
 
 export default function OnboardingPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, refresh } = useAuth()
   const router = useRouter()
 
+  const [name, setName] = useState('')
+  const [gradeLevel, setGradeLevel] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
   useEffect(() => {
-    if (!loading && user?.role === 'PARENT') {
-      router.replace('/dashboard')
-    }
+    if (!loading && !user) router.replace('/auth')
+    if (!loading && user?.role === 'TUTOR') router.replace('/dashboard')
+    if (!loading && user?.studentProfile?.name) setName(user.studentProfile.name)
   }, [user, loading, router])
 
-  const [step, setStep] = useState(0)
-  const [profile, setProfile] = useState<ProfileData>({
-    name: user?.studentProfile?.name || '',
-    role: (user?.role as 'STUDENT' | 'PARENT') || 'STUDENT',
-    gradeLevel: '',
-    mathTopics: [],
-    strengthAreas: [],
-    weaknessAreas: [],
-    learningStyle: '',
-    goals: '',
-  })
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim() || !gradeLevel) return
 
-  const handleChange = (field: string, value: string | string[]) => {
-    setProfile((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const canAdvance = () => {
-    if (step === 0) return profile.name.trim().length > 0
-    if (step === 1) return profile.gradeLevel !== ''
-    if (step === 2) return true
-    if (step === 3) return profile.learningStyle !== ''
-    return true
-  }
-
-  const renderStep = () => {
-    switch (step) {
-      case 0:
-        return <Step1 name={profile.name} role={profile.role} onChange={handleChange} />
-      case 1:
-        return <Step2 gradeLevel={profile.gradeLevel} mathTopics={profile.mathTopics} onChange={handleChange} />
-      case 2:
-        return <Step3 strengthAreas={profile.strengthAreas} weaknessAreas={profile.weaknessAreas} onChange={handleChange} />
-      case 3:
-        return <Step4 learningStyle={profile.learningStyle} goals={profile.goals} onChange={handleChange} />
-      case 4:
-        return <Step5 profileData={profile} />
-      default:
-        return null
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), gradeLevel }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || 'Something went wrong')
+        return
+      }
+      await refresh()
+      router.push('/dashboard')
+    } catch {
+      setError('Network error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -86,29 +60,57 @@ export default function OnboardingPage() {
       </div>
 
       <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-lg">
-          <StepIndicator current={step} total={5} labels={STEP_LABELS} />
-
-          <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8">
-            {renderStep()}
-
-            {step < 4 && (
-              <div className="flex gap-3 mt-8">
-                {step > 0 && (
-                  <Button variant="ghost" onClick={() => setStep((s) => s - 1)} className="flex-1">
-                    ← Back
-                  </Button>
-                )}
-                <Button
-                  onClick={() => setStep((s) => s + 1)}
-                  disabled={!canAdvance()}
-                  className="flex-1"
-                >
-                  {step === 3 ? 'Generate My Plan →' : 'Continue →'}
-                </Button>
-              </div>
-            )}
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-stone-900">Tell us about yourself</h1>
+            <p className="text-stone-500 mt-2">Quick setup so we can personalize your experience.</p>
           </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Your Name"
+              placeholder="First name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+
+            <div>
+              <label className="text-sm font-medium text-stone-700 block mb-2">Grade Level</label>
+              <div className="grid grid-cols-4 gap-2">
+                {GRADE_LEVELS.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGradeLevel(g)}
+                    className={`py-2 rounded-xl border text-sm font-medium transition-all ${
+                      gradeLevel === g
+                        ? 'border-orange-500 bg-orange-50 text-orange-700'
+                        : 'border-stone-200 text-stone-600 hover:border-orange-300'
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              loading={saving}
+              disabled={!name.trim() || !gradeLevel}
+            >
+              Get Started
+            </Button>
+          </form>
         </div>
       </div>
     </div>

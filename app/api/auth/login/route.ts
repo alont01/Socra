@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { studentProfile: true, parentProfile: true },
+      include: { studentProfile: true, parentProfile: true, tutorProfile: true },
     })
 
     if (!user || !user.passwordHash) {

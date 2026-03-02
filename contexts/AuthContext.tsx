@@ -27,6 +27,12 @@ export interface AuthUser {
       mathTopics: string
     }>
   } | null
+  tutorProfile?: {
+    id: string
+    name: string
+    specialties: string
+    bio: string
+  } | null
 }
 
 interface AuthContextType {

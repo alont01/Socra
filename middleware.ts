@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 
-const protectedRoutes = ['/onboarding', '/dashboard', '/session']
+const protectedRoutes = ['/onboarding', '/dashboard', '/session', '/student', '/tutor']
 const authRoutes = ['/auth']
 
 export async function middleware(request: NextRequest) {

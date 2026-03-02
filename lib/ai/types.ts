@@ -41,3 +41,19 @@ export interface OrchestratorContext {
   imageBase64?: string
   imageMimeType?: string
 }
+
+// ── Post-session analysis types ──
+
+export interface TranscriptSegment {
+  speaker: string
+  text: string
+  timestamp?: number
+}
+
+export interface SessionAnalysisResult {
+  summary: string
+  conceptsCovered: string[]
+  studentStrengths: string[]
+  studentGaps: string[]
+  tutorFeedback: string
+}
