@@ -5,13 +5,9 @@ services:
     plan: starter
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
-    disk:
-      name: socra-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: DATABASE_URL
-        value: file:/data/socra.db
+        sync: false
       - key: NODE_ENV
         value: production
       - key: ANTHROPIC_API_KEY
