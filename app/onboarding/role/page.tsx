@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/hooks/useAuth'
 
 type Role = 'STUDENT' | 'TUTOR'
 
 export default function RoleSelectionPage() {
   const router = useRouter()
+  const { refresh } = useAuth()
   const [role, setRole] = useState<Role>('STUDENT')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
@@ -34,6 +36,7 @@ export default function RoleSelectionPage() {
         return
       }
 
+      await refresh()
       router.push('/onboarding')
     } catch {
       setError('Network error. Please try again.')
