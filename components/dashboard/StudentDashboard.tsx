@@ -68,7 +68,7 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
         <Link href="/student/chat" className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5 hover:border-orange-300 transition-colors">
           <div className="text-2xl mb-2">💬</div>
           <h3 className="font-semibold text-stone-900 text-sm">AI Help</h3>
-          <p className="text-xs text-stone-400 mt-1">Chat with AI between sessions</p>
+          <p className="text-xs text-stone-400 mt-1">Ask AI anything, anytime</p>
         </Link>
       </div>
 
