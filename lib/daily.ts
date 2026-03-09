@@ -18,24 +18,37 @@ async function dailyFetch(path: string, options: RequestInit = {}) {
 }
 
 export async function createRoom(sessionId: string) {
-  const room = await dailyFetch('/rooms', {
-    method: 'POST',
-    body: JSON.stringify({
-      name: `session-${sessionId}`,
-      properties: {
-        max_participants: 2,
-        enable_recording: 'cloud',
-        enable_transcription: {
-          autostart: true,
+  const roomName = `session-${sessionId}`
+  try {
+    const room = await dailyFetch('/rooms', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: roomName,
+        properties: {
+          max_participants: 2,
+          enable_recording: 'cloud',
+          enable_transcription: {
+            autostart: true,
+          },
+          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hour expiry
+          eject_at_room_exp: true,
         },
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hour expiry
-        eject_at_room_exp: true,
-      },
-    }),
-  })
-  return {
-    name: room.name as string,
-    url: room.url as string,
+      }),
+    })
+    return {
+      name: room.name as string,
+      url: room.url as string,
+    }
+  } catch (err) {
+    // If room already exists, fetch and return it
+    if (err instanceof Error && err.message.includes('already exists')) {
+      const room = await dailyFetch(`/rooms/${roomName}`)
+      return {
+        name: room.name as string,
+        url: room.url as string,
+      }
+    }
+    throw err
   }
 }
 
