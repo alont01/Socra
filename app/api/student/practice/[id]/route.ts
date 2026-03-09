@@ -28,11 +28,15 @@ export async function GET(
       return NextResponse.json({ error: 'Practice set not found' }, { status: 404 })
     }
 
+    // Strip answer field from problems so clients can't cheat
+    const problems = JSON.parse(set.problems)
+    const safeProblems = problems.map(({ answer, ...rest }: { answer?: string; [key: string]: unknown }) => rest)
+
     return NextResponse.json({
       practiceSet: {
         id: set.id,
         title: set.title,
-        problems: JSON.parse(set.problems),
+        problems: safeProblems,
         attempts: set.attempts,
         createdAt: set.createdAt,
       },

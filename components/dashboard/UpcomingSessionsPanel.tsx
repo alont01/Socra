@@ -33,7 +33,7 @@ function statusBadge(status: string) {
 function formatDate(dateStr: string | null) {
   if (!dateStr) return 'No date set'
   const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 export function UpcomingSessionsPanel({ sessions, role }: UpcomingSessionsPanelProps) {

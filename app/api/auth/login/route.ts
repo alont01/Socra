@@ -5,7 +5,9 @@ import { signToken } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json()
+    const body = await request.json()
+    const email = (body.email as string)?.toLowerCase().trim()
+    const password = body.password
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
+import { useToast } from '@/hooks/useToast'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -9,6 +10,7 @@ interface ChatMessage {
 }
 
 export function StudentChatPanel() {
+  const { toast } = useToast()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -41,6 +43,7 @@ export function StudentChatPanel() {
 
       if (!res.ok || !res.body) {
         setMessages((prev) => prev.slice(0, -1))
+        toast('Failed to send message', 'error')
         setStreaming(false)
         return
       }
@@ -81,6 +84,7 @@ export function StudentChatPanel() {
       }
     } catch {
       setMessages((prev) => prev.slice(0, -1))
+      toast('Failed to send message', 'error')
     } finally {
       setStreaming(false)
     }

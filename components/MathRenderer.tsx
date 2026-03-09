@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { InlineMath, BlockMath } from "react-katex";
 
 interface MathRendererProps {
@@ -12,7 +12,7 @@ interface MathRendererProps {
  * using KaTeX. Plain text is rendered as HTML paragraphs.
  */
 export default function MathRenderer({ content }: MathRendererProps) {
-  const segments = parseContent(content);
+  const segments = useMemo(() => parseContent(content), [content]);
 
   return (
     <div className="prose-math">
@@ -20,12 +20,16 @@ export default function MathRenderer({ content }: MathRendererProps) {
         if (segment.type === "block-math") {
           return (
             <div key={i} className="my-3 overflow-x-auto">
-              <BlockMath math={segment.value} />
+              <BlockMath math={segment.value} renderError={(error: Error) => (
+                <span className="text-red-400 text-xs" title={error.message}>[Math rendering error]</span>
+              )} />
             </div>
           );
         }
         if (segment.type === "inline-math") {
-          return <InlineMath key={i} math={segment.value} />;
+          return <InlineMath key={i} math={segment.value} renderError={(error: Error) => (
+            <span className="text-red-400 text-xs" title={error.message}>[Math rendering error]</span>
+          )} />;
         }
         // Plain text — render with paragraph and basic markdown-like styling
         return <PlainText key={i} text={segment.value} />;

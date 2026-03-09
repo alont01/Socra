@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { useToast } from '@/hooks/useToast'
 
 interface Problem {
   id: string
@@ -9,7 +10,6 @@ interface Problem {
   hint: string
   difficulty: string
   topic: string
-  answer?: string
 }
 
 interface Attempt {
@@ -31,10 +31,11 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
     const first = problems.findIndex((_, i) => !attempted.has(i))
     return first >= 0 ? first : 0
   })
+  const { toast } = useToast()
   const [answer, setAnswer] = useState('')
   const [showHint, setShowHint] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [attempts, setAttempts] = useState<Map<number, { answer: string; correct: boolean }>>(
+  const [attempts, setAttempts] = useState<Map<number, { answer: string; correct: boolean; correctAnswer?: string }>>(
     () => {
       const map = new Map<number, { answer: string; correct: boolean }>()
       existingAttempts.forEach((a) => {
@@ -53,11 +54,6 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
     if (!answer.trim()) return
     setSubmitting(true)
 
-    // Simple answer checking — compare with stored answer
-    const correct = problem.answer
-      ? answer.trim().toLowerCase() === problem.answer.trim().toLowerCase()
-      : null
-
     try {
       const res = await fetch(`/api/student/practice/${practiceSetId}/attempt`, {
         method: 'POST',
@@ -65,13 +61,21 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
         body: JSON.stringify({
           problemIndex: currentIndex,
           studentAnswer: answer,
-          correct: correct ?? false,
         }),
       })
 
       if (res.ok) {
-        setAttempts((prev) => new Map(prev).set(currentIndex, { answer, correct: correct ?? false }))
+        const data = await res.json()
+        setAttempts((prev) => new Map(prev).set(currentIndex, {
+          answer,
+          correct: data.correct,
+          correctAnswer: data.correctAnswer,
+        }))
+      } else {
+        toast('Failed to submit answer', 'error')
       }
+    } catch {
+      toast('Failed to submit answer', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -144,8 +148,11 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
               {existingResult.correct ? 'Correct!' : 'Not quite.'}
             </p>
             <p className="text-xs text-stone-500">Your answer: {existingResult.answer}</p>
-            {!existingResult.correct && problem.answer && (
-              <p className="text-xs text-stone-500 mt-1">Correct answer: {problem.answer}</p>
+            {!existingResult.correct && existingResult.correctAnswer && (
+              <p className="text-xs text-stone-500 mt-1">Correct answer: {existingResult.correctAnswer}</p>
+            )}
+            {!existingResult.correct && (
+              <p className="text-xs text-orange-500 mt-2">Keep going — every mistake is a step closer to mastery!</p>
             )}
           </div>
         ) : (

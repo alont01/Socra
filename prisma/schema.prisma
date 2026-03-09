@@ -28,6 +28,8 @@ model PasswordResetToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model StudentProfile {
@@ -154,6 +156,10 @@ model TutoringSession {
   transcript    Transcript?
   analysis      SessionAnalysis?
   practiceSets  PracticeSet[]
+
+  @@index([tutorId])
+  @@index([studentId])
+  @@index([status])
 }
 
 model Transcript {
@@ -188,6 +194,9 @@ model PracticeSet {
   problems          String           @default("[]")
   createdAt         DateTime         @default(now())
   attempts          PracticeSetAttempt[]
+
+  @@index([studentId])
+  @@index([tutoringSessionId])
 }
 
 model PracticeSetAttempt {
@@ -198,6 +207,8 @@ model PracticeSetAttempt {
   studentAnswer String      @default("")
   correct       Boolean?
   attemptedAt   DateTime    @default(now())
+
+  @@index([practiceSetId])
 }
 
 model StudentProgress {

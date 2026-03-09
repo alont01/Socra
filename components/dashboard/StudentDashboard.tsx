@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { LoadingDots } from '@/components/ui/LoadingDots'
+import { useToast } from '@/hooks/useToast'
 import Link from 'next/link'
 
 interface TutoringSession {
@@ -20,20 +21,36 @@ interface StudentDashboardProps {
 }
 
 export function StudentDashboard({ studentName, goals }: StudentDashboardProps) {
+  const { toast } = useToast()
   const [sessions, setSessions] = useState<TutoringSession[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/tutoring-sessions')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error()
+        return r.json()
+      })
       .then((data) => {
         setSessions(data.sessions || [])
-        setLoading(false)
       })
+      .catch(() => {
+        toast('Failed to load sessions', 'error')
+      })
+      .finally(() => setLoading(false))
+  }, [toast])
+
+  const [practiceSets, setPracticeSets] = useState<{ completedCount: number; problemCount: number }[]>([])
+
+  useEffect(() => {
+    fetch('/api/student/practice')
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((data) => setPracticeSets(data.practiceSets || []))
+      .catch(() => {})
   }, [])
 
   const activeSessions = sessions.filter((s) => s.status === 'active')
-  const pendingPractice = 0 // Will be populated in Phase 5
+  const pendingPractice = practiceSets.filter((s) => s.completedCount < s.problemCount).length
 
   return (
     <>

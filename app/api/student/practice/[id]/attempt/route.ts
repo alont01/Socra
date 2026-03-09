@@ -25,10 +25,21 @@ export async function POST(
       return NextResponse.json({ error: 'Practice set not found' }, { status: 404 })
     }
 
-    const { problemIndex, studentAnswer, correct } = await request.json()
-    if (problemIndex === undefined || studentAnswer === undefined || correct === undefined) {
+    const { problemIndex, studentAnswer } = await request.json()
+    if (problemIndex === undefined || studentAnswer === undefined) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
+
+    // Server-side answer verification
+    const problems = JSON.parse(set.problems)
+    const problem = problems[problemIndex]
+    if (!problem) {
+      return NextResponse.json({ error: 'Invalid problem index' }, { status: 400 })
+    }
+
+    const correct = problem.answer
+      ? studentAnswer.trim().toLowerCase() === problem.answer.trim().toLowerCase()
+      : false
 
     const attempt = await prisma.practiceSetAttempt.create({
       data: {
@@ -40,13 +51,15 @@ export async function POST(
     })
 
     // Update mastery for the problem's topic
-    const problems = JSON.parse(set.problems)
-    const problem = problems[problemIndex]
-    if (problem?.topic) {
+    if (problem.topic) {
       await updateMasteryScore(student.id, problem.topic, correct)
     }
 
-    return NextResponse.json({ attempt })
+    return NextResponse.json({
+      attempt,
+      correct,
+      ...(correct ? {} : { correctAnswer: problem.answer }),
+    })
   } catch (err) {
     console.error(err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
