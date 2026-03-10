@@ -30,6 +30,7 @@ export async function createRoom(sessionId: string) {
           enable_transcription: {
             autostart: true,
           },
+          enable_transcription_storage: true,
           exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hour expiry
           eject_at_room_exp: true,
         },
@@ -77,14 +78,43 @@ export async function deleteRoom(roomName: string) {
 
 export async function fetchTranscript(roomName: string): Promise<string | null> {
   try {
-    const result = await dailyFetch(`/transcript/${roomName}`)
-    if (result?.transcript) {
-      return result.transcript as string
-    }
-    return null
+    // 1. List transcripts for this room and find a finished one
+    const list = await dailyFetch(`/transcript?room_name=${roomName}`)
+    const transcripts = list?.data as Array<{ transcriptId: string; status: string }> | undefined
+    if (!transcripts || transcripts.length === 0) return null
+
+    const finished = transcripts.find((t) => t.status === 't_finished')
+    if (!finished) return null
+
+    // 2. Get the access link for the transcript
+    const linkResult = await dailyFetch(`/transcript/${finished.transcriptId}/access-link`)
+    const downloadUrl = linkResult?.link as string | undefined
+    if (!downloadUrl) return null
+
+    // 3. Download the VTT content
+    const vttRes = await fetch(downloadUrl)
+    if (!vttRes.ok) return null
+    const vttText = await vttRes.text()
+
+    // 4. Convert VTT to plain text (strip timestamps and headers)
+    return parseVttToText(vttText)
   } catch {
     return null
   }
+}
+
+function parseVttToText(vtt: string): string {
+  const lines = vtt.split('\n')
+  const textLines: string[] = []
+  for (const line of lines) {
+    const trimmed = line.trim()
+    // Skip WEBVTT header, blank lines, and timestamp lines
+    if (!trimmed || trimmed === 'WEBVTT' || trimmed.includes('-->') || /^\d+$/.test(trimmed)) {
+      continue
+    }
+    textLines.push(trimmed)
+  }
+  return textLines.join('\n')
 }
 
 export async function fetchTranscriptWithRetry(roomName: string, maxRetries = 5): Promise<string | null> {
