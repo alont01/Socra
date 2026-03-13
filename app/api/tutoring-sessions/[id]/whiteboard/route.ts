@@ -25,11 +25,19 @@ export async function POST(
     if (session.tutor.userId !== payload.userId) {
       return NextResponse.json({ error: 'Only the tutor can save whiteboard' }, { status: 403 })
     }
+    if (session.status !== 'active') {
+      return NextResponse.json({ error: 'Session is not active' }, { status: 400 })
+    }
 
     const body = await request.json()
     const { imageBase64 } = body as { imageBase64: string }
     if (!imageBase64) {
       return NextResponse.json({ error: 'imageBase64 is required' }, { status: 400 })
+    }
+
+    const MAX_BASE64_LENGTH = 5 * 1024 * 1024 // ~3.75MB decoded
+    if (imageBase64.length > MAX_BASE64_LENGTH) {
+      return NextResponse.json({ error: 'Image too large' }, { status: 400 })
     }
 
     await prisma.tutoringSession.update({
