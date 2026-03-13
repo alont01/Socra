@@ -151,7 +151,9 @@ model TutoringSession {
   dailyRoomName String?
   dailyRoomUrl  String?
   tutorNotes    String    @default("")
-  createdAt     DateTime  @default(now())
+  capturedNotes   String    @default("")
+  whiteboardImage String    @default("")
+  createdAt       DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   transcript    Transcript?
   analysis      SessionAnalysis?

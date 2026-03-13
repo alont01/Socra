@@ -7,9 +7,10 @@ interface VideoCallProps {
   roomUrl: string
   token: string
   onLeave?: () => void
+  onCallFrame?: (frame: DailyCall | null) => void
 }
 
-export function VideoCall({ roomUrl, token, onLeave }: VideoCallProps) {
+export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const callRef = useRef<DailyCall | null>(null)
 
@@ -32,6 +33,7 @@ export function VideoCall({ roomUrl, token, onLeave }: VideoCallProps) {
     })
 
     callRef.current = frame
+    onCallFrame?.(frame)
 
     frame.join({ url: roomUrl, token })
 
@@ -39,6 +41,7 @@ export function VideoCall({ roomUrl, token, onLeave }: VideoCallProps) {
 
     return () => {
       frame.off('left-meeting', handleLeave)
+      onCallFrame?.(null)
       frame.destroy()
       callRef.current = null
     }

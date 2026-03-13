@@ -33,16 +33,18 @@ export async function processSessionPostCompletion(sessionId: string) {
     },
   })
 
-  // If no transcript content, create a minimal analysis from tutor notes
-  const contentToAnalyze = transcriptText || session.tutorNotes || 'No transcript or notes available.'
+  // If no transcript content, create a minimal analysis from tutor notes or captured notes
+  const contentToAnalyze = transcriptText || session.tutorNotes || session.capturedNotes || 'No transcript or notes available.'
 
   // 2. Analyze session
   const analysis = await analyzeSession({
     transcript: contentToAnalyze,
     tutorNotes: session.tutorNotes,
+    capturedNotes: session.capturedNotes,
     studentName: session.student.name,
     studentGrade: session.student.gradeLevel,
     topic: session.topic,
+    whiteboardImage: session.whiteboardImage || undefined,
   })
 
   // Save analysis

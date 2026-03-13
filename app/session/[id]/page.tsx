@@ -1,14 +1,18 @@
 'use client'
 
-import { use, useEffect, useState, useCallback } from 'react'
+import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { VideoCall } from '@/components/session/VideoCall'
 import { CallHeader } from '@/components/session/CallHeader'
 import { NotesSidebar } from '@/components/session/NotesSidebar'
 import { JoinCallCard } from '@/components/session/JoinCallCard'
+import { CaptureNotesButton } from '@/components/session/CaptureNotesButton'
+import { Whiteboard } from '@/components/session/Whiteboard'
+import { useWhiteboardSync } from '@/hooks/useWhiteboardSync'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import { Navbar } from '@/components/Navbar'
+import type { DailyCall } from '@daily-co/daily-js'
 
 interface TutoringSessionData {
   id: string
@@ -38,6 +42,31 @@ export default function SessionPage({
   const [ending, setEnding] = useState(false)
   const [meetingToken, setMeetingToken] = useState('')
   const [roomUrl, setRoomUrl] = useState('')
+  const [callFrame, setCallFrame] = useState<DailyCall | null>(null)
+  const [whiteboardActive, setWhiteboardActive] = useState(false)
+  const [remoteCanvasState, setRemoteCanvasState] = useState<string | null>(null)
+  const whiteboardSnapshotRef = useRef<(() => string | null) | null>(null)
+
+  const isTutor = sessionRole === 'tutor'
+
+  const { sendCanvasState, sendWhiteboardStart, sendWhiteboardStop } = useWhiteboardSync({
+    callFrame,
+    isTutor,
+    onRemoteStateReceived: useCallback((json: string) => setRemoteCanvasState(json), []),
+    onWhiteboardStarted: useCallback(() => setWhiteboardActive(true), []),
+    onWhiteboardStopped: useCallback(() => setWhiteboardActive(false), []),
+  })
+
+  const toggleWhiteboard = useCallback(() => {
+    setWhiteboardActive((prev) => {
+      if (prev) {
+        sendWhiteboardStop()
+      } else {
+        sendWhiteboardStart()
+      }
+      return !prev
+    })
+  }, [sendWhiteboardStart, sendWhiteboardStop])
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -116,6 +145,19 @@ export default function SessionPage({
   const endSession = useCallback(async () => {
     setEnding(true)
     try {
+      // Capture whiteboard snapshot before ending
+      if (whiteboardActive && whiteboardSnapshotRef.current) {
+        const image = whiteboardSnapshotRef.current()
+        if (image) {
+          const base64 = image.replace(/^data:image\/\w+;base64,/, '')
+          await fetch(`/api/tutoring-sessions/${id}/whiteboard`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: base64 }),
+          })
+        }
+      }
+
       const res = await fetch(`/api/tutoring-sessions/${id}/end`, { method: 'POST' })
       if (res.ok) {
         setInCall(false)
@@ -124,7 +166,7 @@ export default function SessionPage({
     } finally {
       setEnding(false)
     }
-  }, [id, router])
+  }, [id, router, whiteboardActive])
 
   const handleLeave = useCallback(() => {
     setInCall(false)
@@ -142,8 +184,6 @@ export default function SessionPage({
   }
 
   if (!session) return null
-
-  const isTutor = sessionRole === 'tutor'
 
   // Pre-call state
   if (!inCall) {
@@ -176,18 +216,34 @@ export default function SessionPage({
           onEndCall={endSession}
           ending={ending}
           isTutor={isTutor}
+          whiteboardActive={whiteboardActive}
+          onToggleWhiteboard={isTutor ? toggleWhiteboard : undefined}
         />
       </div>
 
       <div className="flex flex-1 overflow-hidden min-h-0 px-3 pb-3 gap-3">
         {/* Video — main area */}
-        <div className="flex-1">
+        <div className="flex-1 relative">
           <VideoCall
             roomUrl={roomUrl}
             token={meetingToken}
             onLeave={handleLeave}
+            onCallFrame={setCallFrame}
           />
+          {!isTutor && <CaptureNotesButton sessionId={id} />}
         </div>
+
+        {/* Whiteboard — shown when active */}
+        {whiteboardActive && (
+          <div className="flex-1">
+            <Whiteboard
+              isTutor={isTutor}
+              onCanvasStateChange={isTutor ? sendCanvasState : undefined}
+              remoteCanvasState={!isTutor ? remoteCanvasState : undefined}
+              snapshotRef={whiteboardSnapshotRef}
+            />
+          </div>
+        )}
 
         {/* Notes — sidebar (tutor only) */}
         {isTutor && (

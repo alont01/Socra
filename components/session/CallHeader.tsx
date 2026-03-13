@@ -9,9 +9,11 @@ interface CallHeaderProps {
   onEndCall: () => void
   ending: boolean
   isTutor: boolean
+  whiteboardActive?: boolean
+  onToggleWhiteboard?: () => void
 }
 
-export function CallHeader({ topic, startedAt, onEndCall, ending, isTutor }: CallHeaderProps) {
+export function CallHeader({ topic, startedAt, onEndCall, ending, isTutor, whiteboardActive, onToggleWhiteboard }: CallHeaderProps) {
   const [elapsed, setElapsed] = useState('00:00')
 
   useEffect(() => {
@@ -34,17 +36,28 @@ export function CallHeader({ topic, startedAt, onEndCall, ending, isTutor }: Cal
         <h2 className="font-semibold text-stone-900">{topic || 'Session'}</h2>
         <p className="text-xs text-stone-400">{elapsed}</p>
       </div>
-      {isTutor && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onEndCall}
-          loading={ending}
-          className="text-red-500 hover:text-red-600 hover:bg-red-50"
-        >
-          End Session
-        </Button>
-      )}
+      <div className="flex items-center gap-2">
+        {isTutor && onToggleWhiteboard && (
+          <Button
+            variant={whiteboardActive ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={onToggleWhiteboard}
+          >
+            Whiteboard
+          </Button>
+        )}
+        {isTutor && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEndCall}
+            loading={ending}
+            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+          >
+            End Session
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

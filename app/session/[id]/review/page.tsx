@@ -34,6 +34,7 @@ export default function ReviewPage({
   const router = useRouter()
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [transcript, setTranscript] = useState<TranscriptData | null>(null)
+  const [whiteboardImage, setWhiteboardImage] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'error'>('loading')
   const [sessionRole, setSessionRole] = useState<'tutor' | 'student'>('student')
 
@@ -53,6 +54,9 @@ export default function ReviewPage({
         if (sessionRes.ok) {
           const sessionData = await sessionRes.json()
           setSessionRole(sessionData.role)
+          if (sessionData.session?.whiteboardImage) {
+            setWhiteboardImage(sessionData.session.whiteboardImage)
+          }
         }
 
         // Fetch analysis
@@ -147,6 +151,17 @@ export default function ReviewPage({
 
             {isTutor && (
               <TutorFeedbackCard feedback={analysis.tutorFeedback} />
+            )}
+
+            {whiteboardImage && (
+              <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
+                <h3 className="font-semibold text-stone-900 mb-3">Whiteboard</h3>
+                <img
+                  src={`data:image/png;base64,${whiteboardImage}`}
+                  alt="Session whiteboard"
+                  className="w-full rounded-lg border border-stone-200"
+                />
+              </div>
             )}
 
             {transcript && (
