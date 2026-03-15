@@ -1,6 +1,6 @@
 'use client'
 
-export type DrawingTool = 'pen' | 'line' | 'rect' | 'circle' | 'text' | 'select'
+export type DrawingTool = 'pen' | 'eraser' | 'line' | 'rect' | 'circle' | 'text' | 'select'
 
 interface WhiteboardToolbarProps {
   activeTool: DrawingTool
@@ -18,6 +18,7 @@ interface WhiteboardToolbarProps {
 
 const toolButtons: { tool: DrawingTool; label: string; icon: string }[] = [
   { tool: 'pen', label: 'Pen', icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z' },
+  { tool: 'eraser', label: 'Eraser', icon: 'M5.505 8.505l6.99-6.99a3 3 0 014.243 0l2.747 2.748a3 3 0 010 4.242l-6.99 6.99M5.505 8.505l7.495 7.495m-7.495-7.495L3 11.01a2 2 0 000 2.828l4.172 4.172a2 2 0 002.828 0L12.5 15.5M20 21H8' },
   { tool: 'line', label: 'Line', icon: 'M4 20L20 4' },
   { tool: 'rect', label: 'Rectangle', icon: 'M3 3h18v18H3z' },
   { tool: 'circle', label: 'Circle', icon: 'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0' },

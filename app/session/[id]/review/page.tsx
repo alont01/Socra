@@ -112,7 +112,7 @@ export default function ReviewPage({
   return (
     <div className="min-h-screen bg-[#FFFBF5]">
       <Navbar />
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-stone-900">Session Review</h1>
           <Link href="/dashboard" className="text-sm text-orange-500 hover:text-orange-600">
@@ -142,16 +142,30 @@ export default function ReviewPage({
 
         {status === 'ready' && analysis && (
           <div className="space-y-6">
-            <AnalysisSummary
-              summary={analysis.summary}
-              conceptsCovered={analysis.conceptsCovered}
-              studentStrengths={analysis.studentStrengths}
-              studentGaps={analysis.studentGaps}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left column: transcript + student feedback */}
+              <div className="space-y-6">
+                {transcript && (
+                  <TranscriptViewer
+                    content={transcript.content}
+                    speakers={transcript.speakers}
+                  />
+                )}
+                <AnalysisSummary
+                  summary={analysis.summary}
+                  conceptsCovered={analysis.conceptsCovered}
+                  studentStrengths={analysis.studentStrengths}
+                  studentGaps={analysis.studentGaps}
+                />
+              </div>
 
-            {isTutor && (
-              <TutorFeedbackCard feedback={analysis.tutorFeedback} />
-            )}
+              {/* Right column: tutor feedback */}
+              {isTutor && (
+                <div className="space-y-6">
+                  <TutorFeedbackCard feedback={analysis.tutorFeedback} />
+                </div>
+              )}
+            </div>
 
             {whiteboardImage && (
               <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
@@ -162,13 +176,6 @@ export default function ReviewPage({
                   className="w-full rounded-lg border border-stone-200"
                 />
               </div>
-            )}
-
-            {transcript && (
-              <TranscriptViewer
-                content={transcript.content}
-                speakers={transcript.speakers}
-              />
             )}
           </div>
         )}

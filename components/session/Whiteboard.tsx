@@ -53,8 +53,9 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
       if (!el || !container) return
 
       const { width, height } = container.getBoundingClientRect()
+      const canvasHeight = height * 3
       el.width = width
-      el.height = height
+      el.height = canvasHeight
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let canvas: any
@@ -63,7 +64,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
           isDrawingMode: true,
           backgroundColor: '#ffffff',
           width,
-          height,
+          height: canvasHeight,
         })
         c.freeDrawingBrush = new fabricModule.PencilBrush(c)
         c.freeDrawingBrush.color = '#000000'
@@ -73,7 +74,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
         canvas = new fabricModule.StaticCanvas(el, {
           backgroundColor: '#ffffff',
           width,
-          height,
+          height: canvasHeight,
         })
       }
 
@@ -94,12 +95,12 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
         historyRef.current = [initialJson]
       }
 
-      // Auto-resize
+      // Auto-resize width only (height is extended for scrolling)
       resizeObserver = new ResizeObserver((entries) => {
         const entry = entries[0]
         if (!entry || !fabricCanvasRef.current) return
-        const { width: w, height: h } = entry.contentRect
-        fabricCanvasRef.current.setDimensions({ width: w, height: h })
+        const { width: w } = entry.contentRect
+        fabricCanvasRef.current.setDimensions({ width: w })
       })
       resizeObserver.observe(container)
     }
@@ -141,7 +142,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas || !isTutor) return
-    if (activeTool === 'pen' || activeTool === 'select') return
+    if (activeTool === 'pen' || activeTool === 'eraser' || activeTool === 'select') return
 
     // Disable free drawing for shape tools
     canvas.isDrawingMode = false
@@ -268,6 +269,12 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
         canvas.freeDrawingBrush.color = activeColor
         canvas.freeDrawingBrush.width = strokeWidth
       }
+    } else if (activeTool === 'eraser') {
+      canvas.isDrawingMode = true
+      if (canvas.freeDrawingBrush) {
+        canvas.freeDrawingBrush.color = '#ffffff'
+        canvas.freeDrawingBrush.width = strokeWidth * 4
+      }
     } else if (activeTool === 'select') {
       canvas.isDrawingMode = false
       canvas.selection = true
@@ -382,8 +389,8 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
           )}
         </div>
       )}
-      <div ref={containerRef} className="flex-1 relative">
-        <canvas ref={canvasElRef} className="absolute inset-0" />
+      <div ref={containerRef} className="flex-1 overflow-y-auto">
+        <canvas ref={canvasElRef} />
       </div>
     </div>
   )
