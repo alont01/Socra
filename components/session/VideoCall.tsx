@@ -33,13 +33,16 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
     })
 
     callRef.current = frame
-    onCallFrame?.(frame)
+    let destroyed = false
 
-    frame.join({ url: roomUrl, token })
+    frame.join({ url: roomUrl, token }).then(() => {
+      if (!destroyed) onCallFrame?.(frame)
+    })
 
     frame.on('left-meeting', handleLeave)
 
     return () => {
+      destroyed = true
       frame.off('left-meeting', handleLeave)
       onCallFrame?.(null)
       frame.destroy()
