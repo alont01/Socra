@@ -83,6 +83,16 @@ All API routes follow: read cookie → `verifyToken()` → check role/ownership 
 
 Jest with jsdom + React Testing Library. Tests live in `__tests__/`. Coverage collects from `components/` and `lib/` only. The `jose` package must not be transformed (configured in `jest.config.ts`).
 
+## Pre-Commit Checks
+
+Before every commit, review changed code for **async race conditions** — especially:
+- Calling methods on objects that require initialization (e.g., `sendAppMessage` before `join()` resolves)
+- Exposing references (via callbacks, state, or refs) before async setup completes
+- Effects or listeners that fire immediately on mount but depend on async readiness
+- Missing `await` on promises where downstream code assumes completion
+
+If a race condition is found, fix it before committing.
+
 ## Post-Commit Workflow
 
 After every large commit (3+ files changed or significant logic changes), immediately spin up **two background agents in parallel**:

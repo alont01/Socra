@@ -26,6 +26,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
   const [strokeWidth, setStrokeWidth] = useState(4)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [canvasReady, setCanvasReady] = useState(false)
 
   const saveHistory = useCallback(() => {
     const canvas = fabricCanvasRef.current
@@ -77,6 +78,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
       }
 
       fabricCanvasRef.current = canvas
+      setCanvasReady(true)
 
       // Expose snapshot function
       if (snapshotRef) {
@@ -106,6 +108,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
 
     return () => {
       disposed = true
+      setCanvasReady(false)
       resizeObserver?.disconnect()
       if (fabricCanvasRef.current) {
         fabricCanvasRef.current.dispose()
@@ -132,7 +135,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
       canvas.off('object:modified', onObjectChange)
       canvas.off('object:removed', onObjectChange)
     }
-  }, [isTutor, saveHistory])
+  }, [isTutor, saveHistory, canvasReady])
 
   // Tutor: handle shape drawing (line, rect, circle, text) via mouse events
   useEffect(() => {
@@ -252,7 +255,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
       canvas.off('mouse:move', handleMouseMove)
       canvas.off('mouse:up', handleMouseUp)
     }
-  }, [isTutor, activeTool, activeColor, strokeWidth])
+  }, [isTutor, activeTool, activeColor, strokeWidth, canvasReady])
 
   // Update brush settings when tool/color/width change
   useEffect(() => {
@@ -269,7 +272,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
       canvas.isDrawingMode = false
       canvas.selection = true
     }
-  }, [isTutor, activeTool, activeColor, strokeWidth])
+  }, [isTutor, activeTool, activeColor, strokeWidth, canvasReady])
 
   // Student: apply remote canvas state
   useEffect(() => {

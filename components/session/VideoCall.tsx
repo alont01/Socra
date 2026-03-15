@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import DailyIframe, { DailyCall } from '@daily-co/daily-js'
+import DailyIframe, { DailyCall, DailyEventObjectParticipantLeft } from '@daily-co/daily-js'
 
 interface VideoCallProps {
   roomUrl: string
@@ -39,11 +39,19 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
       if (!destroyed) onCallFrame?.(frame)
     })
 
+    const handleParticipantLeft = (event: DailyEventObjectParticipantLeft) => {
+      if (!event.participant.local) {
+        handleLeave()
+      }
+    }
+
     frame.on('left-meeting', handleLeave)
+    frame.on('participant-left', handleParticipantLeft)
 
     return () => {
       destroyed = true
       frame.off('left-meeting', handleLeave)
+      frame.off('participant-left', handleParticipantLeft)
       onCallFrame?.(null)
       frame.destroy()
       callRef.current = null
