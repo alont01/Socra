@@ -26,6 +26,9 @@ export async function POST(
     if (session.tutor.userId !== payload.userId) {
       return NextResponse.json({ error: 'Only tutor can end session' }, { status: 403 })
     }
+    if (session.status === 'completed') {
+      return NextResponse.json({ session })
+    }
 
     const updated = await prisma.tutoringSession.update({
       where: { id },
@@ -35,8 +38,10 @@ export async function POST(
       },
     })
 
-    // Fire-and-forget post-session processing
-    processSessionPostCompletion(id).catch(console.error)
+    // Fire-and-forget post-session processing (idempotent — checks for existing analysis)
+    processSessionPostCompletion(id).catch((err) =>
+      console.error(`[session-end] Post-processing failed for session ${id}:`, err)
+    )
 
     return NextResponse.json({ session: updated })
   } catch (err) {

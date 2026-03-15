@@ -25,10 +25,13 @@ export async function POST(
       return NextResponse.json({ error: 'Practice set not found' }, { status: 404 })
     }
 
-    const { problemIndex, studentAnswer } = await request.json()
-    if (problemIndex === undefined || studentAnswer === undefined) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    const attemptBody = await request.json()
+    const { practiceAttemptSchema, parseBody } = await import('@/lib/validations')
+    const parsed = parseBody(practiceAttemptSchema, attemptBody)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
+    const { problemIndex, studentAnswer } = parsed.data
 
     // Server-side answer verification
     const problems = JSON.parse(set.problems)

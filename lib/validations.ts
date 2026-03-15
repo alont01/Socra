@@ -1,0 +1,101 @@
+import { z } from 'zod'
+
+// ── Auth ──
+
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+})
+
+export const signupSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['STUDENT', 'TUTOR', 'PARENT']),
+  name: z.string().min(1, 'Name is required'),
+})
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+})
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+
+export const setRoleSchema = z.object({
+  role: z.enum(['STUDENT', 'TUTOR']),
+  name: z.string().min(1, 'Name is required'),
+})
+
+// ── Onboarding ──
+
+export const onboardingSchema = z.object({
+  name: z.string().min(1),
+  gradeLevel: z.string().min(1),
+  mathTopics: z.array(z.string()).default([]),
+  strengthAreas: z.array(z.string()).default([]),
+  weaknessAreas: z.array(z.string()).default([]),
+  learningStyle: z.string().default(''),
+  goals: z.string().default(''),
+})
+
+export const onboardingCompleteSchema = z.object({
+  name: z.string().min(1),
+  gradeLevel: z.string().min(1),
+})
+
+// ── Chat ──
+
+export const chatMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().min(1),
+})
+
+export const chatSchema = z.object({
+  messages: z.array(chatMessageSchema).min(1, 'At least one message is required'),
+})
+
+// ── Sessions ──
+
+export const createSessionSchema = z.object({
+  studentId: z.string().min(1),
+  topic: z.string().min(1, 'Topic is required'),
+  scheduledAt: z.string().optional(),
+})
+
+export const updateSessionSchema = z.object({
+  tutorNotes: z.string().optional(),
+  topic: z.string().optional(),
+  status: z.enum(['scheduled', 'active', 'completed', 'cancelled']).optional(),
+})
+
+// ── Daily.co ──
+
+export const dailyTokenSchema = z.object({
+  sessionId: z.string().min(1),
+})
+
+// ── Practice ──
+
+export const practiceAttemptSchema = z.object({
+  problemIndex: z.number().int().min(0),
+  studentAnswer: z.string().min(1, 'Answer is required'),
+})
+
+// ── Whiteboard / Notes ──
+
+export const imageBase64Schema = z.object({
+  imageBase64: z.string().min(1),
+})
+
+// ── Utility for parsing and returning errors ──
+
+export function parseBody<T>(schema: z.ZodSchema<T>, data: unknown): { data: T } | { error: string } {
+  const result = schema.safeParse(data)
+  if (!result.success) {
+    const firstError = result.error.issues[0]
+    return { error: `${firstError.path.join('.')}: ${firstError.message}`.replace(/^: /, '') }
+  }
+  return { data: result.data }
+}

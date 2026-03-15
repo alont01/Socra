@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { SessionAnalysisResult } from './types'
+import { config } from '@/lib/config'
 
 const client = new Anthropic()
 
@@ -55,8 +56,8 @@ Only output the JSON, nothing else.`
   content.push({ type: 'text', text: promptText })
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2048,
+    model: config.ai.analysisModel,
+    max_tokens: config.ai.analysisMaxTokens,
     messages: [
       {
         role: 'user',
@@ -67,8 +68,11 @@ Only output the JSON, nothing else.`
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
+  // Strip markdown code fences if present
+  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+
   try {
-    const result = JSON.parse(text)
+    const result = JSON.parse(cleaned)
     return {
       summary: result.summary || '',
       conceptsCovered: result.conceptsCovered || [],
@@ -76,13 +80,8 @@ Only output the JSON, nothing else.`
       studentGaps: result.studentGaps || [],
       tutorFeedback: result.tutorFeedback || '',
     }
-  } catch {
-    return {
-      summary: 'Analysis could not be generated.',
-      conceptsCovered: [],
-      studentStrengths: [],
-      studentGaps: [],
-      tutorFeedback: '',
-    }
+  } catch (err) {
+    console.error('[session-analyzer] Failed to parse AI response:', err, 'Raw text:', text.slice(0, 500))
+    throw new Error('Failed to parse session analysis from AI response')
   }
 }

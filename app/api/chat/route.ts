@@ -3,11 +3,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-
-export interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
+import { chatSchema, parseBody } from '@/lib/validations'
+import { rateLimit } from '@/lib/rate-limit'
 
 const anthropic = new Anthropic()
 
@@ -15,18 +12,26 @@ export async function POST(request: Request) {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get('token')?.value
-    const payload = token ? await verifyToken(token) : null
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    let studentProfile = null
-    if (payload) {
-      const user = await prisma.user.findUnique({
-        where: { id: payload.userId },
-        include: { studentProfile: true },
-      })
-      studentProfile = user?.studentProfile
+    const payload = await verifyToken(token)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const rl = rateLimit(`chat:${payload.userId}`, { maxRequests: 20, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      include: { studentProfile: true },
+    })
+    const studentProfile = user?.studentProfile ?? null
+
+    const body = await request.json()
+    const parsed = parseBody(chatSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
-
-    const { messages } = await request.json()
+    const { messages } = parsed.data
 
     let systemPrompt = `You are Socra, a warm and encouraging AI math tutor who uses the Socratic method.
 

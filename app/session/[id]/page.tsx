@@ -13,18 +13,7 @@ import { useWhiteboardSync } from '@/hooks/useWhiteboardSync'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import { Navbar } from '@/components/Navbar'
 import type { DailyCall } from '@daily-co/daily-js'
-
-interface TutoringSessionData {
-  id: string
-  topic: string
-  status: string
-  startedAt: string | null
-  dailyRoomUrl: string | null
-  dailyRoomName: string | null
-  tutorNotes: string
-  tutor: { id: string; name: string; userId: string }
-  student: { id: string; name: string; gradeLevel: string; userId: string } | null
-}
+import type { TutoringSessionData } from '@/types'
 
 export default function SessionPage({
   params,

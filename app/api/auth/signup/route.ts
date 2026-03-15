@@ -2,20 +2,22 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
 import { signToken } from '@/lib/auth'
+import { signupSchema, parseBody } from '@/lib/validations'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const rl = rateLimit(`signup:${ip}`, { maxRequests: 5, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
+
     const body = await request.json()
-    const email = (body.email as string)?.toLowerCase().trim()
-    const { password, role, name } = body
-
-    if (!email || !password || !role || !name) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    const parsed = parseBody(signupSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
-
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
-    }
+    const { email: rawEmail, password, role, name } = parsed.data
+    const email = rawEmail.toLowerCase().trim()
 
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {

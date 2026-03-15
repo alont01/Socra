@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get('token')?.value
@@ -11,6 +11,16 @@ export async function GET() {
 
     const payload = await verifyToken(token)
     if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { searchParams } = new URL(request.url)
+    const take = Math.min(Number(searchParams.get('limit')) || 50, 100)
+    const cursor = searchParams.get('cursor') || undefined
+
+    const paginationArgs = {
+      take: take + 1, // fetch one extra to detect next page
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' as const },
+    }
 
     let sessions
 
@@ -23,7 +33,7 @@ export async function GET() {
         include: {
           student: { select: { id: true, name: true, gradeLevel: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        ...paginationArgs,
       })
     } else {
       const student = await prisma.studentProfile.findUnique({ where: { userId: payload.userId } })
@@ -34,11 +44,15 @@ export async function GET() {
         include: {
           tutor: { select: { id: true, name: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        ...paginationArgs,
       })
     }
 
-    return NextResponse.json({ sessions })
+    const hasMore = sessions.length > take
+    if (hasMore) sessions.pop()
+    const nextCursor = hasMore ? sessions[sessions.length - 1]?.id : null
+
+    return NextResponse.json({ sessions, nextCursor })
   } catch (err) {
     console.error(err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -59,7 +73,13 @@ export async function POST(request: Request) {
     const tutor = await prisma.tutorProfile.findUnique({ where: { userId: payload.userId } })
     if (!tutor) return NextResponse.json({ error: 'Not a tutor' }, { status: 403 })
 
-    const { studentId, topic, scheduledAt } = await request.json()
+    const { createSessionSchema, parseBody } = await import('@/lib/validations')
+    const body = await request.json()
+    const parsed = parseBody(createSessionSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+    const { studentId, topic, scheduledAt } = parsed.data
 
     const session = await prisma.tutoringSession.create({
       data: {

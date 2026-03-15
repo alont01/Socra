@@ -18,10 +18,12 @@ export async function GET() {
     const sets = await prisma.practiceSet.findMany({
       where: { studentId: student.id },
       include: {
-        attempts: true,
+        _count: { select: { attempts: true } },
+        attempts: { select: { problemIndex: true }, distinct: ['problemIndex'] },
         tutoringSession: { select: { topic: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 50,
     })
 
     const practiceSets = sets.map((s) => {

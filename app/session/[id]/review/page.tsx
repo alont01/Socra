@@ -9,20 +9,7 @@ import { TranscriptViewer } from '@/components/session/TranscriptViewer'
 import { TutorFeedbackCard } from '@/components/session/TutorFeedbackCard'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import Link from 'next/link'
-
-interface Analysis {
-  summary: string
-  conceptsCovered: string[]
-  studentStrengths: string[]
-  studentGaps: string[]
-  tutorFeedback: string
-}
-
-interface TranscriptData {
-  content: string
-  speakers: string[]
-  durationSeconds: number | null
-}
+import type { AnalysisData, TranscriptData } from '@/types'
 
 export default function ReviewPage({
   params,
@@ -32,7 +19,7 @@ export default function ReviewPage({
   const { id } = use(params)
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
-  const [analysis, setAnalysis] = useState<Analysis | null>(null)
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(null)
   const [transcript, setTranscript] = useState<TranscriptData | null>(null)
   const [whiteboardImage, setWhiteboardImage] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'error'>('loading')

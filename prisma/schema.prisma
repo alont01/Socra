@@ -17,7 +17,6 @@ model User {
   studentProfile       StudentProfile?       @relation("UserProfile")
   parentProfile        ParentProfile?        @relation("UserParent")
   tutorProfile         TutorProfile?         @relation("UserTutor")
-  sessions             Session[]
   passwordResetTokens  PasswordResetToken[]
 }
 
@@ -49,7 +48,6 @@ model StudentProfile {
   updatedAt      DateTime @updatedAt
   parentId       String?
   parent         ParentProfile? @relation("ParentChildren", fields: [parentId], references: [id])
-  sessions       Session[]
   tutors         TutorStudent[]     @relation("StudentRoster")
   tutoringSessions TutoringSession[] @relation("TutoringStudent")
   practiceSets     PracticeSet[]
@@ -64,54 +62,6 @@ model ParentProfile {
   children  StudentProfile[] @relation("ParentChildren")
   createdAt DateTime         @default(now())
 }
-
-model Session {
-  id         String             @id @default(cuid())
-  userId     String
-  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studentId  String?
-  student    StudentProfile?    @relation(fields: [studentId], references: [id])
-  title      String             @default("Math Session")
-  topic      String             @default("")
-  messages   Message[]
-  objectives LessonObjective[]
-  attempts   PracticeAttempt[]
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-}
-
-model LessonObjective {
-  id          String    @id @default(cuid())
-  sessionId   String
-  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  title       String
-  description String
-  order       Int
-  completed   Boolean   @default(false)
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-}
-
-model PracticeAttempt {
-  id            String   @id @default(cuid())
-  sessionId     String
-  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  problem       String
-  studentAnswer String   @default("")
-  correct       Boolean?
-  attemptedAt   DateTime @default(now())
-}
-
-model Message {
-  id        String   @id @default(cuid())
-  sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role      String
-  content   String
-  createdAt DateTime @default(now())
-}
-
-// ── New models for tutor-student video platform ──
 
 model TutorProfile {
   id          String   @id @default(cuid())

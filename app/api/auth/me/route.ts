@@ -23,13 +23,7 @@ export async function GET() {
         studentProfile: true,
         parentProfile: {
           include: {
-            children: {
-              include: {
-                sessions: {
-                  select: { id: true },
-                },
-              },
-            },
+            children: true,
           },
         },
         tutorProfile: true,
@@ -49,12 +43,11 @@ export async function GET() {
         parentProfile: user.parentProfile ? {
           id: user.parentProfile.id,
           name: user.parentProfile.name,
-          children: user.parentProfile.children.map(child => ({
+          children: user.parentProfile.children.map((child) => ({
             id: child.id,
             name: child.name,
             gradeLevel: child.gradeLevel,
             onboardingDone: child.onboardingDone,
-            sessionsCount: child.sessions.length,
             mathTopics: child.mathTopics,
           })),
         } : null,
