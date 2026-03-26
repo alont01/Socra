@@ -181,22 +181,25 @@ async function updateMasteryForConcepts(studentId: string, concepts: string[]) {
 
   for (const concept of concepts) {
     try {
-      // Read-then-update with clamping instead of blind increment
-      const existing = await prisma.studentProgress.findUnique({
-        where: { studentId_topic: { studentId, topic: concept } },
-      })
+      // Use a transaction to make the read-then-update atomic, preventing
+      // concurrent session completions from losing increments
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.studentProgress.findUnique({
+          where: { studentId_topic: { studentId, topic: concept } },
+        })
 
-      if (existing) {
-        const newMastery = Math.min(1.0, existing.mastery + sessionCoverageIncrement)
-        await prisma.studentProgress.update({
-          where: { id: existing.id },
-          data: { mastery: newMastery },
-        })
-      } else {
-        await prisma.studentProgress.create({
-          data: { studentId, topic: concept, mastery: initialSessionCoverage },
-        })
-      }
+        if (existing) {
+          const newMastery = Math.min(1.0, existing.mastery + sessionCoverageIncrement)
+          await tx.studentProgress.update({
+            where: { id: existing.id },
+            data: { mastery: newMastery },
+          })
+        } else {
+          await tx.studentProgress.create({
+            data: { studentId, topic: concept, mastery: initialSessionCoverage },
+          })
+        }
+      })
     } catch (err) {
       logger.error(`Failed to update mastery for concept "${concept}"`, err, { studentId })
     }
