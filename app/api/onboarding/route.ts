@@ -1,26 +1,20 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
-import Anthropic from '@anthropic-ai/sdk'
-
-const anthropic = new Anthropic()
+import { anthropic } from '@/lib/ai/client'
+import { config } from '@/lib/config'
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
 
     const { name, gradeLevel, mathTopics, strengthAreas, weaknessAreas, learningStyle, goals } =
       await request.json()
 
     // Update student profile
     await prisma.studentProfile.update({
-      where: { userId: payload.userId },
+      where: { userId: auth.payload.userId },
       data: {
         name,
         gradeLevel,
@@ -66,8 +60,8 @@ Return ONLY valid JSON matching the specified format.`
         let fullResponse = ''
 
         const anthropicStream = anthropic.messages.stream({
-          model: 'claude-opus-4-6',
-          max_tokens: 2048,
+          model: config.ai.onboardingModel,
+          max_tokens: config.ai.onboardingMaxTokens,
           system: systemPrompt,
           messages: [{ role: 'user', content: userMessage }],
         })
@@ -89,7 +83,7 @@ Return ONLY valid JSON matching the specified format.`
           const jsonMatch = fullResponse.match(/\{[\s\S]*\}/)
           if (jsonMatch) {
             await prisma.studentProfile.update({
-              where: { userId: payload.userId },
+              where: { userId: auth.payload.userId },
               data: {
                 learningPlan: jsonMatch[0],
                 onboardingDone: true,

@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const rl = rateLimit(`reset-pw:${ip}`, { maxRequests: 5, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
+
     const { token, password } = await request.json()
 
     if (!token || !password) {

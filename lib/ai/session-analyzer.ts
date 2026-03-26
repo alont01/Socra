@@ -1,8 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { anthropic } from './client'
 import type { SessionAnalysisResult } from './types'
 import { config } from '@/lib/config'
+import { createLogger } from '@/lib/logger'
 
-const client = new Anthropic()
+const logger = createLogger('session-analyzer')
 
 interface AnalyzerInput {
   transcript: string
@@ -55,7 +57,7 @@ Only output the JSON, nothing else.`
   }
   content.push({ type: 'text', text: promptText })
 
-  const response = await client.messages.create({
+  const response = await anthropic.messages.create({
     model: config.ai.analysisModel,
     max_tokens: config.ai.analysisMaxTokens,
     messages: [
@@ -81,7 +83,7 @@ Only output the JSON, nothing else.`
       tutorFeedback: result.tutorFeedback || '',
     }
   } catch (err) {
-    console.error('[session-analyzer] Failed to parse AI response:', err, 'Raw text:', text.slice(0, 500))
+    logger.error('Failed to parse AI response', err, { rawText: text.slice(0, 500) })
     throw new Error('Failed to parse session analysis from AI response')
   }
 }

@@ -1,27 +1,22 @@
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { anthropic } from '@/lib/ai/client'
+import { config } from '@/lib/config'
 import { chatSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
-
-const anthropic = new Anthropic()
+import { safeJsonParse } from '@/lib/json'
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
 
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const rl = rateLimit(`chat:${payload.userId}`, { maxRequests: 20, windowMs: 60_000 })
+    const rl = rateLimit(`chat:${auth.payload.userId}`, { maxRequests: 20, windowMs: 60_000 })
     if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
     const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: { id: auth.payload.userId },
       include: { studentProfile: true },
     })
     const studentProfile = user?.studentProfile ?? null
@@ -45,9 +40,9 @@ Core teaching principles:
 - Break complex problems into smaller steps`
 
     if (studentProfile) {
-      const topics = JSON.parse(studentProfile.mathTopics || '[]')
-      const strengths = JSON.parse(studentProfile.strengthAreas || '[]')
-      const weaknesses = JSON.parse(studentProfile.weaknessAreas || '[]')
+      const topics = safeJsonParse<string[]>(studentProfile.mathTopics || '[]', [])
+      const strengths = safeJsonParse<string[]>(studentProfile.strengthAreas || '[]', [])
+      const weaknesses = safeJsonParse<string[]>(studentProfile.weaknessAreas || '[]', [])
 
       systemPrompt += `
 
@@ -64,8 +59,8 @@ Goals: ${studentProfile.goals}`
     const stream = new ReadableStream({
       async start(controller) {
         const anthropicStream = anthropic.messages.stream({
-          model: 'claude-opus-4-6',
-          max_tokens: 8192,
+          model: config.ai.chatModel,
+          max_tokens: config.ai.chatMaxTokens,
           system: systemPrompt,
           messages,
         })

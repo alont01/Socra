@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { processSessionPostCompletion } from '@/lib/session-processing'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('session-end')
 
 export async function POST(
   _request: Request,
@@ -10,12 +12,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
 
     const session = await prisma.tutoringSession.findUnique({
       where: { id },
@@ -23,24 +21,34 @@ export async function POST(
     })
 
     if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-    if (session.tutor.userId !== payload.userId) {
+    if (session.tutor.userId !== auth.payload.userId) {
       return NextResponse.json({ error: 'Only tutor can end session' }, { status: 403 })
     }
     if (session.status === 'completed') {
       return NextResponse.json({ session })
     }
 
-    const updated = await prisma.tutoringSession.update({
-      where: { id },
+    // Atomic conditional update: only transition to completed if not already completed.
+    // This prevents double-processing from concurrent end requests.
+    const result = await prisma.tutoringSession.updateMany({
+      where: { id, status: { not: 'completed' } },
       data: {
         status: 'completed',
         endedAt: new Date(),
       },
     })
 
+    if (result.count === 0) {
+      // Another request completed it first — return current state
+      const current = await prisma.tutoringSession.findUnique({ where: { id } })
+      return NextResponse.json({ session: current })
+    }
+
+    const updated = await prisma.tutoringSession.findUnique({ where: { id } })
+
     // Fire-and-forget post-session processing (idempotent — checks for existing analysis)
     processSessionPostCompletion(id).catch((err) =>
-      console.error(`[session-end] Post-processing failed for session ${id}:`, err)
+      logger.error('Post-processing failed', err, { sessionId: id })
     )
 
     return NextResponse.json({ session: updated })

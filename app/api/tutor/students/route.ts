@@ -1,24 +1,14 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const tutor = await prisma.tutorProfile.findUnique({
-      where: { userId: payload.userId },
-    })
-    if (!tutor) return NextResponse.json({ error: 'Not a tutor' }, { status: 403 })
+    const auth = await requireTutor()
+    if (!auth.ok) return auth.response
 
     const roster = await prisma.tutorStudent.findMany({
-      where: { tutorId: tutor.id },
+      where: { tutorId: auth.tutor.id },
       include: {
         student: {
           include: {
@@ -47,17 +37,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const tutor = await prisma.tutorProfile.findUnique({
-      where: { userId: payload.userId },
-    })
-    if (!tutor) return NextResponse.json({ error: 'Not a tutor' }, { status: 403 })
+    const auth = await requireTutor()
+    if (!auth.ok) return auth.response
 
     const { email } = await request.json()
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -72,14 +53,14 @@ export async function POST(request: Request) {
     }
 
     const existing = await prisma.tutorStudent.findUnique({
-      where: { tutorId_studentId: { tutorId: tutor.id, studentId: studentUser.studentProfile.id } },
+      where: { tutorId_studentId: { tutorId: auth.tutor.id, studentId: studentUser.studentProfile.id } },
     })
     if (existing) {
       return NextResponse.json({ error: 'Student already in your roster' }, { status: 409 })
     }
 
     await prisma.tutorStudent.create({
-      data: { tutorId: tutor.id, studentId: studentUser.studentProfile.id },
+      data: { tutorId: auth.tutor.id, studentId: studentUser.studentProfile.id },
     })
 
     return NextResponse.json({

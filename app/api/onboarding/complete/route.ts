@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
 
     const { name, gradeLevel } = await request.json()
     if (!name || !gradeLevel) {
@@ -18,7 +13,7 @@ export async function POST(request: Request) {
     }
 
     await prisma.studentProfile.update({
-      where: { userId: payload.userId },
+      where: { userId: auth.payload.userId },
       data: {
         name,
         gradeLevel,

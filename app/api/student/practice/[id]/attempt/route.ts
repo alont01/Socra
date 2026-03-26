@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { updateMasteryScore } from '@/lib/progress'
+import { safeJsonParse } from '@/lib/json'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(
   request: Request,
@@ -10,18 +11,14 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireStudent()
+    if (!auth.ok) return auth.response
 
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const student = await prisma.studentProfile.findUnique({ where: { userId: payload.userId } })
-    if (!student) return NextResponse.json({ error: 'Not a student' }, { status: 403 })
+    const rl = rateLimit(`practice:${auth.payload.userId}`, { maxRequests: 60, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
     const set = await prisma.practiceSet.findUnique({ where: { id } })
-    if (!set || set.studentId !== student.id) {
+    if (!set || set.studentId !== auth.student.id) {
       return NextResponse.json({ error: 'Practice set not found' }, { status: 404 })
     }
 
@@ -34,10 +31,22 @@ export async function POST(
     const { problemIndex, studentAnswer } = parsed.data
 
     // Server-side answer verification
-    const problems = JSON.parse(set.problems)
+    const problems = safeJsonParse<{ answer?: string; topic?: string }[]>(set.problems, [])
     const problem = problems[problemIndex]
     if (!problem) {
       return NextResponse.json({ error: 'Invalid problem index' }, { status: 400 })
+    }
+
+    // Prevent re-answering the same problem (only first attempt counts for mastery)
+    const existingAttempt = await prisma.practiceSetAttempt.findFirst({
+      where: { practiceSetId: id, problemIndex },
+    })
+    if (existingAttempt) {
+      return NextResponse.json({
+        error: 'Already answered this problem',
+        attempt: existingAttempt,
+        correct: existingAttempt.correct,
+      }, { status: 409 })
     }
 
     const correct = problem.answer
@@ -55,7 +64,7 @@ export async function POST(
 
     // Update mastery for the problem's topic
     if (problem.topic) {
-      await updateMasteryScore(student.id, problem.topic, correct)
+      await updateMasteryScore(auth.student.id, problem.topic, correct)
     }
 
     return NextResponse.json({

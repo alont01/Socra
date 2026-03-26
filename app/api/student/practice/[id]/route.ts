@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/json'
 
 export async function GET(
   _request: Request,
@@ -9,27 +9,20 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const student = await prisma.studentProfile.findUnique({ where: { userId: payload.userId } })
-    if (!student) return NextResponse.json({ error: 'Not a student' }, { status: 403 })
+    const auth = await requireStudent()
+    if (!auth.ok) return auth.response
 
     const set = await prisma.practiceSet.findUnique({
       where: { id },
       include: { attempts: true },
     })
 
-    if (!set || set.studentId !== student.id) {
+    if (!set || set.studentId !== auth.student.id) {
       return NextResponse.json({ error: 'Practice set not found' }, { status: 404 })
     }
 
     // Strip answer field from problems so clients can't cheat
-    const problems = JSON.parse(set.problems)
+    const problems = safeJsonParse<Record<string, unknown>[]>(set.problems, [])
     const safeProblems = problems.map(({ answer, ...rest }: { answer?: string; [key: string]: unknown }) => rest)
 
     return NextResponse.json({

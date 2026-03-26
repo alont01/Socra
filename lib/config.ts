@@ -23,6 +23,13 @@ export const config = {
     practiceModel: 'claude-sonnet-4-20250514' as const,
     practiceMaxTokens: 2048,
     practiceProblemsCount: 5,
+    noteExtractorModel: 'claude-sonnet-4-20250514' as const,
+    chatModel: 'claude-opus-4-6' as const,
+    chatMaxTokens: 8192,
+    studentChatModel: 'claude-sonnet-4-20250514' as const,
+    studentChatMaxTokens: 1024,
+    onboardingModel: 'claude-opus-4-6' as const,
+    onboardingMaxTokens: 2048,
   },
 
   // Auth

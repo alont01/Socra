@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(
   request: Request,
@@ -9,12 +9,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
 
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const rl = rateLimit(`whiteboard:${auth.payload.userId}`, { maxRequests: 30, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
     const session = await prisma.tutoringSession.findUnique({
       where: { id },
@@ -22,10 +21,12 @@ export async function POST(
     })
 
     if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-    if (session.tutor.userId !== payload.userId) {
+    if (session.tutor.userId !== auth.payload.userId) {
       return NextResponse.json({ error: 'Only the tutor can save whiteboard' }, { status: 403 })
     }
-    if (session.status !== 'active') {
+    // Allow saving for active or completed sessions (whiteboard snapshot is captured
+    // right before ending, so a race with the end endpoint shouldn't block the save)
+    if (session.status !== 'active' && session.status !== 'completed') {
       return NextResponse.json({ error: 'Session is not active' }, { status: 400 })
     }
 

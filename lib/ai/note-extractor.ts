@@ -1,10 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic()
+import { anthropic } from './client'
+import { config } from '@/lib/config'
 
 export async function extractHandwrittenNotes(imageBase64: string): Promise<string> {
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+  const response = await anthropic.messages.create({
+    model: config.ai.noteExtractorModel,
     max_tokens: 1024,
     messages: [
       {

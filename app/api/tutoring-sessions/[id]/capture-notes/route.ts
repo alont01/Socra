@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { extractHandwrittenNotes } from '@/lib/ai/note-extractor'
 
@@ -10,12 +9,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
 
     const session = await prisma.tutoringSession.findUnique({
       where: { id },
@@ -26,7 +21,7 @@ export async function POST(
     if (session.status !== 'active') {
       return NextResponse.json({ error: 'Session is not active' }, { status: 400 })
     }
-    if (!session.student || session.student.userId !== payload.userId) {
+    if (!session.student || session.student.userId !== auth.payload.userId) {
       return NextResponse.json({ error: 'Only the student can capture notes' }, { status: 403 })
     }
 

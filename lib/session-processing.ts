@@ -3,9 +3,9 @@ import { fetchTranscriptWithRetry } from '@/lib/daily'
 import { analyzeSession } from '@/lib/ai/session-analyzer'
 import { generatePracticeSet } from '@/lib/ai/practice-set-generator'
 import { config } from '@/lib/config'
+import { createLogger } from '@/lib/logger'
 
-const log = (msg: string) => console.log(`[session-processing] ${msg}`)
-const logError = (msg: string, err: unknown) => console.error(`[session-processing] ${msg}`, err)
+const logger = createLogger('session-processing')
 
 export async function processSessionPostCompletion(sessionId: string) {
   const session = await prisma.tutoringSession.findUnique({
@@ -14,16 +14,16 @@ export async function processSessionPostCompletion(sessionId: string) {
   })
 
   if (!session || !session.student) {
-    log(`Session ${sessionId} not found or no student`)
+    logger.info('Session not found or no student', { sessionId })
     return
   }
 
-  // Idempotency: skip if already processed
+  // Idempotency: skip if already processed (use atomic upsert-style check)
   const existingAnalysis = await prisma.sessionAnalysis.findUnique({
     where: { tutoringSessionId: sessionId },
   })
   if (existingAnalysis) {
-    log(`Session ${sessionId} already processed, skipping`)
+    logger.info('Session already processed, skipping', { sessionId })
     return
   }
 
@@ -34,6 +34,10 @@ export async function processSessionPostCompletion(sessionId: string) {
 
   // Step 2: Analyze session
   const contentToAnalyze = transcriptText || session.tutorNotes || session.capturedNotes || 'No transcript or notes available.'
+  if (!transcriptText) {
+    logger.warn('No transcript available, falling back to notes', { sessionId, hasNotes: !!session.tutorNotes, hasCaptured: !!session.capturedNotes })
+  }
+
   const analysis = await analyzeAndSave(sessionId, {
     transcript: contentToAnalyze,
     tutorNotes: session.tutorNotes,
@@ -52,7 +56,7 @@ export async function processSessionPostCompletion(sessionId: string) {
   // Step 4: Update mastery scores
   await updateMasteryForConcepts(student.id, analysis.conceptsCovered)
 
-  log(`Completed processing for session ${sessionId}`)
+  logger.info('Completed processing', { sessionId })
 }
 
 async function fetchAndSaveTranscript(
@@ -68,7 +72,7 @@ async function fetchAndSaveTranscript(
       const transcript = await fetchTranscriptWithRetry(dailyRoomName)
       transcriptText = transcript || ''
     } catch (err) {
-      logError(`Failed to fetch transcript for session ${sessionId}`, err)
+      logger.error('Failed to fetch transcript', err, { sessionId })
     }
   }
 
@@ -96,9 +100,18 @@ async function analyzeAndSave(
   try {
     const analysis = await analyzeSession(input)
 
-    await prisma.sessionAnalysis.create({
-      data: {
+    // Use upsert to prevent unique constraint violation from concurrent calls
+    await prisma.sessionAnalysis.upsert({
+      where: { tutoringSessionId: sessionId },
+      create: {
         tutoringSessionId: sessionId,
+        summary: analysis.summary,
+        conceptsCovered: JSON.stringify(analysis.conceptsCovered),
+        studentStrengths: JSON.stringify(analysis.studentStrengths),
+        studentGaps: JSON.stringify(analysis.studentGaps),
+        tutorFeedback: analysis.tutorFeedback,
+      },
+      update: {
         summary: analysis.summary,
         conceptsCovered: JSON.stringify(analysis.conceptsCovered),
         studentStrengths: JSON.stringify(analysis.studentStrengths),
@@ -109,19 +122,25 @@ async function analyzeAndSave(
 
     return analysis
   } catch (err) {
-    logError(`Analysis failed for session ${sessionId}`, err)
+    logger.error('Analysis failed', err, { sessionId })
 
     // Save a failed analysis so the UI can show an error state
-    await prisma.sessionAnalysis.create({
-      data: {
-        tutoringSessionId: sessionId,
-        summary: 'Analysis could not be generated. Please try again later.',
-        conceptsCovered: '[]',
-        studentStrengths: '[]',
-        studentGaps: '[]',
-        tutorFeedback: '',
-      },
-    })
+    try {
+      await prisma.sessionAnalysis.upsert({
+        where: { tutoringSessionId: sessionId },
+        create: {
+          tutoringSessionId: sessionId,
+          summary: 'Analysis could not be generated. Please try again later.',
+          conceptsCovered: '[]',
+          studentStrengths: '[]',
+          studentGaps: '[]',
+          tutorFeedback: '',
+        },
+        update: {},  // Don't overwrite real analysis if one exists
+      })
+    } catch (upsertErr) {
+      logger.error('Failed to save placeholder analysis', upsertErr, { sessionId })
+    }
 
     return null
   }
@@ -152,7 +171,7 @@ async function generateAndSavePracticeSet(
       })
     }
   } catch (err) {
-    logError(`Practice set generation failed for session ${sessionId}`, err)
+    logger.error('Practice set generation failed', err, { sessionId })
     // Non-critical: don't fail the whole pipeline
   }
 }
@@ -162,13 +181,24 @@ async function updateMasteryForConcepts(studentId: string, concepts: string[]) {
 
   for (const concept of concepts) {
     try {
-      await prisma.studentProgress.upsert({
+      // Read-then-update with clamping instead of blind increment
+      const existing = await prisma.studentProgress.findUnique({
         where: { studentId_topic: { studentId, topic: concept } },
-        create: { studentId, topic: concept, mastery: initialSessionCoverage },
-        update: { mastery: { increment: sessionCoverageIncrement } },
       })
+
+      if (existing) {
+        const newMastery = Math.min(1.0, existing.mastery + sessionCoverageIncrement)
+        await prisma.studentProgress.update({
+          where: { id: existing.id },
+          data: { mastery: newMastery },
+        })
+      } else {
+        await prisma.studentProgress.create({
+          data: { studentId, topic: concept, mastery: initialSessionCoverage },
+        })
+      }
     } catch (err) {
-      logError(`Failed to update mastery for concept "${concept}"`, err)
+      logger.error(`Failed to update mastery for concept "${concept}"`, err, { studentId })
     }
   }
 }

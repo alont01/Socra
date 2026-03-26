@@ -1,28 +1,23 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic()
+import { requireStudent } from '@/lib/api-auth'
+import { anthropic } from '@/lib/ai/client'
+import { config } from '@/lib/config'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireStudent()
+    if (!auth.ok) return auth.response
 
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const student = await prisma.studentProfile.findUnique({ where: { userId: payload.userId } })
-    if (!student) return NextResponse.json({ error: 'Not a student' }, { status: 403 })
+    const rl = rateLimit(`student-chat:${auth.payload.userId}`, { maxRequests: 20, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
     const { messages } = await request.json()
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'messages array required' }, { status: 400 })
     }
 
+    const student = auth.student
     const systemPrompt = `You are a friendly math tutor AI helping ${student.name}, a ${student.gradeLevel || 'student'}.
 Their math topics: ${student.mathTopics || 'general math'}.
 Their goals: ${student.goals || 'improve math skills'}.
@@ -30,9 +25,9 @@ Their goals: ${student.goals || 'improve math skills'}.
 Be encouraging, use the Socratic method when appropriate (guide them to answers rather than just giving answers).
 Keep responses concise and focused. Use plain text for math expressions.`
 
-    const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+    const stream = await anthropic.messages.stream({
+      model: config.ai.studentChatModel,
+      max_tokens: config.ai.studentChatMaxTokens,
       system: systemPrompt,
       messages: messages.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',

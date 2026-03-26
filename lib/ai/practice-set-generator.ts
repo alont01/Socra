@@ -1,8 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { anthropic } from './client'
 import type { PracticeProblem } from './types'
 import { config } from '@/lib/config'
+import { createLogger } from '@/lib/logger'
 
-const client = new Anthropic()
+const logger = createLogger('practice-generator')
 
 interface GeneratorInput {
   studentGaps: string[]
@@ -20,7 +21,7 @@ export async function generatePracticeSet(input: GeneratorInput): Promise<Practi
     ? input.studentGaps
     : input.conceptsCovered
 
-  const response = await client.messages.create({
+  const response = await anthropic.messages.create({
     model: config.ai.practiceModel,
     max_tokens: config.ai.practiceMaxTokens,
     messages: [
@@ -65,7 +66,7 @@ Only output the JSON array, nothing else.`,
       answer: p.answer || '',
     }))
   } catch (err) {
-    console.error('[practice-generator] Failed to parse AI response:', err, 'Raw text:', text.slice(0, 500))
+    logger.error('Failed to parse AI response', err, { rawText: text.slice(0, 500) })
     throw new Error('Failed to parse practice set from AI response')
   }
 }

@@ -3,6 +3,7 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ToastProvider } from '@/contexts/ToastContext'
 import { ToastContainer } from '@/components/ui/Toast'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export const metadata: Metadata = {
   title: 'Socra — AI-Powered Tutoring Platform',
@@ -17,12 +18,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-[#FFFBF5]">
-        <AuthProvider>
-          <ToastProvider>
-            {children}
-            <ToastContainer />
-          </ToastProvider>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <ToastProvider>
+              {children}
+              <ToastContainer />
+            </ToastProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

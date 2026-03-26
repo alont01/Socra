@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { Navbar } from '@/components/Navbar'
@@ -24,6 +24,8 @@ export default function ReviewPage({
   const [whiteboardImage, setWhiteboardImage] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'error'>('loading')
   const [sessionRole, setSessionRole] = useState<'tutor' | 'student'>('student')
+  const pollRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -52,20 +54,23 @@ export default function ReviewPage({
           const data = await analysisRes.json()
           if (data.status === 'processing') {
             setStatus('processing')
-            // Poll for completion
-            const poll = setInterval(async () => {
+            // Poll for completion — clean up on unmount
+            pollRef.current = setInterval(async () => {
               const retry = await fetch(`/api/tutoring-sessions/${id}/analysis`)
               if (retry.ok) {
                 const retryData = await retry.json()
                 if (retryData.status === 'ready') {
                   setAnalysis(retryData.analysis)
                   setStatus('ready')
-                  clearInterval(poll)
+                  if (pollRef.current) clearInterval(pollRef.current)
+                  if (timeoutRef.current) clearTimeout(timeoutRef.current)
                 }
               }
             }, 5000)
             // Stop polling after 2 minutes
-            setTimeout(() => clearInterval(poll), 120000)
+            timeoutRef.current = setTimeout(() => {
+              if (pollRef.current) clearInterval(pollRef.current)
+            }, 120000)
             return
           }
           setAnalysis(data.analysis)
@@ -84,6 +89,12 @@ export default function ReviewPage({
     }
 
     fetchData()
+
+    // Cleanup polling on unmount
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
   }, [user, id])
 
   if (authLoading) {

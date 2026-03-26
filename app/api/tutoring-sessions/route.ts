@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { requireAuth, requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth()
+    if (!auth.ok) return auth.response
 
     const { searchParams } = new URL(request.url)
     const take = Math.min(Number(searchParams.get('limit')) || 50, 100)
@@ -24,8 +19,8 @@ export async function GET(request: Request) {
 
     let sessions
 
-    if (payload.role === 'TUTOR') {
-      const tutor = await prisma.tutorProfile.findUnique({ where: { userId: payload.userId } })
+    if (auth.payload.role === 'TUTOR') {
+      const tutor = await prisma.tutorProfile.findUnique({ where: { userId: auth.payload.userId } })
       if (!tutor) return NextResponse.json({ error: 'Not a tutor' }, { status: 403 })
 
       sessions = await prisma.tutoringSession.findMany({
@@ -36,7 +31,7 @@ export async function GET(request: Request) {
         ...paginationArgs,
       })
     } else {
-      const student = await prisma.studentProfile.findUnique({ where: { userId: payload.userId } })
+      const student = await prisma.studentProfile.findUnique({ where: { userId: auth.payload.userId } })
       if (!student) return NextResponse.json({ error: 'Not a student' }, { status: 403 })
 
       sessions = await prisma.tutoringSession.findMany({
@@ -61,17 +56,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const payload = await verifyToken(token)
-    if (!payload || payload.role !== 'TUTOR') {
-      return NextResponse.json({ error: 'Only tutors can create sessions' }, { status: 403 })
-    }
-
-    const tutor = await prisma.tutorProfile.findUnique({ where: { userId: payload.userId } })
-    if (!tutor) return NextResponse.json({ error: 'Not a tutor' }, { status: 403 })
+    const auth = await requireTutor()
+    if (!auth.ok) return auth.response
 
     const { createSessionSchema, parseBody } = await import('@/lib/validations')
     const body = await request.json()
@@ -81,9 +67,19 @@ export async function POST(request: Request) {
     }
     const { studentId, topic, scheduledAt } = parsed.data
 
+    // Validate student is in tutor's roster
+    if (studentId) {
+      const rosterEntry = await prisma.tutorStudent.findUnique({
+        where: { tutorId_studentId: { tutorId: auth.tutor.id, studentId } },
+      })
+      if (!rosterEntry) {
+        return NextResponse.json({ error: 'Student is not in your roster' }, { status: 403 })
+      }
+    }
+
     const session = await prisma.tutoringSession.create({
       data: {
-        tutorId: tutor.id,
+        tutorId: auth.tutor.id,
         studentId: studentId || null,
         topic: topic || '',
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
