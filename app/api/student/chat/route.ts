@@ -3,6 +3,7 @@ import { requireStudent } from '@/lib/api-auth'
 import { anthropic } from '@/lib/ai/client'
 import { config } from '@/lib/config'
 import { rateLimit } from '@/lib/rate-limit'
+import { chatSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
   try {
@@ -12,10 +13,12 @@ export async function POST(request: Request) {
     const rl = rateLimit(`student-chat:${auth.payload.userId}`, { maxRequests: 20, windowMs: 60_000 })
     if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
-    const { messages } = await request.json()
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'messages array required' }, { status: 400 })
+    const body = await request.json()
+    const parsed = parseBody(chatSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
+    const { messages } = parsed.data
 
     const student = auth.student
     const systemPrompt = `You are a friendly math tutor AI helping ${student.name}, a ${student.gradeLevel || 'student'}.

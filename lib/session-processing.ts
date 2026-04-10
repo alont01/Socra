@@ -51,7 +51,7 @@ export async function processSessionPostCompletion(sessionId: string) {
   if (!analysis) return // analysis failed and was logged
 
   // Step 3: Generate practice set
-  await generateAndSavePracticeSet(sessionId, student.id, session.topic, analysis)
+  await generateAndSavePracticeSet(sessionId, student.id, student.gradeLevel, session.topic, analysis)
 
   // Step 4: Update mastery scores
   await updateMasteryForConcepts(student.id, analysis.conceptsCovered)
@@ -149,6 +149,7 @@ async function analyzeAndSave(
 async function generateAndSavePracticeSet(
   sessionId: string,
   studentId: string,
+  studentGrade: string,
   topic: string,
   analysis: { studentGaps: string[]; conceptsCovered: string[] },
 ) {
@@ -156,7 +157,7 @@ async function generateAndSavePracticeSet(
     const problems = await generatePracticeSet({
       studentGaps: analysis.studentGaps,
       conceptsCovered: analysis.conceptsCovered,
-      studentGrade: '', // Already in the analysis context
+      studentGrade,
       topic,
     })
 

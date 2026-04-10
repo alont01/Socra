@@ -8,8 +8,11 @@ export async function POST(request: Request) {
     const auth = await requireAuth()
     if (!auth.ok) return auth.response
 
-    const { sessionId } = await request.json()
-    if (!sessionId) return NextResponse.json({ error: 'sessionId required' }, { status: 400 })
+    const body = await request.json()
+    const { dailyTokenSchema, parseBody } = await import('@/lib/validations')
+    const parsed = parseBody(dailyTokenSchema, body)
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { sessionId } = parsed.data
 
     const session = await prisma.tutoringSession.findUnique({
       where: { id: sessionId },

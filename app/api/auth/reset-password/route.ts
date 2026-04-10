@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
 import { rateLimit } from '@/lib/rate-limit'
+import { resetPasswordSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
   try {
@@ -9,15 +10,12 @@ export async function POST(request: Request) {
     const rl = rateLimit(`reset-pw:${ip}`, { maxRequests: 5, windowMs: 60_000 })
     if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
-    const { token, password } = await request.json()
-
-    if (!token || !password) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    const body = await request.json()
+    const parsed = parseBody(resetPasswordSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
-
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
-    }
+    const { token, password } = parsed.data
 
     const resetToken = await prisma.passwordResetToken.findUnique({
       where: { token },

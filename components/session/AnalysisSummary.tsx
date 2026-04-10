@@ -21,8 +21,8 @@ export function AnalysisSummary({ summary, conceptsCovered, studentStrengths, st
         <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
           <h3 className="font-semibold text-stone-900 mb-3">Concepts Covered</h3>
           <div className="flex flex-wrap gap-2">
-            {conceptsCovered.map((c) => (
-              <span key={c} className="text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium">
+            {conceptsCovered.map((c, i) => (
+              <span key={`${c}-${i}`} className="text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium">
                 {c}
               </span>
             ))}
@@ -36,8 +36,8 @@ export function AnalysisSummary({ summary, conceptsCovered, studentStrengths, st
           <div className="bg-white rounded-2xl border border-green-100 shadow-sm p-5">
             <h3 className="font-semibold text-green-700 mb-3">Strengths</h3>
             <ul className="space-y-1.5">
-              {studentStrengths.map((s) => (
-                <li key={s} className="text-sm text-stone-600 flex items-start gap-2">
+              {studentStrengths.map((s, i) => (
+                <li key={`${s}-${i}`} className="text-sm text-stone-600 flex items-start gap-2">
                   <span className="text-green-500 mt-0.5">+</span>
                   {s}
                 </li>
@@ -50,8 +50,8 @@ export function AnalysisSummary({ summary, conceptsCovered, studentStrengths, st
           <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-5">
             <h3 className="font-semibold text-amber-700 mb-3">Areas to Work On</h3>
             <ul className="space-y-1.5">
-              {studentGaps.map((g) => (
-                <li key={g} className="text-sm text-stone-600 flex items-start gap-2">
+              {studentGaps.map((g, i) => (
+                <li key={`${g}-${i}`} className="text-sm text-stone-600 flex items-start gap-2">
                   <span className="text-amber-500 mt-0.5">-</span>
                   {g}
                 </li>

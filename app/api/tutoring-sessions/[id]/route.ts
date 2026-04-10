@@ -61,7 +61,23 @@ export async function PATCH(
 
     if (body.tutorNotes !== undefined) updateData.tutorNotes = body.tutorNotes
     if (body.topic !== undefined) updateData.topic = body.topic
-    if (body.status !== undefined) updateData.status = body.status
+    if (body.status !== undefined) {
+      // Validate status transitions
+      const validTransitions: Record<string, string[]> = {
+        scheduled: ['active', 'cancelled'],
+        active: ['completed', 'cancelled'],
+        completed: [],    // terminal state
+        cancelled: [],    // terminal state
+      }
+      const allowed = validTransitions[session.status] || []
+      if (!allowed.includes(body.status)) {
+        return NextResponse.json(
+          { error: `Cannot transition from '${session.status}' to '${body.status}'` },
+          { status: 400 },
+        )
+      }
+      updateData.status = body.status
+    }
 
     // If setting to active and no room yet, create one
     if (body.status === 'active' && !session.dailyRoomName) {

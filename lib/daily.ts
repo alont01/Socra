@@ -1,3 +1,5 @@
+import { config as appConfig } from '@/lib/config'
+
 const DAILY_API_KEY = process.env.DAILY_API_KEY || ''
 const DAILY_API_URL = 'https://api.daily.co/v1'
 
@@ -25,13 +27,13 @@ export async function createRoom(sessionId: string) {
       body: JSON.stringify({
         name: roomName,
         properties: {
-          max_participants: 2,
+          max_participants: appConfig.daily.maxParticipants,
           enable_recording: 'cloud',
           enable_transcription: {
             autostart: true,
           },
           enable_transcription_storage: true,
-          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3, // 3 hour expiry
+          exp: Math.floor(Date.now() / 1000) + appConfig.daily.roomExpirySeconds,
           eject_at_room_exp: true,
         },
       }),
@@ -61,7 +63,7 @@ export async function getMeetingToken(roomName: string, userName: string, isOwne
         room_name: roomName,
         user_name: userName,
         is_owner: isOwner,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 3,
+        exp: Math.floor(Date.now() / 1000) + appConfig.daily.roomExpirySeconds,
       },
     }),
   })

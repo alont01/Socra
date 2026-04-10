@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function GET() {
   try {
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
   try {
     const auth = await requireTutor()
     if (!auth.ok) return auth.response
+
+    const rl = rateLimit(`add-student:${auth.payload.userId}`, { maxRequests: 10, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
     const { email } = await request.json()
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })

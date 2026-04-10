@@ -45,6 +45,9 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
     ]).then(([studentsData, sessionsData]) => {
       setStudents(studentsData.students || [])
       setSessions(sessionsData.sessions || [])
+    }).catch(() => {
+      // Fail silently — dashboard will show empty state
+    }).finally(() => {
       setLoading(false)
     })
   }, [])

@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/api-auth'
+import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { onboardingCompleteSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireStudent()
     if (!auth.ok) return auth.response
 
-    const { name, gradeLevel } = await request.json()
-    if (!name || !gradeLevel) {
-      return NextResponse.json({ error: 'Name and grade level required' }, { status: 400 })
+    const body = await request.json()
+    const parsed = parseBody(onboardingCompleteSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
+    const { name, gradeLevel } = parsed.data
 
     await prisma.studentProfile.update({
       where: { userId: auth.payload.userId },

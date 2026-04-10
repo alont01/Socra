@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/auth'
+import { setRoleSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
   const session = await auth()
@@ -10,11 +11,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { role, name } = await request.json()
-
-  if (!role || !name || !['STUDENT', 'PARENT', 'TUTOR'].includes(role)) {
-    return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+  const body = await request.json()
+  const parsed = parseBody(setRoleSchema, body)
+  if ('error' in parsed) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
+  const { role, name } = parsed.data
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -29,25 +31,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Profile already exists' }, { status: 409 })
   }
 
-  // Update role + create profile
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { role },
-  })
+  // Atomic: update role + create profile in a single transaction
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: { role },
+    })
 
-  if (role === 'STUDENT') {
-    await prisma.studentProfile.create({
-      data: { userId: user.id, name },
-    })
-  } else if (role === 'TUTOR') {
-    await prisma.tutorProfile.create({
-      data: { userId: user.id, name },
-    })
-  } else {
-    await prisma.parentProfile.create({
-      data: { userId: user.id, name },
-    })
-  }
+    if (role === 'STUDENT') {
+      await tx.studentProfile.create({
+        data: { userId: user.id, name },
+      })
+    } else {
+      await tx.tutorProfile.create({
+        data: { userId: user.id, name },
+      })
+    }
+  })
 
   const token = await signToken({ userId: user.id, email: user.email, role })
 

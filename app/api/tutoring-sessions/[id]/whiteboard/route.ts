@@ -31,10 +31,12 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { imageBase64 } = body as { imageBase64: string }
-    if (!imageBase64) {
-      return NextResponse.json({ error: 'imageBase64 is required' }, { status: 400 })
+    const { imageBase64Schema, parseBody } = await import('@/lib/validations')
+    const parsed = parseBody(imageBase64Schema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
+    const { imageBase64 } = parsed.data
 
     const MAX_BASE64_LENGTH = 5 * 1024 * 1024 // ~3.75MB decoded
     if (imageBase64.length > MAX_BASE64_LENGTH) {

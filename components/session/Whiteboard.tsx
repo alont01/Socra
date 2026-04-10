@@ -162,6 +162,8 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
     canvas.loadFromJSON(remoteCanvasState).then(() => {
       canvas.requestRenderAll()
       isUpdatingRef.current = false
+    }).catch(() => {
+      isUpdatingRef.current = false
     })
   }, [isTutor, remoteCanvasState])
 

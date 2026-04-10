@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
+import { forgotPasswordSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
   try {
@@ -9,11 +10,12 @@ export async function POST(request: Request) {
     const rl = rateLimit(`forgot-pw:${ip}`, { maxRequests: 3, windowMs: 60_000 })
     if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
-    const { email } = await request.json()
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+    const body = await request.json()
+    const parsed = parseBody(forgotPasswordSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
+    const { email } = parsed.data
 
     const user = await prisma.user.findUnique({ where: { email } })
 
@@ -22,11 +24,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true })
     }
 
+    // OAuth-only users have no password to reset — return same generic success
+    // to avoid leaking whether the email exists or what auth method is used
     if (!user.passwordHash) {
-      return NextResponse.json({
-        success: true,
-        message: 'This account uses Google/GitHub sign-in. Please use the OAuth button to log in.',
-      })
+      return NextResponse.json({ success: true })
     }
 
     // Clean up any existing tokens for this user

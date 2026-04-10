@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 
 interface UseStreamOptions {
   onChunk?: (chunk: string) => void
@@ -9,6 +9,14 @@ interface UseStreamOptions {
 export function useStream(options: UseStreamOptions = {}) {
   const [streaming, setStreaming] = useState(false)
   const [text, setText] = useState('')
+
+  // Store callbacks in refs to avoid recreating `stream` when they change
+  const onChunkRef = useRef(options.onChunk)
+  const onDoneRef = useRef(options.onDone)
+  const onErrorRef = useRef(options.onError)
+  onChunkRef.current = options.onChunk
+  onDoneRef.current = options.onDone
+  onErrorRef.current = options.onError
 
   const stream = useCallback(
     async (url: string, body: object) => {
@@ -43,7 +51,7 @@ export function useStream(options: UseStreamOptions = {}) {
                 if (parsed.text) {
                   fullText += parsed.text
                   setText(fullText)
-                  options.onChunk?.(parsed.text)
+                  onChunkRef.current?.(parsed.text)
                 }
               } catch {
                 // skip malformed
@@ -52,14 +60,14 @@ export function useStream(options: UseStreamOptions = {}) {
           }
         }
 
-        options.onDone?.(fullText)
+        onDoneRef.current?.(fullText)
       } catch (err) {
-        options.onError?.(err instanceof Error ? err : new Error(String(err)))
+        onErrorRef.current?.(err instanceof Error ? err : new Error(String(err)))
       } finally {
         setStreaming(false)
       }
     },
-    [options]
+    []
   )
 
   return { stream, streaming, text }

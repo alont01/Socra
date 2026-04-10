@@ -1,16 +1,21 @@
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/api-auth'
+import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { anthropic } from '@/lib/ai/client'
 import { config } from '@/lib/config'
+import { onboardingSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireStudent()
     if (!auth.ok) return auth.response
 
-    const { name, gradeLevel, mathTopics, strengthAreas, weaknessAreas, learningStyle, goals } =
-      await request.json()
+    const body = await request.json()
+    const parsed = parseBody(onboardingSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+    const { name, gradeLevel, mathTopics, strengthAreas, weaknessAreas, learningStyle, goals } = parsed.data
 
     // Update student profile
     await prisma.studentProfile.update({

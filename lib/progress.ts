@@ -10,23 +10,27 @@ export async function updateMasteryScore(studentId: string, topic: string, corre
   const { alpha } = config.mastery
   const newValue = correct ? 1.0 : 0.0
 
-  const existing = await prisma.studentProgress.findUnique({
-    where: { studentId_topic: { studentId, topic } },
-  })
+  // Use a transaction to make the read-then-update atomic, preventing
+  // concurrent practice submissions from losing mastery updates
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.studentProgress.findUnique({
+      where: { studentId_topic: { studentId, topic } },
+    })
 
-  if (existing) {
-    const updated = clampMastery(alpha * newValue + (1 - alpha) * existing.mastery)
-    await prisma.studentProgress.update({
-      where: { id: existing.id },
-      data: { mastery: updated },
-    })
-  } else {
-    await prisma.studentProgress.create({
-      data: {
-        studentId,
-        topic,
-        mastery: clampMastery(newValue * alpha),
-      },
-    })
-  }
+    if (existing) {
+      const updated = clampMastery(alpha * newValue + (1 - alpha) * existing.mastery)
+      await tx.studentProgress.update({
+        where: { id: existing.id },
+        data: { mastery: updated },
+      })
+    } else {
+      await tx.studentProgress.create({
+        data: {
+          studentId,
+          topic,
+          mastery: clampMastery(newValue * alpha),
+        },
+      })
+    }
+  })
 }
