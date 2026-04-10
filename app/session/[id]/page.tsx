@@ -5,14 +5,18 @@ import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { VideoCall } from '@/components/session/VideoCall'
 import { CallHeader } from '@/components/session/CallHeader'
-import { NotesSidebar } from '@/components/session/NotesSidebar'
+import { SessionSidebar } from '@/components/session/SessionSidebar'
+import { StudentProblemPanel } from '@/components/session/StudentProblemPanel'
 import { JoinCallCard } from '@/components/session/JoinCallCard'
 import { CaptureNotesButton } from '@/components/session/CaptureNotesButton'
 import { Whiteboard } from '@/components/session/Whiteboard'
 import { useWhiteboardSync } from '@/hooks/useWhiteboardSync'
+import { useLivePracticeSync } from '@/hooks/useLivePracticeSync'
+import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import { Navbar } from '@/components/Navbar'
 import type { DailyCall } from '@daily-co/daily-js'
+import type { PracticeProblem } from '@/lib/ai/types'
 import type { TutoringSessionData } from '@/types'
 
 export default function SessionPage({
@@ -35,6 +39,10 @@ export default function SessionPage({
   const [whiteboardActive, setWhiteboardActive] = useState(false)
   const [remoteCanvasState, setRemoteCanvasState] = useState<string | null>(null)
   const whiteboardSnapshotRef = useRef<(() => string | null) | null>(null)
+  const [livePracticeProblems, setLivePracticeProblems] = useState<PracticeProblem[]>([])
+  const [studentAnswers, setStudentAnswers] = useState<Map<string, StudentAnswerResult>>(new Map())
+  const [studentProblems, setStudentProblems] = useState<PracticeProblem[]>([])
+  const [studentDismissed, setStudentDismissed] = useState(false)
 
   const isTutor = sessionRole === 'tutor'
 
@@ -45,6 +53,36 @@ export default function SessionPage({
     onWhiteboardStarted: useCallback(() => setWhiteboardActive(true), []),
     onWhiteboardStopped: useCallback(() => setWhiteboardActive(false), []),
   })
+
+  const { sendProblems, sendAnswer, sendClear } = useLivePracticeSync({
+    callFrame,
+    isTutor,
+    onProblemsReceived: useCallback((problems: PracticeProblem[]) => {
+      setStudentProblems(problems)
+      setStudentDismissed(false)
+    }, []),
+    onAnswerReceived: useCallback((result: StudentAnswerResult) => {
+      setStudentAnswers((prev) => new Map(prev).set(result.problemId, result))
+    }, []),
+    onCleared: useCallback(() => {
+      setStudentProblems([])
+      setStudentDismissed(false)
+    }, []),
+  })
+
+  const handleSendToStudent = useCallback((problems: PracticeProblem[]) => {
+    sendProblems(problems)
+  }, [sendProblems])
+
+  const handleClearProblems = useCallback(() => {
+    setLivePracticeProblems([])
+    setStudentAnswers(new Map())
+    sendClear()
+  }, [sendClear])
+
+  const handleStudentAnswer = useCallback((result: StudentAnswerResult) => {
+    sendAnswer(result)
+  }, [sendAnswer])
 
   const toggleWhiteboard = useCallback(() => {
     setWhiteboardActive((prev) => {
@@ -234,10 +272,28 @@ export default function SessionPage({
           </div>
         )}
 
-        {/* Notes — sidebar (tutor only) */}
+        {/* Sidebar — tutor gets Notes+Practice tabs, student gets problem panel */}
         {isTutor && (
           <div className="w-80 shrink-0">
-            <NotesSidebar sessionId={id} initialNotes={session.tutorNotes} />
+            <SessionSidebar
+              sessionId={id}
+              initialNotes={session.tutorNotes}
+              problems={livePracticeProblems}
+              studentAnswers={studentAnswers}
+              onProblemsGenerated={setLivePracticeProblems}
+              onSendToStudent={handleSendToStudent}
+              onClearProblems={handleClearProblems}
+            />
+          </div>
+        )}
+        {!isTutor && studentProblems.length > 0 && !studentDismissed && (
+          <div className="w-80 shrink-0">
+            <StudentProblemPanel
+              sessionId={id}
+              problems={studentProblems}
+              onAnswerSubmitted={handleStudentAnswer}
+              onDismiss={() => setStudentDismissed(true)}
+            />
           </div>
         )}
       </div>

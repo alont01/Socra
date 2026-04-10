@@ -4,6 +4,7 @@ export interface PracticeProblem {
   hint: string
   difficulty: 'easy' | 'medium' | 'hard'
   topic: string
+  answer?: string
 }
 
 export interface TranscriptSegment {

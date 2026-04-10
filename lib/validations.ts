@@ -83,6 +83,20 @@ export const practiceAttemptSchema = z.object({
   studentAnswer: z.string().min(1, 'Answer is required'),
 })
 
+// ── Live Practice ──
+
+export const livePracticeSchema = z.object({
+  mode: z.enum(['practice', 'assessment']),
+  tutorNotes: z.string().default(''),
+})
+
+export const livePracticeAnswerSchema = z.object({
+  problemId: z.string().min(1),
+  answer: z.string().min(1),
+  problemTopic: z.string().min(1),
+  correctAnswer: z.string().min(1),
+})
+
 // ── Whiteboard / Notes ──
 
 export const imageBase64Schema = z.object({
