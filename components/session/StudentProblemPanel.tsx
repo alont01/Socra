@@ -29,11 +29,16 @@ export function StudentProblemPanel({
 }: StudentProblemPanelProps) {
   const [states, setStates] = useState<Record<string, ProblemState>>({})
 
+  const defaultState: ProblemState = { answer: '', submitted: false, correct: null, submitting: false, showHint: false }
+
   const getState = (id: string): ProblemState =>
-    states[id] || { answer: '', submitted: false, correct: null, submitting: false, showHint: false }
+    states[id] || defaultState
 
   const updateState = (id: string, patch: Partial<ProblemState>) => {
-    setStates((prev) => ({ ...prev, [id]: { ...getState(id), ...patch } }))
+    setStates((prev) => {
+      const current = prev[id] || defaultState
+      return { ...prev, [id]: { ...current, ...patch } }
+    })
   }
 
   const submitAnswer = async (problem: PracticeProblem) => {
@@ -48,8 +53,6 @@ export function StudentProblemPanel({
         body: JSON.stringify({
           problemId: problem.id,
           answer: state.answer.trim(),
-          problemTopic: problem.topic,
-          correctAnswer: problem.answer || '',
         }),
       })
 

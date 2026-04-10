@@ -3,6 +3,7 @@ import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { updateMasteryScore } from '@/lib/progress'
 import { rateLimit } from '@/lib/rate-limit'
+import { lookupAnswer } from '@/lib/live-practice-store'
 import { livePracticeAnswerSchema, parseBody } from '@/lib/validations'
 
 export async function POST(
@@ -22,7 +23,13 @@ export async function POST(
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
-    const { answer, problemTopic, correctAnswer } = parsed.data
+    const { answer, problemId } = parsed.data
+
+    // Look up correct answer from server-side store
+    const stored = lookupAnswer(id, problemId)
+    if (!stored) {
+      return NextResponse.json({ error: 'Problem not found or expired' }, { status: 404 })
+    }
 
     // Verify student belongs to this session
     const session = await prisma.tutoringSession.findUnique({
@@ -35,14 +42,14 @@ export async function POST(
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
-    const correct = answer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()
+    const correct = answer.trim().toLowerCase() === stored.answer.trim().toLowerCase()
 
     // Update mastery in real-time
-    await updateMasteryScore(auth.student.id, problemTopic, correct)
+    await updateMasteryScore(auth.student.id, stored.topic, correct)
 
     return NextResponse.json({
       correct,
-      ...(correct ? {} : { correctAnswer }),
+      ...(correct ? {} : { correctAnswer: stored.answer }),
     })
   } catch (err) {
     console.error('[live-practice-answer]', err)

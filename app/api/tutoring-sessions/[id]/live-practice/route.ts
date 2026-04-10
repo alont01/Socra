@@ -3,6 +3,7 @@ import { requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
 import { generateLiveProblems } from '@/lib/ai/live-problem-generator'
+import { storeProblems } from '@/lib/live-practice-store'
 import { livePracticeSchema, parseBody } from '@/lib/validations'
 
 export async function POST(
@@ -61,6 +62,13 @@ export async function POST(
       masteryData,
       mode,
     })
+
+    // Store answers server-side so student client never sees them
+    storeProblems(id, problems.map((p) => ({
+      id: p.id,
+      answer: p.answer || '',
+      topic: p.topic,
+    })))
 
     return NextResponse.json({
       problems,
