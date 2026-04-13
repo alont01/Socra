@@ -119,6 +119,21 @@ export default function SessionPage({
     if (user && id) fetchSession()
   }, [user, id, router])
 
+  const fetchMeetingToken = useCallback(async (): Promise<boolean> => {
+    const tokenRes = await fetch('/api/daily/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: id }),
+    })
+    if (tokenRes.ok) {
+      const tokenData = await tokenRes.json()
+      setMeetingToken(tokenData.token)
+      setRoomUrl(tokenData.roomUrl)
+      return true
+    }
+    return false
+  }, [id])
+
   const startSession = useCallback(async () => {
     setJoining(true)
     try {
@@ -133,41 +148,32 @@ export default function SessionPage({
       const patchData = await patchRes.json()
       setSession((prev) => prev ? { ...prev, ...patchData.session } : prev)
 
-      // Get meeting token
-      const tokenRes = await fetch('/api/daily/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: id }),
-      })
-      if (tokenRes.ok) {
-        const tokenData = await tokenRes.json()
-        setMeetingToken(tokenData.token)
-        setRoomUrl(tokenData.roomUrl)
-        setInCall(true)
+      // Get meeting token — retry once if first attempt fails
+      // (handles cold-start delays after room creation)
+      let ok = await fetchMeetingToken()
+      if (!ok) {
+        await new Promise((r) => setTimeout(r, 2000))
+        ok = await fetchMeetingToken()
       }
+      if (ok) setInCall(true)
     } finally {
       setJoining(false)
     }
-  }, [id])
+  }, [id, fetchMeetingToken])
 
   const joinSession = useCallback(async () => {
     setJoining(true)
     try {
-      const tokenRes = await fetch('/api/daily/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: id }),
-      })
-      if (tokenRes.ok) {
-        const tokenData = await tokenRes.json()
-        setMeetingToken(tokenData.token)
-        setRoomUrl(tokenData.roomUrl)
-        setInCall(true)
+      let ok = await fetchMeetingToken()
+      if (!ok) {
+        await new Promise((r) => setTimeout(r, 2000))
+        ok = await fetchMeetingToken()
       }
+      if (ok) setInCall(true)
     } finally {
       setJoining(false)
     }
-  }, [id])
+  }, [fetchMeetingToken])
 
   const endSession = useCallback(async () => {
     setEnding(true)
