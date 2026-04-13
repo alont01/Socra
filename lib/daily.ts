@@ -83,7 +83,13 @@ export async function fetchTranscript(roomName: string): Promise<string | null> 
     // 1. List transcripts for this room and find a finished one
     const list = await dailyFetch(`/transcript?room_name=${roomName}`)
     const transcripts = list?.data as Array<{ transcriptId: string; status: string }> | undefined
-    if (!transcripts || transcripts.length === 0) return null
+    if (!transcripts || transcripts.length === 0) {
+      console.log(`[daily] No transcripts found for room ${roomName}`)
+      return null
+    }
+
+    const statuses = transcripts.map((t) => t.status)
+    console.log(`[daily] Transcript statuses for ${roomName}: ${statuses.join(', ')}`)
 
     const finished = transcripts.find((t) => t.status === 't_finished')
     if (!finished) return null
@@ -100,7 +106,8 @@ export async function fetchTranscript(roomName: string): Promise<string | null> 
 
     // 4. Convert VTT to plain text (strip timestamps and headers)
     return parseVttToText(vttText)
-  } catch {
+  } catch (err) {
+    console.error(`[daily] fetchTranscript error for ${roomName}:`, err)
     return null
   }
 }
@@ -119,11 +126,17 @@ function parseVttToText(vtt: string): string {
   return textLines.join('\n')
 }
 
-export async function fetchTranscriptWithRetry(roomName: string, maxRetries = 5): Promise<string | null> {
+export async function fetchTranscriptWithRetry(roomName: string, maxRetries = 12): Promise<string | null> {
   for (let i = 0; i < maxRetries; i++) {
+    console.log(`[daily] Transcript fetch attempt ${i + 1}/${maxRetries} for ${roomName}`)
     const transcript = await fetchTranscript(roomName)
-    if (transcript) return transcript
-    await new Promise((resolve) => setTimeout(resolve, 10000))
+    if (transcript) {
+      console.log(`[daily] Transcript retrieved for ${roomName} (${transcript.length} chars)`)
+      return transcript
+    }
+    // Wait 15s between retries — Daily.co typically needs 1-3 min to finalize
+    await new Promise((resolve) => setTimeout(resolve, 15_000))
   }
+  console.warn(`[daily] All ${maxRetries} transcript fetch attempts failed for ${roomName}`)
   return null
 }

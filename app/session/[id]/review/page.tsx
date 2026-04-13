@@ -24,6 +24,7 @@ export default function ReviewPage({
   const [whiteboardImage, setWhiteboardImage] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'error'>('loading')
   const [sessionRole, setSessionRole] = useState<'tutor' | 'student'>('student')
+  const [retrying, setRetrying] = useState(false)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -67,10 +68,11 @@ export default function ReviewPage({
                 }
               }
             }, 5000)
-            // Stop polling after 2 minutes
+            // Stop polling after 5 minutes (transcript fetch can take up to 3 min)
             timeoutRef.current = setTimeout(() => {
               if (pollRef.current) clearInterval(pollRef.current)
-            }, 120000)
+              setStatus('ready')
+            }, 300_000)
             return
           }
           setAnalysis(data.analysis)
@@ -106,6 +108,44 @@ export default function ReviewPage({
   }
 
   const isTutor = sessionRole === 'tutor'
+  const hasTranscript = transcript && transcript.content && transcript.content.trim().length > 0
+
+  const retryAnalysis = async () => {
+    setRetrying(true)
+    try {
+      const res = await fetch(`/api/tutoring-sessions/${id}/retry-analysis`, { method: 'POST' })
+      if (res.ok) {
+        setStatus('processing')
+        setAnalysis(null)
+        setTranscript(null)
+        // Re-poll for completion
+        pollRef.current = setInterval(async () => {
+          const retry = await fetch(`/api/tutoring-sessions/${id}/analysis`)
+          if (retry.ok) {
+            const retryData = await retry.json()
+            if (retryData.status === 'ready') {
+              setAnalysis(retryData.analysis)
+              setStatus('ready')
+              if (pollRef.current) clearInterval(pollRef.current)
+              if (timeoutRef.current) clearTimeout(timeoutRef.current)
+              // Re-fetch transcript
+              const tRes = await fetch(`/api/tutoring-sessions/${id}/transcript`)
+              if (tRes.ok) {
+                const tData = await tRes.json()
+                setTranscript(tData.transcript)
+              }
+            }
+          }
+        }, 5000)
+        timeoutRef.current = setTimeout(() => {
+          if (pollRef.current) clearInterval(pollRef.current)
+          setStatus('ready')
+        }, 300_000)
+      }
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#FFFBF5]">
@@ -128,7 +168,7 @@ export default function ReviewPage({
           <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
             <LoadingDots />
             <p className="text-stone-500 mt-4">Analyzing your session...</p>
-            <p className="text-xs text-stone-400 mt-1">This usually takes about 30 seconds.</p>
+            <p className="text-xs text-stone-400 mt-1">This may take a few minutes while the transcript is processed.</p>
           </div>
         )}
 
@@ -143,11 +183,25 @@ export default function ReviewPage({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left column: transcript + student feedback */}
               <div className="space-y-6">
-                {transcript && (
+                {hasTranscript ? (
                   <TranscriptViewer
                     content={transcript.content}
                     speakers={transcript.speakers}
                   />
+                ) : isTutor && (
+                  <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-6">
+                    <h3 className="font-semibold text-stone-900 mb-2">Transcript</h3>
+                    <p className="text-sm text-stone-500 mb-3">
+                      No transcript was captured for this session. This can happen if the session was too short or the transcript wasn&apos;t ready in time.
+                    </p>
+                    <button
+                      onClick={retryAnalysis}
+                      disabled={retrying}
+                      className="text-sm text-orange-500 hover:text-orange-600 font-medium disabled:opacity-50"
+                    >
+                      {retrying ? 'Retrying...' : 'Retry analysis'}
+                    </button>
+                  </div>
                 )}
                 <AnalysisSummary
                   summary={analysis.summary}
