@@ -95,6 +95,15 @@ export default function SessionPage({
     })
   }, [sendWhiteboardStart, sendWhiteboardStop])
 
+  // Start transcription when the tutor joins the call
+  useEffect(() => {
+    if (!callFrame || !isTutor) return
+    callFrame.startTranscription()
+    return () => {
+      callFrame.stopTranscription()
+    }
+  }, [callFrame, isTutor])
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/auth')

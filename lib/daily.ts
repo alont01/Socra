@@ -29,9 +29,6 @@ export async function createRoom(sessionId: string) {
         properties: {
           max_participants: appConfig.daily.maxParticipants,
           enable_recording: 'cloud',
-          enable_transcription: {
-            autostart: true,
-          },
           enable_transcription_storage: true,
           exp: Math.floor(Date.now() / 1000) + appConfig.daily.roomExpirySeconds,
           eject_at_room_exp: true,
