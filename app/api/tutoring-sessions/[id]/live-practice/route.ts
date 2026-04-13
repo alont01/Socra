@@ -3,7 +3,7 @@ import { requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
 import { generateLiveProblems } from '@/lib/ai/live-problem-generator'
-import { storeProblems } from '@/lib/live-practice-store'
+import { createAnswerToken } from '@/lib/answer-token'
 import { livePracticeSchema, parseBody } from '@/lib/validations'
 
 export async function POST(
@@ -63,15 +63,19 @@ export async function POST(
       mode,
     })
 
-    // Store answers server-side so student client never sees them
-    storeProblems(id, problems.map((p) => ({
-      id: p.id,
-      answer: p.answer || '',
-      topic: p.topic,
-    })))
+    // Attach encrypted answer tokens to each problem
+    // The student receives the token but cannot extract the answer from it
+    const problemsWithTokens = problems.map((p) => ({
+      ...p,
+      answerToken: createAnswerToken(
+        { answer: p.answer || '', topic: p.topic },
+        id,
+        p.id,
+      ),
+    }))
 
     return NextResponse.json({
-      problems,
+      problems: problemsWithTokens,
       studentMastery: masteryData,
     })
   } catch (err) {

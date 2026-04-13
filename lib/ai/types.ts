@@ -5,6 +5,7 @@ export interface PracticeProblem {
   difficulty: 'easy' | 'medium' | 'hard'
   topic: string
   answer?: string
+  answerToken?: string
 }
 
 export interface TranscriptSegment {

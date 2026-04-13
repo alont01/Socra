@@ -19,6 +19,7 @@ interface ProblemState {
   correctAnswer?: string
   submitting: boolean
   showHint: boolean
+  error?: string
 }
 
 export function StudentProblemPanel({
@@ -29,7 +30,7 @@ export function StudentProblemPanel({
 }: StudentProblemPanelProps) {
   const [states, setStates] = useState<Record<string, ProblemState>>({})
 
-  const defaultState: ProblemState = { answer: '', submitted: false, correct: null, submitting: false, showHint: false }
+  const defaultState: ProblemState = { answer: '', submitted: false, correct: null, submitting: false, showHint: false, error: undefined }
 
   const getState = (id: string): ProblemState =>
     states[id] || defaultState
@@ -45,7 +46,7 @@ export function StudentProblemPanel({
     const state = getState(problem.id)
     if (!state.answer.trim() || state.submitted) return
 
-    updateState(problem.id, { submitting: true })
+    updateState(problem.id, { submitting: true, error: undefined })
     try {
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/live-practice/answer`, {
         method: 'POST',
@@ -53,6 +54,7 @@ export function StudentProblemPanel({
         body: JSON.stringify({
           problemId: problem.id,
           answer: state.answer.trim(),
+          answerToken: problem.answerToken || '',
         }),
       })
 
@@ -70,10 +72,11 @@ export function StudentProblemPanel({
           correct: data.correct,
         })
       } else {
-        updateState(problem.id, { submitting: false })
+        const errData = await res.json().catch(() => ({ error: 'Something went wrong' }))
+        updateState(problem.id, { submitting: false, error: errData.error || `Error (${res.status})` })
       }
     } catch {
-      updateState(problem.id, { submitting: false })
+      updateState(problem.id, { submitting: false, error: 'Network error — check your connection' })
     }
   }
 
@@ -135,6 +138,11 @@ export function StudentProblemPanel({
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* Error message */}
+              {state.error && (
+                <p className="text-xs text-red-500 mb-2">{state.error}</p>
               )}
 
               {/* Answer input or result */}

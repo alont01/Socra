@@ -93,6 +93,7 @@ export const livePracticeSchema = z.object({
 export const livePracticeAnswerSchema = z.object({
   problemId: z.string().min(1),
   answer: z.string().min(1),
+  answerToken: z.string().min(1),
 })
 
 // ── Whiteboard / Notes ──

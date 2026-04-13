@@ -3,7 +3,7 @@ import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { updateMasteryScore } from '@/lib/progress'
 import { rateLimit } from '@/lib/rate-limit'
-import { lookupAnswer } from '@/lib/live-practice-store'
+import { decryptAnswerToken } from '@/lib/answer-token'
 import { livePracticeAnswerSchema, parseBody } from '@/lib/validations'
 
 export async function POST(
@@ -23,12 +23,12 @@ export async function POST(
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
-    const { answer, problemId } = parsed.data
+    const { answer, problemId, answerToken } = parsed.data
 
-    // Look up correct answer from server-side store
-    const stored = lookupAnswer(id, problemId)
+    // Decrypt the answer token to get the correct answer
+    const stored = decryptAnswerToken(answerToken, id, problemId)
     if (!stored) {
-      return NextResponse.json({ error: 'Problem not found or expired' }, { status: 404 })
+      return NextResponse.json({ error: 'Invalid or expired answer token' }, { status: 400 })
     }
 
     // Verify student belongs to this session
