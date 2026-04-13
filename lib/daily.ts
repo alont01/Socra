@@ -78,36 +78,30 @@ export async function deleteRoom(roomName: string) {
   }
 }
 
-export async function fetchTranscript(roomName: string): Promise<string | null> {
+/**
+ * Returns transcript text, 'not-ready' if transcript exists but isn't finished,
+ * or null if transcription isn't available (free plan / API error).
+ */
+export async function fetchTranscript(roomName: string): Promise<string | 'not-ready' | null> {
   try {
-    // 1. List transcripts for this room and find a finished one
     const list = await dailyFetch(`/transcript?room_name=${roomName}`)
     const transcripts = list?.data as Array<{ transcriptId: string; status: string }> | undefined
-    if (!transcripts || transcripts.length === 0) {
-      console.log(`[daily] No transcripts found for room ${roomName}`)
-      return null
-    }
-
-    const statuses = transcripts.map((t) => t.status)
-    console.log(`[daily] Transcript statuses for ${roomName}: ${statuses.join(', ')}`)
+    if (!transcripts || transcripts.length === 0) return 'not-ready'
 
     const finished = transcripts.find((t) => t.status === 't_finished')
-    if (!finished) return null
+    if (!finished) return 'not-ready' // exists but still processing
 
-    // 2. Get the access link for the transcript
     const linkResult = await dailyFetch(`/transcript/${finished.transcriptId}/access-link`)
     const downloadUrl = linkResult?.link as string | undefined
     if (!downloadUrl) return null
 
-    // 3. Download the VTT content
     const vttRes = await fetch(downloadUrl)
     if (!vttRes.ok) return null
     const vttText = await vttRes.text()
 
-    // 4. Convert VTT to plain text (strip timestamps and headers)
     return parseVttToText(vttText)
-  } catch (err) {
-    console.error(`[daily] fetchTranscript error for ${roomName}:`, err)
+  } catch {
+    // API error (likely free plan — transcription not available)
     return null
   }
 }
@@ -128,15 +122,22 @@ function parseVttToText(vtt: string): string {
 
 export async function fetchTranscriptWithRetry(roomName: string, maxRetries = 12): Promise<string | null> {
   for (let i = 0; i < maxRetries; i++) {
-    console.log(`[daily] Transcript fetch attempt ${i + 1}/${maxRetries} for ${roomName}`)
-    const transcript = await fetchTranscript(roomName)
-    if (transcript) {
-      console.log(`[daily] Transcript retrieved for ${roomName} (${transcript.length} chars)`)
-      return transcript
+    const result = await fetchTranscript(roomName)
+
+    if (result === null) {
+      // API error (free plan or unavailable) — no point retrying
+      console.log(`[daily] Transcription not available for ${roomName} — using notes fallback`)
+      return null
     }
-    // Wait 15s between retries — Daily.co typically needs 1-3 min to finalize
+
+    if (typeof result === 'string' && result !== 'not-ready') {
+      console.log(`[daily] Transcript retrieved for ${roomName} (${result.length} chars)`)
+      return result
+    }
+
+    // 'not-ready' — transcript is processing, keep waiting
     await new Promise((resolve) => setTimeout(resolve, 15_000))
   }
-  console.warn(`[daily] All ${maxRetries} transcript fetch attempts failed for ${roomName}`)
+  console.log(`[daily] Transcript not ready after ${maxRetries} attempts for ${roomName}`)
   return null
 }
