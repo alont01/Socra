@@ -100,7 +100,7 @@ export default function SessionPage({
     if (!callFrame || !isTutor) return
     callFrame.startTranscription()
     return () => {
-      callFrame.stopTranscription()
+      try { callFrame.stopTranscription() } catch { /* frame already destroyed */ }
     }
   }, [callFrame, isTutor])
 
