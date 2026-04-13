@@ -192,7 +192,7 @@ export default function ReviewPage({
                   <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-6">
                     <h3 className="font-semibold text-stone-900 mb-2">Transcript</h3>
                     <p className="text-sm text-stone-500 mb-3">
-                      No transcript was captured for this session. This can happen if the session was too short or the transcript wasn&apos;t ready in time.
+                      No transcript was captured for this session. The transcript may still be processing — try retrying in a minute or two.
                     </p>
                     <button
                       onClick={retryAnalysis}
