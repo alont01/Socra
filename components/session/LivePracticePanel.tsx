@@ -31,10 +31,13 @@ export function LivePracticePanel({
   const [mode, setMode] = useState<'practice' | 'assessment'>('practice')
   const [sent, setSent] = useState(false)
   const [mastery, setMastery] = useState<MasteryEntry[]>([])
+  const [editedAnswers, setEditedAnswers] = useState<Record<string, string>>({})
+  const [sending, setSending] = useState(false)
 
   const generateProblems = async () => {
     setGenerating(true)
     setSent(false)
+    setEditedAnswers({})
     try {
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/live-practice`, {
         method: 'POST',
@@ -51,15 +54,59 @@ export function LivePracticePanel({
     }
   }
 
-  const handleSend = () => {
-    onSendToStudent(problems)
-    setSent(true)
+  const handleSend = async () => {
+    const hasEdits = Object.keys(editedAnswers).length > 0
+    setSending(true)
+
+    try {
+      let finalProblems = problems
+
+      if (hasEdits) {
+        // Re-sign edited answers with fresh tokens
+        const problemsToSign = problems
+          .filter((p) => editedAnswers[p.id] !== undefined)
+          .map((p) => ({
+            id: p.id,
+            answer: editedAnswers[p.id],
+            topic: p.topic,
+          }))
+
+        const res = await fetch(`/api/tutoring-sessions/${sessionId}/live-practice/sign-answers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ problems: problemsToSign }),
+        })
+
+        if (res.ok) {
+          const { tokens } = await res.json()
+          finalProblems = problems.map((p) => {
+            if (editedAnswers[p.id] !== undefined) {
+              return { ...p, answer: editedAnswers[p.id], answerToken: tokens[p.id] }
+            }
+            return p
+          })
+          // Update parent state with corrected problems
+          onProblemsGenerated(finalProblems)
+        }
+      }
+
+      onSendToStudent(finalProblems)
+      setSent(true)
+    } finally {
+      setSending(false)
+    }
   }
 
   const handleClear = () => {
     onClear()
     setSent(false)
+    setEditedAnswers({})
   }
+
+  const getAnswer = (p: PracticeProblem) =>
+    editedAnswers[p.id] !== undefined ? editedAnswers[p.id] : (p.answer || '')
+
+  const isEdited = (p: PracticeProblem) => editedAnswers[p.id] !== undefined
 
   const weakTopics = mastery.filter((m) => m.mastery < 0.5)
   const hasNoMastery = mastery.length === 0
@@ -133,6 +180,7 @@ export function LivePracticePanel({
         <div className="flex-1 overflow-y-auto space-y-2 mb-3">
           {problems.map((p) => {
             const studentResult = studentAnswers.get(p.id)
+            const edited = isEdited(p)
             return (
               <div
                 key={p.id}
@@ -155,7 +203,42 @@ export function LivePracticePanel({
                   <span className="text-stone-400">{p.topic}</span>
                 </div>
                 <p className="text-stone-700 mb-1">{p.question}</p>
-                <p className="text-stone-400 italic">Answer: {p.answer}</p>
+
+                {/* Editable answer field */}
+                {!sent ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-stone-400 italic shrink-0">Answer:</span>
+                    <input
+                      type="text"
+                      value={getAnswer(p)}
+                      onChange={(e) => setEditedAnswers((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      className={`flex-1 text-xs px-2 py-1 border rounded ${
+                        edited
+                          ? 'border-orange-300 bg-orange-50 text-orange-800'
+                          : 'border-stone-200 text-stone-500 italic'
+                      }`}
+                    />
+                    {edited && (
+                      <button
+                        onClick={() => setEditedAnswers((prev) => {
+                          const next = { ...prev }
+                          delete next[p.id]
+                          return next
+                        })}
+                        className="text-stone-400 hover:text-stone-600 text-[10px]"
+                        title="Reset to AI answer"
+                      >
+                        undo
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-stone-400 italic">
+                    Answer: {getAnswer(p)}
+                    {edited && <span className="text-orange-500 not-italic ml-1">(corrected)</span>}
+                  </p>
+                )}
+
                 {studentResult && (
                   <div className={`mt-1.5 pt-1.5 border-t ${studentResult.correct ? 'border-green-200' : 'border-red-200'}`}>
                     <p className={studentResult.correct ? 'text-green-700' : 'text-red-700'}>
@@ -173,8 +256,8 @@ export function LivePracticePanel({
       {problems.length > 0 && (
         <div className="flex gap-2">
           {!sent ? (
-            <Button onClick={handleSend} size="sm" className="flex-1">
-              Send to Student
+            <Button onClick={handleSend} loading={sending} size="sm" className="flex-1">
+              {Object.keys(editedAnswers).length > 0 ? 'Send Corrected' : 'Send to Student'}
             </Button>
           ) : (
             <Button onClick={handleClear} variant="ghost" size="sm" className="flex-1">
