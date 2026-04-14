@@ -54,7 +54,9 @@ export default function SessionPage({
     onWhiteboardStopped: useCallback(() => setWhiteboardActive(false), []),
   })
 
-  const { sendProblems, sendAnswer, sendClear } = useLivePracticeSync({
+  const [studentOverrides, setStudentOverrides] = useState<Set<string>>(new Set())
+
+  const { sendProblems, sendAnswer, sendClear, sendOverride } = useLivePracticeSync({
     callFrame,
     isTutor,
     onProblemsReceived: useCallback((problems: PracticeProblem[]) => {
@@ -67,6 +69,10 @@ export default function SessionPage({
     onCleared: useCallback(() => {
       setStudentProblems([])
       setStudentDismissed(false)
+      setStudentOverrides(new Set())
+    }, []),
+    onOverrideReceived: useCallback((problemId: string) => {
+      setStudentOverrides((prev) => new Set(prev).add(problemId))
     }, []),
   })
 
@@ -83,6 +89,24 @@ export default function SessionPage({
   const handleStudentAnswer = useCallback((result: StudentAnswerResult) => {
     sendAnswer(result)
   }, [sendAnswer])
+
+  const handleOverride = useCallback(async (problemId: string, problemTopic: string) => {
+    // Update mastery on the server
+    await fetch(`/api/tutoring-sessions/${id}/live-practice/override`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ problemTopic }),
+    })
+    // Update tutor-side display
+    setStudentAnswers((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(problemId)
+      if (existing) next.set(problemId, { ...existing, correct: true })
+      return next
+    })
+    // Notify student
+    sendOverride(problemId)
+  }, [id, sendOverride])
 
   const toggleWhiteboard = useCallback(() => {
     setWhiteboardActive((prev) => {
@@ -298,6 +322,7 @@ export default function SessionPage({
               onProblemsGenerated={setLivePracticeProblems}
               onSendToStudent={handleSendToStudent}
               onClearProblems={handleClearProblems}
+              onOverride={handleOverride}
             />
           </div>
         )}
@@ -306,6 +331,7 @@ export default function SessionPage({
             <StudentProblemPanel
               sessionId={id}
               problems={studentProblems}
+              overrides={studentOverrides}
               onAnswerSubmitted={handleStudentAnswer}
               onDismiss={() => setStudentDismissed(true)}
             />

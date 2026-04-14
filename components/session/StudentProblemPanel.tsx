@@ -8,6 +8,7 @@ import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
 interface StudentProblemPanelProps {
   sessionId: string
   problems: PracticeProblem[]
+  overrides: Set<string>
   onAnswerSubmitted: (result: StudentAnswerResult) => void
   onDismiss: () => void
 }
@@ -25,6 +26,7 @@ interface ProblemState {
 export function StudentProblemPanel({
   sessionId,
   problems,
+  overrides,
   onAnswerSubmitted,
   onDismiss,
 }: StudentProblemPanelProps) {
@@ -99,12 +101,14 @@ export function StudentProblemPanel({
       <div className="flex-1 overflow-y-auto space-y-3">
         {problems.map((problem, idx) => {
           const state = getState(problem.id)
+          const overridden = overrides.has(problem.id)
+          const isCorrect = state.correct || overridden
           return (
             <div
               key={problem.id}
               className={`rounded-xl border p-3 ${
                 state.submitted
-                  ? state.correct
+                  ? isCorrect
                     ? 'border-green-200 bg-green-50'
                     : 'border-red-200 bg-red-50'
                   : 'border-stone-200 bg-stone-50'
@@ -147,14 +151,14 @@ export function StudentProblemPanel({
 
               {/* Answer input or result */}
               {state.submitted ? (
-                <div className={`text-sm ${state.correct ? 'text-green-700' : 'text-red-700'}`}>
+                <div className={`text-sm ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
                   <p className="font-medium">
-                    {state.correct ? 'Correct!' : 'Not quite.'}
+                    {overridden ? 'Marked correct by tutor' : state.correct ? 'Correct!' : 'Not quite.'}
                   </p>
                   <p className="text-xs mt-0.5">
                     Your answer: &quot;{state.answer}&quot;
                   </p>
-                  {!state.correct && state.correctAnswer && (
+                  {!isCorrect && state.correctAnswer && (
                     <p className="text-xs mt-0.5">
                       Correct answer: {state.correctAnswer}
                     </p>
@@ -191,7 +195,7 @@ export function StudentProblemPanel({
       {allAnswered && (
         <div className="mt-3 pt-3 border-t border-stone-100 text-center">
           <p className="text-sm font-medium text-stone-700">
-            Score: {problems.filter((p) => getState(p.id).correct).length} / {problems.length}
+            Score: {problems.filter((p) => getState(p.id).correct || overrides.has(p.id)).length} / {problems.length}
           </p>
         </div>
       )}

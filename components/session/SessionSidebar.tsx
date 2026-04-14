@@ -13,6 +13,7 @@ interface SessionSidebarProps {
   onProblemsGenerated: (problems: PracticeProblem[]) => void
   onSendToStudent: (problems: PracticeProblem[]) => void
   onClearProblems: () => void
+  onOverride: (problemId: string, problemTopic: string) => void
 }
 
 export function SessionSidebar({
@@ -23,6 +24,7 @@ export function SessionSidebar({
   onProblemsGenerated,
   onSendToStudent,
   onClearProblems,
+  onOverride,
 }: SessionSidebarProps) {
   const [tab, setTab] = useState<'notes' | 'practice'>('notes')
   const [notes, setNotes] = useState(initialNotes)
@@ -99,6 +101,7 @@ export function SessionSidebar({
             onProblemsGenerated={onProblemsGenerated}
             onSendToStudent={onSendToStudent}
             onClear={onClearProblems}
+            onOverride={onOverride}
           />
         </div>
       )}

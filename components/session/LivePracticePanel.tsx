@@ -17,6 +17,7 @@ interface LivePracticePanelProps {
   onProblemsGenerated: (problems: PracticeProblem[]) => void
   onSendToStudent: (problems: PracticeProblem[]) => void
   onClear: () => void
+  onOverride: (problemId: string, problemTopic: string) => void
 }
 
 export function LivePracticePanel({
@@ -26,6 +27,7 @@ export function LivePracticePanel({
   onProblemsGenerated,
   onSendToStudent,
   onClear,
+  onOverride,
 }: LivePracticePanelProps) {
   const [generating, setGenerating] = useState(false)
   const [mode, setMode] = useState<'practice' | 'assessment'>('practice')
@@ -241,9 +243,19 @@ export function LivePracticePanel({
 
                 {studentResult && (
                   <div className={`mt-1.5 pt-1.5 border-t ${studentResult.correct ? 'border-green-200' : 'border-red-200'}`}>
-                    <p className={studentResult.correct ? 'text-green-700' : 'text-red-700'}>
-                      Student: &quot;{studentResult.answer}&quot; {studentResult.correct ? '(correct)' : '(incorrect)'}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className={studentResult.correct ? 'text-green-700' : 'text-red-700'}>
+                        Student: &quot;{studentResult.answer}&quot; {studentResult.correct ? '(correct)' : '(incorrect)'}
+                      </p>
+                      {!studentResult.correct && (
+                        <button
+                          onClick={() => onOverride(p.id, p.topic)}
+                          className="text-[10px] text-orange-500 hover:text-orange-700 font-medium shrink-0 ml-2"
+                        >
+                          Mark Correct
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

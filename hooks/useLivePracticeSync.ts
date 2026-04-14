@@ -8,6 +8,7 @@ type PracticeMessageType =
   | 'practice:problems'
   | 'practice:answer'
   | 'practice:clear'
+  | 'practice:override'
 
 interface PracticeMessage {
   type: PracticeMessageType
@@ -26,6 +27,7 @@ interface UseLivePracticeSyncOptions {
   onProblemsReceived?: (problems: PracticeProblem[]) => void
   onAnswerReceived?: (result: StudentAnswerResult) => void
   onCleared?: () => void
+  onOverrideReceived?: (problemId: string) => void
 }
 
 export function useLivePracticeSync({
@@ -34,6 +36,7 @@ export function useLivePracticeSync({
   onProblemsReceived,
   onAnswerReceived,
   onCleared,
+  onOverrideReceived,
 }: UseLivePracticeSyncOptions) {
   const sendProblems = useCallback(
     (problems: PracticeProblem[]) => {
@@ -67,6 +70,18 @@ export function useLivePracticeSync({
     callFrame.sendAppMessage(msg, '*')
   }, [callFrame, isTutor])
 
+  const sendOverride = useCallback(
+    (problemId: string) => {
+      if (!callFrame || !isTutor) return
+      const msg: PracticeMessage = {
+        type: 'practice:override',
+        payload: problemId,
+      }
+      callFrame.sendAppMessage(msg, '*')
+    },
+    [callFrame, isTutor]
+  )
+
   useEffect(() => {
     if (!callFrame) return
 
@@ -97,6 +112,11 @@ export function useLivePracticeSync({
             onCleared?.()
           }
           break
+        case 'practice:override':
+          if (!isTutor && msg.payload) {
+            onOverrideReceived?.(msg.payload)
+          }
+          break
       }
     }
 
@@ -104,7 +124,7 @@ export function useLivePracticeSync({
     return () => {
       callFrame.off('app-message', handleAppMessage)
     }
-  }, [callFrame, isTutor, onProblemsReceived, onAnswerReceived, onCleared])
+  }, [callFrame, isTutor, onProblemsReceived, onAnswerReceived, onCleared, onOverrideReceived])
 
-  return { sendProblems, sendAnswer, sendClear }
+  return { sendProblems, sendAnswer, sendClear, sendOverride }
 }
