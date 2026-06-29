@@ -1,12 +1,16 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
-import { Navbar } from '@/components/Navbar'
-import { Card } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+// NOTE: relative imports (not the `@/` alias) — the production webpack build
+// deterministically fails to apply the tsconfig path alias to this one route
+// module ("Module not found: Can't resolve '@/...'"). Relative paths resolve
+// off the filesystem directly and sidestep it.
+import { useAuth } from '../../hooks/useAuth'
+import { Navbar } from '../../components/Navbar'
+import { Card } from '../../components/ui/Card'
+import { Badge } from '../../components/ui/Badge'
+import { LoadingDots } from '../../components/ui/LoadingDots'
 
 interface Metrics {
   windowMinutes: number
