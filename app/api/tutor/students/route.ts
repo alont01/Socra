@@ -44,8 +44,11 @@ export async function POST(request: Request) {
     const rl = rateLimit(`add-student:${auth.payload.userId}`, { maxRequests: 10, windowMs: 60_000 })
     if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
-    const { email } = await request.json()
-    if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+    const { email: rawEmail } = await request.json()
+    if (!rawEmail || typeof rawEmail !== 'string') {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+    }
+    const email = rawEmail.toLowerCase().trim()
 
     const studentUser = await prisma.user.findUnique({
       where: { email },

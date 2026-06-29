@@ -33,7 +33,7 @@ export function Navbar() {
               {isStudent && (
                 <>
                   <Link href="/student/practice">
-                    <Button variant="ghost" size="sm">Practice</Button>
+                    <Button variant="ghost" size="sm">Homework</Button>
                   </Link>
                   <Link href="/student/progress">
                     <Button variant="ghost" size="sm">Progress</Button>

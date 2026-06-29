@@ -103,6 +103,7 @@ model TutoringSession {
   tutorNotes    String    @default("")
   capturedNotes   String    @default("")
   whiteboardImage String    @default("")
+  masteryApplied  Boolean   @default(false) // guards against double-counting mastery on re-analysis
   createdAt       DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   transcript    Transcript?
@@ -144,11 +145,14 @@ model PracticeSet {
   student           StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   title             String           @default("")
   problems          String           @default("[]")
+  status            String           @default("assigned") // draft | assigned — drafts are tutor-only until assigned as homework
+  assignedAt        DateTime?
   createdAt         DateTime         @default(now())
   attempts          PracticeSetAttempt[]
 
   @@index([studentId])
   @@index([tutoringSessionId])
+  @@index([studentId, status])
 }
 
 model PracticeSetAttempt {
@@ -172,4 +176,24 @@ model StudentProgress {
   updatedAt DateTime       @updatedAt
 
   @@unique([studentId, topic])
+}
+
+// Operational telemetry for the admin system-health dashboard.
+// Written fire-and-forget from lib/metrics.ts; one row per tracked event.
+model SystemEvent {
+  id           String   @id @default(cuid())
+  category     String   // ai | transcript | session | http | error
+  name         String   // e.g. "ai.analysis", "session.processed"
+  level        String   @default("info") // info | warn | error
+  durationMs   Int?
+  success      Boolean?
+  model        String?  // AI model id, when category = ai
+  inputTokens  Int?
+  outputTokens Int?
+  metadata     String   @default("{}") // JSON blob of extra context
+  createdAt    DateTime @default(now())
+
+  @@index([category, createdAt])
+  @@index([level, createdAt])
+  @@index([createdAt])
 }

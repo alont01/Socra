@@ -1,8 +1,8 @@
-import { anthropic } from './client'
+import { trackedMessage } from './client'
 import { config } from '@/lib/config'
 
 export async function extractHandwrittenNotes(imageBase64: string): Promise<string> {
-  const response = await anthropic.messages.create({
+  const response = await trackedMessage('note_extract', {
     model: config.ai.noteExtractorModel,
     max_tokens: 1024,
     messages: [

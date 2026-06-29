@@ -18,7 +18,7 @@ export async function POST(
     if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
     const set = await prisma.practiceSet.findUnique({ where: { id } })
-    if (!set || set.studentId !== auth.student.id) {
+    if (!set || set.studentId !== auth.student.id || set.status !== 'assigned') {
       return NextResponse.json({ error: 'Practice set not found' }, { status: 404 })
     }
 

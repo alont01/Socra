@@ -3,6 +3,7 @@ import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { anthropic } from '@/lib/ai/client'
 import { config } from '@/lib/config'
+import { recordEvent } from '@/lib/metrics'
 import { onboardingSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
@@ -63,6 +64,9 @@ Return ONLY valid JSON matching the specified format.`
     const stream = new ReadableStream({
       async start(controller) {
         let fullResponse = ''
+        const start = Date.now()
+        let inputTokens = 0
+        let outputTokens = 0
 
         const anthropicStream = anthropic.messages.stream({
           model: config.ai.onboardingModel,
@@ -72,7 +76,11 @@ Return ONLY valid JSON matching the specified format.`
         })
 
         for await (const event of anthropicStream) {
-          if (
+          if (event.type === 'message_start') {
+            inputTokens = event.message.usage.input_tokens
+          } else if (event.type === 'message_delta') {
+            outputTokens = event.usage.output_tokens
+          } else if (
             event.type === 'content_block_delta' &&
             event.delta.type === 'text_delta'
           ) {
@@ -82,6 +90,16 @@ Return ONLY valid JSON matching the specified format.`
             )
           }
         }
+
+        recordEvent({
+          category: 'ai',
+          name: 'ai.onboarding',
+          success: true,
+          durationMs: Date.now() - start,
+          model: config.ai.onboardingModel,
+          inputTokens,
+          outputTokens,
+        })
 
         // Save learning plan to DB
         try {

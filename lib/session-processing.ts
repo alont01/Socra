@@ -4,6 +4,7 @@ import { analyzeSession } from '@/lib/ai/session-analyzer'
 import { generatePracticeSet } from '@/lib/ai/practice-set-generator'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
+import { recordEvent } from '@/lib/metrics'
 
 const logger = createLogger('session-processing')
 
@@ -53,10 +54,26 @@ export async function processSessionPostCompletion(sessionId: string) {
   // Step 3: Generate practice set
   await generateAndSavePracticeSet(sessionId, student.id, student.gradeLevel, session.topic, analysis)
 
-  // Step 4: Update mastery scores
-  await updateMasteryForConcepts(student.id, analysis.conceptsCovered)
+  // Step 4: Update mastery scores — only once per session. Re-analysis (retry)
+  // re-runs this pipeline; without this guard each retry would re-apply the
+  // concept-coverage increments and inflate mastery. We only mark it applied
+  // once real concepts have been counted, so a retry after a failed/empty
+  // first analysis still applies mastery exactly once.
+  if (!session.masteryApplied && analysis.conceptsCovered.length > 0) {
+    await updateMasteryForConcepts(student.id, analysis.conceptsCovered)
+    await prisma.tutoringSession.update({
+      where: { id: sessionId },
+      data: { masteryApplied: true },
+    })
+  }
 
   logger.info('Completed processing', { sessionId })
+  recordEvent({
+    category: 'session',
+    name: 'session.processed',
+    success: true,
+    metadata: { sessionId, usedTranscript: !!transcriptText },
+  })
 }
 
 async function fetchAndSaveTranscript(
@@ -68,11 +85,28 @@ async function fetchAndSaveTranscript(
   let transcriptText = ''
 
   if (dailyRoomName) {
+    const start = Date.now()
     try {
       const transcript = await fetchTranscriptWithRetry(dailyRoomName)
       transcriptText = transcript || ''
+      recordEvent({
+        category: 'transcript',
+        name: 'transcript.fetch',
+        success: !!transcriptText,
+        level: transcriptText ? 'info' : 'warn',
+        durationMs: Date.now() - start,
+        metadata: { sessionId, chars: transcriptText.length },
+      })
     } catch (err) {
       logger.error('Failed to fetch transcript', err, { sessionId })
+      recordEvent({
+        category: 'transcript',
+        name: 'transcript.fetch',
+        success: false,
+        level: 'error',
+        durationMs: Date.now() - start,
+        metadata: { sessionId, error: err instanceof Error ? err.message : String(err) },
+      })
     }
   }
 
@@ -162,12 +196,14 @@ async function generateAndSavePracticeSet(
     })
 
     if (problems.length > 0) {
+      // Created as a draft — the tutor reviews and assigns it as homework.
       await prisma.practiceSet.create({
         data: {
           tutoringSessionId: sessionId,
           studentId,
-          title: `${topic} Practice`,
+          title: `${topic} Homework`,
           problems: JSON.stringify(problems),
+          status: 'draft',
         },
       })
     }

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { anthropic } from './client'
+import { trackedMessage } from './client'
 import type { SessionAnalysisResult } from './types'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
@@ -57,7 +57,7 @@ Only output the JSON, nothing else.`
   }
   content.push({ type: 'text', text: promptText })
 
-  const response = await anthropic.messages.create({
+  const response = await trackedMessage('analysis', {
     model: config.ai.analysisModel,
     max_tokens: config.ai.analysisMaxTokens,
     messages: [

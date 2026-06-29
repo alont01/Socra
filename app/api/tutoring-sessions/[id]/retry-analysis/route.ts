@@ -38,17 +38,18 @@ export async function POST(
       return NextResponse.json({ error: 'Session must be completed first' }, { status: 400 })
     }
 
-    // Delete existing analysis AND practice sets so the pipeline can fully re-run
-    // without creating duplicates or double-counting mastery
+    // Delete existing analysis and any DRAFT practice sets so the pipeline can
+    // re-run cleanly. Assigned homework is preserved — it may already have
+    // student attempts, and those must not be destroyed by a re-analysis.
     if (session.analysis) {
       await prisma.sessionAnalysis.delete({
         where: { tutoringSessionId: id },
       })
     }
     await prisma.practiceSet.deleteMany({
-      where: { tutoringSessionId: id },
+      where: { tutoringSessionId: id, status: 'draft' },
     })
-    logger.info('Deleted existing analysis and practice sets for retry', { sessionId: id })
+    logger.info('Deleted existing analysis and draft practice sets for retry', { sessionId: id })
 
     // Re-trigger the pipeline
     processSessionPostCompletion(id).catch((err) =>

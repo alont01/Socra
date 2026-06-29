@@ -9,7 +9,7 @@ export async function GET() {
     if (!auth.ok) return auth.response
 
     const sets = await prisma.practiceSet.findMany({
-      where: { studentId: auth.student.id },
+      where: { studentId: auth.student.id, status: 'assigned' },
       include: {
         _count: { select: { attempts: true } },
         attempts: { select: { problemIndex: true }, distinct: ['problemIndex'] },

@@ -7,6 +7,7 @@ import { Navbar } from '@/components/Navbar'
 import { AnalysisSummary } from '@/components/session/AnalysisSummary'
 import { TranscriptViewer } from '@/components/session/TranscriptViewer'
 import { TutorFeedbackCard } from '@/components/session/TutorFeedbackCard'
+import { HomeworkManager } from '@/components/practice/HomeworkManager'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import Link from 'next/link'
 import type { AnalysisData, TranscriptData } from '@/types'
@@ -211,10 +212,11 @@ export default function ReviewPage({
                 />
               </div>
 
-              {/* Right column: tutor feedback */}
+              {/* Right column: tutor feedback + homework */}
               {isTutor && (
                 <div className="space-y-6">
                   <TutorFeedbackCard feedback={analysis.tutorFeedback} />
+                  <HomeworkManager sessionId={id} />
                 </div>
               )}
             </div>

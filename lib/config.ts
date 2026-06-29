@@ -18,20 +18,18 @@ export const config = {
 
   // AI
   ai: {
-    analysisModel: 'claude-sonnet-4-20250514' as const,
+    analysisModel: 'claude-sonnet-4-6' as const,
     analysisMaxTokens: 2048,
-    practiceModel: 'claude-sonnet-4-20250514' as const,
+    practiceModel: 'claude-sonnet-4-6' as const,
     practiceMaxTokens: 2048,
     practiceProblemsCount: 5,
-    noteExtractorModel: 'claude-sonnet-4-20250514' as const,
-    chatModel: 'claude-opus-4-6' as const,
-    chatMaxTokens: 8192,
-    studentChatModel: 'claude-sonnet-4-20250514' as const,
+    noteExtractorModel: 'claude-sonnet-4-6' as const,
+    studentChatModel: 'claude-sonnet-4-6' as const,
     studentChatMaxTokens: 1024,
-    livePracticeModel: 'claude-sonnet-4-20250514' as const,
+    livePracticeModel: 'claude-sonnet-4-6' as const,
     livePracticeMaxTokens: 1536,
     livePracticeCount: 3,
-    onboardingModel: 'claude-opus-4-6' as const,
+    onboardingModel: 'claude-opus-4-8' as const,
     onboardingMaxTokens: 2048,
   },
 
