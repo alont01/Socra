@@ -17,7 +17,8 @@ export async function GET(
       include: { attempts: true },
     })
 
-    if (!set || set.studentId !== auth.student.id) {
+    // Drafts are tutor-only until assigned — treat as not found for students.
+    if (!set || set.studentId !== auth.student.id || set.status !== 'assigned') {
       return NextResponse.json({ error: 'Practice set not found' }, { status: 404 })
     }
 

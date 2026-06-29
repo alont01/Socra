@@ -18,7 +18,9 @@ export async function GET(
         tutor: { select: { userId: true } },
         student: { select: { userId: true } },
         analysis: true,
-        practiceSets: true,
+        // Only assigned homework is shown here; drafts are managed via the
+        // tutor practice-sets endpoint and must not surface to students.
+        practiceSets: { where: { status: 'assigned' } },
       },
     })
 

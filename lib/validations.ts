@@ -65,8 +65,8 @@ export const createSessionSchema = z.object({
 })
 
 export const updateSessionSchema = z.object({
-  tutorNotes: z.string().optional(),
-  topic: z.string().optional(),
+  tutorNotes: z.string().max(20_000).optional(),
+  topic: z.string().max(200).optional(),
   status: z.enum(['scheduled', 'active', 'completed', 'cancelled']).optional(),
 })
 

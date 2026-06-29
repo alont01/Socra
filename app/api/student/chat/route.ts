@@ -3,6 +3,7 @@ import { requireStudent } from '@/lib/api-auth'
 import { anthropic } from '@/lib/ai/client'
 import { config } from '@/lib/config'
 import { rateLimit } from '@/lib/rate-limit'
+import { recordEvent } from '@/lib/metrics'
 import { chatSchema, parseBody } from '@/lib/validations'
 
 export async function POST(request: Request) {
@@ -28,6 +29,7 @@ Their goals: ${student.goals || 'improve math skills'}.
 Be encouraging, use the Socratic method when appropriate (guide them to answers rather than just giving answers).
 Keep responses concise and focused. Use plain text for math expressions.`
 
+    const start = Date.now()
     const stream = await anthropic.messages.stream({
       model: config.ai.studentChatModel,
       max_tokens: config.ai.studentChatMaxTokens,
@@ -41,14 +43,42 @@ Keep responses concise and focused. Use plain text for math expressions.`
     const encoder = new TextEncoder()
     const readableStream = new ReadableStream({
       async start(controller) {
-        for await (const event of stream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            const data = JSON.stringify({ type: 'text', text: event.delta.text })
-            controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+        let inputTokens = 0
+        let outputTokens = 0
+        try {
+          for await (const event of stream) {
+            if (event.type === 'message_start') {
+              inputTokens = event.message.usage.input_tokens
+            } else if (event.type === 'message_delta') {
+              outputTokens = event.usage.output_tokens
+            } else if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              const data = JSON.stringify({ type: 'text', text: event.delta.text })
+              controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+            }
           }
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+          recordEvent({
+            category: 'ai',
+            name: 'ai.student_chat',
+            success: true,
+            durationMs: Date.now() - start,
+            model: config.ai.studentChatModel,
+            inputTokens,
+            outputTokens,
+          })
+        } catch (err) {
+          recordEvent({
+            category: 'ai',
+            name: 'ai.student_chat',
+            level: 'error',
+            success: false,
+            durationMs: Date.now() - start,
+            model: config.ai.studentChatModel,
+            metadata: { error: err instanceof Error ? err.message : String(err) },
+          })
+          controller.error(err)
         }
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-        controller.close()
       },
     })
 

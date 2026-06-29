@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { Navbar } from '@/components/Navbar'
 import { PracticeWorkspace } from '@/components/practice/PracticeWorkspace'
+import { StudentChatPanel } from '@/components/chat/StudentChatPanel'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import Link from 'next/link'
 
@@ -57,27 +58,45 @@ export default function PracticeSetPage({
   return (
     <div className="min-h-screen bg-[#FFFBF5]">
       <Navbar />
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-stone-900">{title || 'Practice Set'}</h1>
+          <h1 className="text-2xl font-bold text-stone-900">{title || 'Homework'}</h1>
           <Link href="/student/practice" className="text-sm text-orange-500 hover:text-orange-600">
-            Back to Practice
+            Back to Homework
           </Link>
         </div>
 
-        {fetching ? (
-          <div className="flex justify-center py-12"><LoadingDots /></div>
-        ) : problems.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
-            <p className="text-stone-500">No problems in this set.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Homework workspace */}
+          <div className="lg:col-span-2">
+            {fetching ? (
+              <div className="flex justify-center py-12"><LoadingDots /></div>
+            ) : problems.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
+                <p className="text-stone-500">No problems in this set.</p>
+              </div>
+            ) : (
+              <PracticeWorkspace
+                practiceSetId={id}
+                problems={problems}
+                existingAttempts={attempts}
+              />
+            )}
           </div>
-        ) : (
-          <PracticeWorkspace
-            practiceSetId={id}
-            problems={problems}
-            existingAttempts={attempts}
-          />
-        )}
+
+          {/* Always-available math assistant */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl border border-orange-100 shadow-sm overflow-hidden lg:sticky lg:top-8 flex flex-col h-[600px]">
+              <div className="border-b border-orange-100 px-4 py-3">
+                <h2 className="font-semibold text-stone-900 text-sm">Ask Socra</h2>
+                <p className="text-xs text-stone-400">Stuck? Ask any math question while you work.</p>
+              </div>
+              <div className="flex-1 min-h-0">
+                <StudentChatPanel />
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   )

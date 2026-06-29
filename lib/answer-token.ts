@@ -1,7 +1,17 @@
 import crypto from 'crypto'
 
-const SECRET = process.env.AUTH_SECRET || 'fallback-secret'
-const KEY = crypto.createHash('sha256').update(SECRET).digest()
+function getSecret(): string {
+  const secret = process.env.AUTH_SECRET
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('AUTH_SECRET environment variable is required in production')
+    }
+    return 'dev-only-answer-token-secret'
+  }
+  return secret
+}
+
+const KEY = crypto.createHash('sha256').update(getSecret()).digest()
 
 /**
  * Encrypts the correct answer + topic into a tamper-proof token.

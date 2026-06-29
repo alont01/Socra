@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { rateLimit } from '@/lib/rate-limit'
 import { extractHandwrittenNotes } from '@/lib/ai/note-extractor'
 
 export async function POST(
@@ -11,6 +12,10 @@ export async function POST(
     const { id } = await params
     const auth = await requireAuth()
     if (!auth.ok) return auth.response
+
+    // Each call runs a vision AI request — rate-limit to bound cost/abuse.
+    const rl = rateLimit(`capture-notes:${auth.payload.userId}`, { maxRequests: 15, windowMs: 60_000 })
+    if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 
     const session = await prisma.tutoringSession.findUnique({
       where: { id },
@@ -32,6 +37,11 @@ export async function POST(
       return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
     const { imageBase64 } = parsed.data
+
+    const MAX_BASE64_LENGTH = 5 * 1024 * 1024 // ~3.75MB decoded
+    if (imageBase64.length > MAX_BASE64_LENGTH) {
+      return NextResponse.json({ error: 'Image too large' }, { status: 400 })
+    }
 
     const extractedText = await extractHandwrittenNotes(imageBase64)
 

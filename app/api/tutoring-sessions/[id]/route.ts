@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { createRoom } from '@/lib/daily'
+import { updateSessionSchema, parseBody } from '@/lib/validations'
 
 export async function GET(
   _request: Request,
@@ -30,7 +31,13 @@ export async function GET(
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
-    return NextResponse.json({ session, role: isTutor ? 'tutor' : 'student' })
+    // tutorNotes are private to the tutor — never expose them to the student.
+    if (!isTutor) {
+      const { tutorNotes: _tutorNotes, ...studentView } = session
+      return NextResponse.json({ session: studentView, role: 'student' })
+    }
+
+    return NextResponse.json({ session, role: 'tutor' })
   } catch (err) {
     console.error(err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -57,11 +64,16 @@ export async function PATCH(
     }
 
     const body = await request.json()
+    const parsed = parseBody(updateSessionSchema, body)
+    if ('error' in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 })
+    }
+    const { tutorNotes, topic, status } = parsed.data
     const updateData: Record<string, unknown> = {}
 
-    if (body.tutorNotes !== undefined) updateData.tutorNotes = body.tutorNotes
-    if (body.topic !== undefined) updateData.topic = body.topic
-    if (body.status !== undefined) {
+    if (tutorNotes !== undefined) updateData.tutorNotes = tutorNotes
+    if (topic !== undefined) updateData.topic = topic
+    if (status !== undefined) {
       // Validate status transitions
       const validTransitions: Record<string, string[]> = {
         scheduled: ['active', 'cancelled'],
@@ -70,17 +82,17 @@ export async function PATCH(
         cancelled: [],    // terminal state
       }
       const allowed = validTransitions[session.status] || []
-      if (!allowed.includes(body.status)) {
+      if (!allowed.includes(status)) {
         return NextResponse.json(
-          { error: `Cannot transition from '${session.status}' to '${body.status}'` },
+          { error: `Cannot transition from '${session.status}' to '${status}'` },
           { status: 400 },
         )
       }
-      updateData.status = body.status
+      updateData.status = status
     }
 
     // If setting to active and no room yet, create one
-    if (body.status === 'active' && !session.dailyRoomName) {
+    if (status === 'active' && !session.dailyRoomName) {
       const room = await createRoom(id)
       updateData.dailyRoomName = room.name
       updateData.dailyRoomUrl = room.url

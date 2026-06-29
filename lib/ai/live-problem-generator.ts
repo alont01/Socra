@@ -1,4 +1,4 @@
-import { anthropic } from './client'
+import { trackedMessage } from './client'
 import type { PracticeProblem } from './types'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
@@ -76,7 +76,7 @@ Respond in valid JSON as an array of objects:
 
 Only output the JSON array, nothing else.`
 
-  const response = await anthropic.messages.create({
+  const response = await trackedMessage('live_practice', {
     model: config.ai.livePracticeModel,
     max_tokens: config.ai.livePracticeMaxTokens,
     messages: [{ role: 'user', content: prompt }],

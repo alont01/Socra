@@ -47,6 +47,28 @@ export async function requireTutor(): Promise<TutorAuthSuccess | AuthFailure> {
 }
 
 /**
+ * Verify JWT + require the user's email is in the ADMIN_EMAILS allowlist
+ * (comma-separated env var). Used to gate the operator/admin dashboard.
+ * Secure by default: if ADMIN_EMAILS is unset/empty, no one is an admin.
+ */
+export async function requireAdmin(): Promise<AuthSuccess | AuthFailure> {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth
+
+  const allowlist = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+
+  const email = auth.payload.email?.toLowerCase()
+  if (!email || !allowlist.includes(email)) {
+    return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+
+  return { ok: true, payload: auth.payload }
+}
+
+/**
  * Verify JWT + require StudentProfile exists for this user.
  */
 export async function requireStudent(): Promise<StudentAuthSuccess | AuthFailure> {

@@ -6,6 +6,7 @@ services:
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
     envVars:
+      # Core
       - key: DATABASE_URL
         sync: false
       - key: NODE_ENV
@@ -13,4 +14,26 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: JWT_SECRET
+        sync: false
+      # NextAuth (OAuth) — AUTH_SECRET also signs answer tokens (lib/answer-token.ts)
+      - key: AUTH_SECRET
+        sync: false
+      - key: AUTH_URL
+        sync: false
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      - key: AUTH_GITHUB_ID
+        sync: false
+      - key: AUTH_GITHUB_SECRET
+        sync: false
+      # Video / transcription (core feature — app degrades heavily without it)
+      - key: DAILY_API_KEY
+        sync: false
+      # Password-reset emails (without it, reset links are only logged, not sent)
+      - key: RESEND_API_KEY
+        sync: false
+      # Admin system-health dashboard allowlist (comma-separated emails)
+      - key: ADMIN_EMAILS
         sync: false
