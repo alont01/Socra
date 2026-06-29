@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
+import { RichContent } from '@/components/visuals/RichContent'
 import { useToast } from '@/hooks/useToast'
 
 interface ChatMessage {
@@ -110,13 +111,23 @@ export function StudentChatPanel() {
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+              className={`rounded-2xl px-4 py-2.5 text-sm ${
                 msg.role === 'user'
-                  ? 'bg-orange-500 text-white rounded-tr-sm'
-                  : 'bg-stone-50 text-stone-700 rounded-tl-sm'
+                  ? 'max-w-[80%] bg-orange-500 text-white rounded-tr-sm'
+                  : 'max-w-[88%] bg-stone-50 text-stone-700 rounded-tl-sm'
               }`}
             >
-              {msg.content || (streaming && i === messages.length - 1 ? '...' : '')}
+              {msg.role === 'assistant' ? (
+                msg.content ? (
+                  <RichContent content={msg.content} />
+                ) : streaming && i === messages.length - 1 ? (
+                  '...'
+                ) : (
+                  ''
+                )
+              ) : (
+                msg.content
+              )}
             </div>
           </div>
         ))}

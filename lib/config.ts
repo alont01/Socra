@@ -25,7 +25,7 @@ export const config = {
     practiceProblemsCount: 5,
     noteExtractorModel: 'claude-sonnet-4-6' as const,
     studentChatModel: 'claude-sonnet-4-6' as const,
-    studentChatMaxTokens: 1024,
+    studentChatMaxTokens: 3072, // higher ceiling so responses with plots/figures aren't truncated
     livePracticeModel: 'claude-sonnet-4-6' as const,
     livePracticeMaxTokens: 1536,
     livePracticeCount: 3,
