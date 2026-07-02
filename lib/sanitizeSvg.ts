@@ -64,6 +64,23 @@ export function sanitizeSvg(input: string): string | null {
     }
     cleanElement(svg)
 
+    // Normalize sizing. AI output often uses width/height="100%" or omits them,
+    // which collapses to zero height inside a flex container. If a viewBox is
+    // present, pin width/height to its dimensions so CSS can scale the figure
+    // responsively while preserving aspect ratio.
+    const viewBox = Array.from(svg.attributes).find((a) => a.name.toLowerCase() === 'viewbox')?.value
+    const dims = viewBox?.trim().split(/[\s,]+/).map(Number)
+    if (dims && dims.length === 4 && dims.every(Number.isFinite) && dims[2] > 0 && dims[3] > 0) {
+      svg.setAttribute('width', String(dims[2]))
+      svg.setAttribute('height', String(dims[3]))
+    } else {
+      // No usable viewBox — drop percentage dimensions that would collapse.
+      for (const dim of ['width', 'height']) {
+        const v = svg.getAttribute(dim)
+        if (v && v.includes('%')) svg.removeAttribute(dim)
+      }
+    }
+
     if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
     return new XMLSerializer().serializeToString(svg)
   } catch {

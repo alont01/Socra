@@ -5,6 +5,7 @@ import { config } from '@/lib/config'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordEvent } from '@/lib/metrics'
 import { chatSchema, parseBody } from '@/lib/validations'
+import { VISUAL_PROMPT } from '@/lib/ai/visual-prompt'
 
 export async function POST(request: Request) {
   try {
@@ -28,19 +29,7 @@ Their goals: ${student.goals || 'improve math skills'}.
 
 Be encouraging and use the Socratic method when appropriate — guide them toward answers rather than just handing them over. Keep responses concise.
 
-Format all math with LaTeX: inline as $...$ and block equations as $$...$$.
-
-When a visual genuinely helps understanding, include one (only when it aids learning):
-
-To graph functions or plot points, emit a fenced block tagged "plot" containing JSON:
-\`\`\`plot
-{"title":"y = x^2","xLabel":"x","yLabel":"y","xDomain":[-4,4],"series":[{"label":"y = x^2","color":"#f97316","points":[[-4,16],[-2,4],[0,0],[2,4],[4,16]]}],"points":[{"x":2,"y":4,"label":"(2, 4)"}]}
-\`\`\`
-Sample ~30-60 evenly spaced [x, y] points across the domain so curves are smooth. "series" draw connected lines; "points" are individual labeled dots. xDomain and yDomain are optional.
-
-To draw geometry (triangles, angles, number lines, coordinate figures), emit a fenced block tagged "geometry" containing a self-contained <svg> with a viewBox, using only basic shapes (line, polyline, polygon, rect, circle, ellipse, path, text) and <text> labels. No scripts, styles, or external images.
-
-Keep text outside the blocks concise.`
+${VISUAL_PROMPT}`
 
     const start = Date.now()
     const stream = await anthropic.messages.stream({

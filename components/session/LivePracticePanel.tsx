@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { RichContent } from '@/components/visuals/RichContent'
 import type { PracticeProblem } from '@/lib/ai/types'
 import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
 
@@ -204,7 +205,9 @@ export function LivePracticePanel({
                   </span>
                   <span className="text-stone-400">{p.topic}</span>
                 </div>
-                <p className="text-stone-700 mb-1">{p.question}</p>
+                <div className="text-stone-700 mb-1">
+                  <RichContent content={p.question} />
+                </div>
 
                 {/* Editable answer field */}
                 {!sent ? (

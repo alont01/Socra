@@ -1,5 +1,6 @@
 import { trackedMessage } from './client'
 import type { PracticeProblem } from './types'
+import { VISUAL_PROMPT_JSON } from './visual-prompt'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
 
@@ -66,13 +67,15 @@ Respond in valid JSON as an array of objects:
 [
   {
     "id": "lp1",
-    "question": "The math problem in plain text",
+    "question": "The math problem",
     "hint": "A helpful hint",
     "difficulty": "easy|medium|hard",
     "topic": "specific sub-topic",
     "answer": "the correct answer"
   }
 ]
+
+${VISUAL_PROMPT_JSON}
 
 Only output the JSON array, nothing else.`
 

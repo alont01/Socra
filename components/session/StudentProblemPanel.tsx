@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { RichContent } from '@/components/visuals/RichContent'
 import type { PracticeProblem } from '@/lib/ai/types'
 import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
 
@@ -125,7 +126,9 @@ export function StudentProblemPanel({
                 </span>
               </div>
 
-              <p className="text-sm text-stone-800 mb-2">{problem.question}</p>
+              <div className="text-sm text-stone-800 mb-2">
+                <RichContent content={problem.question} />
+              </div>
 
               {/* Hint toggle */}
               {problem.hint && !state.submitted && (
@@ -137,9 +140,9 @@ export function StudentProblemPanel({
                     {state.showHint ? 'Hide hint' : 'Show hint'}
                   </button>
                   {state.showHint && (
-                    <p className="text-xs text-blue-600 bg-blue-50 rounded-lg px-2 py-1.5 mt-1">
-                      {problem.hint}
-                    </p>
+                    <div className="text-xs text-blue-600 bg-blue-50 rounded-lg px-2 py-1.5 mt-1">
+                      <RichContent content={problem.hint} />
+                    </div>
                   )}
                 </div>
               )}
@@ -159,9 +162,9 @@ export function StudentProblemPanel({
                     Your answer: &quot;{state.answer}&quot;
                   </p>
                   {!isCorrect && state.correctAnswer && (
-                    <p className="text-xs mt-0.5">
-                      Correct answer: {state.correctAnswer}
-                    </p>
+                    <div className="text-xs mt-0.5">
+                      Correct answer: <RichContent content={state.correctAnswer} />
+                    </div>
                   )}
                 </div>
               ) : (

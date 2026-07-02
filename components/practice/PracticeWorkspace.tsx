@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { RichContent } from '@/components/visuals/RichContent'
 import { useToast } from '@/hooks/useToast'
 
 interface Problem {
@@ -121,14 +122,16 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
           <span className="text-xs text-stone-400">{problem.topic}</span>
         </div>
 
-        <p className="text-stone-900 font-medium mb-6 text-lg">{problem.question}</p>
+        <div className="text-stone-900 font-medium mb-6 text-lg">
+          <RichContent content={problem.question} />
+        </div>
 
         {/* Hint */}
         {problem.hint && (
           <div className="mb-4">
             {showHint ? (
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm text-amber-800">
-                {problem.hint}
+                <RichContent content={problem.hint} />
               </div>
             ) : (
               <button
@@ -149,7 +152,9 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
             </p>
             <p className="text-xs text-stone-500">Your answer: {existingResult.answer}</p>
             {!existingResult.correct && existingResult.correctAnswer && (
-              <p className="text-xs text-stone-500 mt-1">Correct answer: {existingResult.correctAnswer}</p>
+              <div className="text-xs text-stone-500 mt-1">
+                Correct answer: <RichContent content={existingResult.correctAnswer} />
+              </div>
             )}
             {!existingResult.correct && (
               <p className="text-xs text-orange-500 mt-2">Keep going — every mistake is a step closer to mastery!</p>

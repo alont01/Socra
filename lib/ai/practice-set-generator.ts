@@ -1,5 +1,6 @@
 import { trackedMessage } from './client'
 import type { PracticeProblem } from './types'
+import { VISUAL_PROMPT_JSON } from './visual-prompt'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
 
@@ -36,7 +37,7 @@ Respond in valid JSON as an array of objects:
 [
   {
     "id": "p1",
-    "question": "The math problem (use plain text, no LaTeX)",
+    "question": "The math problem",
     "hint": "A helpful hint",
     "difficulty": "easy|medium|hard",
     "topic": "specific sub-topic",
@@ -45,6 +46,9 @@ Respond in valid JSON as an array of objects:
 ]
 
 Create a mix of difficulties weighted toward the student's gap areas.
+
+${VISUAL_PROMPT_JSON}
+
 Only output the JSON array, nothing else.`,
       },
     ],
