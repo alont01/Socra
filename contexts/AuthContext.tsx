@@ -75,7 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // immediately. The cookie-clearing request completes in the background.
     setUser(null)
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      // keepalive so the request still completes if the page navigates away.
+      await fetch('/api/auth/logout', { method: 'POST', keepalive: true })
     } catch {
       // Best-effort — state is already cleared and we're navigating away.
     }

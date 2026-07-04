@@ -9,11 +9,13 @@ export function Navbar() {
   const { user, logout } = useAuth()
   const router = useRouter()
 
-  const handleLogout = () => {
-    // logout() clears user state synchronously; redirect immediately for an
-    // instant feel while the cookie-clear request finishes in the background.
-    logout()
-    router.push('/')
+  const handleLogout = async () => {
+    // logout() clears client state synchronously (instant UI) and awaits the
+    // cookie-clear. We must wait for the cookie to actually clear before going
+    // to /auth — middleware redirects any request with a valid token cookie
+    // away from /auth to /dashboard, so navigating too early bounces us back.
+    await logout()
+    router.replace('/auth')
   }
 
   const isStudent = user?.role === 'STUDENT'
