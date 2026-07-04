@@ -83,18 +83,24 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
   return (
     <>
       {/* Welcome banner */}
-      <div className="bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 rounded-3xl p-6 text-white mb-8 shadow-brand">
-        <h1 className="text-2xl font-bold">Welcome back, {tutorName}!</h1>
-        <p className="text-orange-100 mt-1">
-          {students.length} student{students.length !== 1 ? 's' : ''} · {sessions.filter((s) => s.status !== 'cancelled').length} session{sessions.length !== 1 ? 's' : ''}
-        </p>
-        <Button
-          variant="secondary"
-          className="mt-4 bg-white text-orange-600 hover:bg-orange-50"
-          onClick={() => setShowNewSession(true)}
-        >
-          New Session +
-        </Button>
+      <div className="relative overflow-hidden bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 rounded-3xl p-6 text-white mb-8 shadow-brand">
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-16 -right-8 h-52 w-52 rounded-full bg-white/15 blur-2xl" />
+          <div className="absolute inset-0 [background-image:radial-gradient(circle,rgba(255,255,255,0.14)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]" />
+        </div>
+        <div className="relative">
+          <h1 className="text-2xl font-bold tracking-tight">Welcome back, {tutorName}!</h1>
+          <p className="text-orange-100 mt-1">
+            {students.length} student{students.length !== 1 ? 's' : ''} · {sessions.filter((s) => s.status !== 'cancelled').length} session{sessions.length !== 1 ? 's' : ''}
+          </p>
+          <Button
+            variant="secondary"
+            className="mt-4 bg-white text-orange-600 hover:bg-orange-50"
+            onClick={() => setShowNewSession(true)}
+          >
+            New Session +
+          </Button>
+        </div>
       </div>
 
       {/* New Session form */}

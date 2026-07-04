@@ -55,18 +55,24 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
   return (
     <>
       {/* Welcome banner */}
-      <div className="bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 rounded-3xl p-6 text-white mb-8 shadow-brand">
-        <h1 className="text-2xl font-bold">Hey {studentName}!</h1>
-        <p className="text-orange-100 mt-1">
-          {goals ? `Goal: ${goals}` : 'Ready to learn some math today?'}
-        </p>
-        {activeSessions.length > 0 && (
-          <Link href={`/session/${activeSessions[0].id}`}>
-            <button className="mt-4 bg-white text-orange-600 font-semibold px-6 py-2 rounded-xl hover:bg-orange-50 transition-colors text-sm">
-              Join Live Session
-            </button>
-          </Link>
-        )}
+      <div className="relative overflow-hidden bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 rounded-3xl p-6 text-white mb-8 shadow-brand">
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-16 -right-8 h-52 w-52 rounded-full bg-white/15 blur-2xl" />
+          <div className="absolute inset-0 [background-image:radial-gradient(circle,rgba(255,255,255,0.14)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]" />
+        </div>
+        <div className="relative">
+          <h1 className="text-2xl font-bold tracking-tight">Hey {studentName}!</h1>
+          <p className="text-orange-100 mt-1">
+            {goals ? `Goal: ${goals}` : 'Ready to learn some math today?'}
+          </p>
+          {activeSessions.length > 0 && (
+            <Link href={`/session/${activeSessions[0].id}`}>
+              <button className="mt-4 bg-white text-orange-600 font-semibold px-6 py-2 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm">
+                Join Live Session
+              </button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

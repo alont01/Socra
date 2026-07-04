@@ -75,9 +75,9 @@ function AuthForm() {
   }
 
   return (
-    <div className="w-full max-w-sm">
+    <div className="w-full">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-stone-900">
+        <h1 className="text-3xl font-bold tracking-tight text-stone-900">
           {tab === 'signup' ? 'Create your account' : 'Welcome back'}
         </h1>
         <p className="text-stone-500 mt-2">
@@ -223,21 +223,71 @@ function AuthForm() {
   )
 }
 
+const brandBullets = [
+  'AI analyzes every session — automatically',
+  'Targeted practice built from real gaps',
+  'Progress that compounds session over session',
+]
+
 export default function AuthPage() {
   return (
-    <div className="min-h-screen bg-[#FFFBF5] flex flex-col">
-      <div className="p-4">
-        <Link href="/" className="flex items-center gap-2 w-fit">
-          <span className="text-2xl font-bold text-orange-500">∑</span>
-          <span className="text-xl font-bold text-stone-900">Socra</span>
-        </Link>
-      </div>
+    <div className="min-h-screen bg-[#FFFBF5] lg:grid lg:grid-cols-2">
+      {/* Brand panel (desktop) */}
+      <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 p-12 text-white">
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-20 -left-16 h-80 w-80 rounded-full bg-white/15 blur-3xl animate-float-slow" />
+          <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-amber-300/30 blur-3xl animate-float-slow [animation-delay:-5s]" />
+          <div className="absolute inset-0 [background-image:radial-gradient(circle,rgba(255,255,255,0.16)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
+        </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <Suspense fallback={<div className="w-full max-w-sm h-96 animate-pulse bg-white rounded-3xl ring-1 ring-stone-900/5" />}>
-          <AuthForm />
-        </Suspense>
-      </div>
+        <Link href="/" className="relative flex items-center gap-2.5 w-fit">
+          <span className="grid place-items-center h-9 w-9 rounded-xl bg-white/15 backdrop-blur text-white text-lg font-bold ring-1 ring-white/25">∑</span>
+          <span className="text-lg font-bold tracking-tight">Socra</span>
+        </Link>
+
+        <div className="relative max-w-md">
+          <h2 className="text-4xl font-bold tracking-tight leading-[1.1] mb-5">
+            Tutoring that gets smarter every session.
+          </h2>
+          <p className="text-orange-50/90 text-lg mb-8">
+            Run the session — Socra handles summaries, practice, and progress the moment it ends.
+          </p>
+          <ul className="space-y-3">
+            {brandBullets.map((b) => (
+              <li key={b} className="flex items-start gap-3">
+                <span className="mt-0.5 grid place-items-center h-5 w-5 rounded-full bg-white/20 ring-1 ring-white/30 shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="h-3 w-3">
+                    <path d="M5 12l4 4 10-10" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className="text-orange-50">{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative text-orange-50/70 text-sm">&copy; 2026 Socra</p>
+      </aside>
+
+      {/* Form side */}
+      <main className="flex flex-col min-h-screen lg:min-h-0">
+        <div className="p-4 lg:hidden">
+          <Link href="/" className="flex items-center gap-2.5 w-fit">
+            <span className="grid place-items-center h-8 w-8 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white text-lg font-bold shadow-brand">∑</span>
+            <span className="text-lg font-bold tracking-tight text-stone-900">Socra</span>
+          </Link>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
+            <div className="bg-white/80 backdrop-blur rounded-3xl ring-1 ring-stone-900/5 shadow-elevated p-6 sm:p-8">
+              <Suspense fallback={<div className="w-full h-96 animate-pulse bg-stone-100 rounded-2xl" />}>
+                <AuthForm />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   )
 }
