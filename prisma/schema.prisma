@@ -197,3 +197,25 @@ model SystemEvent {
   @@index([level, createdAt])
   @@index([createdAt])
 }
+
+// Immutable audit trail of user actions, surfaced in the admin log viewer.
+// Written fire-and-forget from lib/audit.ts; one row per audited action.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?  // User.id; null for anonymous / failed-auth attempts
+  actorEmail String?  // captured even when actorId is null (e.g. failed login)
+  actorRole  String?  // STUDENT | TUTOR | PARENT
+  action     String   // e.g. "auth.login", "auth.signup", "session.start"
+  status     String   @default("success") // success | failure
+  targetType String?  // e.g. "session", "student"
+  targetId   String?
+  ip         String?
+  userAgent  String?
+  metadata   String   @default("{}") // JSON blob of extra context (never secrets)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@index([status, createdAt])
+}

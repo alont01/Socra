@@ -3,11 +3,12 @@ import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { processSessionPostCompletion } from '@/lib/session-processing'
 import { createLogger } from '@/lib/logger'
+import { recordAudit, auditContext } from '@/lib/audit'
 
 const logger = createLogger('session-end')
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -45,6 +46,14 @@ export async function POST(
     }
 
     const updated = await prisma.tutoringSession.findUnique({ where: { id } })
+
+    recordAudit({
+      action: 'session.end',
+      actor: { id: auth.payload.userId, email: auth.payload.email, role: auth.payload.role },
+      targetType: 'session',
+      targetId: id,
+      ...auditContext(request),
+    })
 
     // Fire-and-forget post-session processing (idempotent — checks for existing analysis)
     processSessionPostCompletion(id).catch((err) =>

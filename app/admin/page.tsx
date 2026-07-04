@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { Navbar } from '@/components/Navbar'
@@ -96,7 +97,10 @@ export default function AdminDashboardPage() {
       <main className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-stone-900">System Health</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-stone-900">System Health</h1>
+              <Link href="/admin/logs" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Logs →</Link>
+            </div>
             {metrics && (
               <p className="text-xs text-stone-500 mt-1">
                 Live · refreshes every {REFRESH_MS / 1000}s · updated{' '}

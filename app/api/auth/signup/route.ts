@@ -4,8 +4,10 @@ import { hashPassword } from '@/lib/password'
 import { signToken } from '@/lib/auth'
 import { signupSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
+import { recordAudit, auditContext } from '@/lib/audit'
 
 export async function POST(request: Request) {
+  const ctx = auditContext(request)
   try {
     const ip = request.headers.get('x-forwarded-for') || 'unknown'
     const rl = rateLimit(`signup:${ip}`, { maxRequests: 5, windowMs: 60_000 })
@@ -42,6 +44,7 @@ export async function POST(request: Request) {
     })
 
     const token = await signToken({ userId: user.id, email: user.email, role: user.role })
+    recordAudit({ action: 'auth.signup', actor: { id: user.id, email: user.email, role: user.role }, ...ctx, metadata: { role } })
 
     const response = NextResponse.json({ success: true })
     response.cookies.set('token', token, {

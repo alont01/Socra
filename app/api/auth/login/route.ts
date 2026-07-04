@@ -4,8 +4,10 @@ import { comparePassword } from '@/lib/password'
 import { signToken } from '@/lib/auth'
 import { loginSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
+import { recordAudit, auditContext } from '@/lib/audit'
 
 export async function POST(request: Request) {
+  const ctx = auditContext(request)
   try {
     const ip = request.headers.get('x-forwarded-for') || 'unknown'
     const rl = rateLimit(`login:${ip}`, { maxRequests: 10, windowMs: 60_000 })
@@ -25,15 +27,18 @@ export async function POST(request: Request) {
     })
 
     if (!user || !user.passwordHash) {
+      recordAudit({ action: 'auth.login', status: 'failure', actor: { email }, ...ctx, metadata: { reason: 'no_account' } })
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
     const valid = await comparePassword(password, user.passwordHash)
     if (!valid) {
+      recordAudit({ action: 'auth.login', status: 'failure', actor: { id: user.id, email, role: user.role }, ...ctx, metadata: { reason: 'bad_password' } })
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
     const token = await signToken({ userId: user.id, email: user.email, role: user.role })
+    recordAudit({ action: 'auth.login', actor: { id: user.id, email: user.email, role: user.role }, ...ctx })
 
     // Strip sensitive fields before sending to client
     const { passwordHash: _, ...safeUser } = user
