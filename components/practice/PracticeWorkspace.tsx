@@ -114,7 +114,7 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
       </div>
 
       {/* Problem Card */}
-      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
+      <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6">
         <div className="flex items-center justify-between mb-4">
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${difficultyColor}`}>
             {problem.difficulty}

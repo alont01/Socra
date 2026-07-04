@@ -11,14 +11,14 @@ export function AnalysisSummary({ summary, conceptsCovered, studentStrengths, st
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
+      <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5">
         <h3 className="font-semibold text-stone-900 mb-2">Session Summary</h3>
         <p className="text-sm text-stone-600 leading-relaxed">{summary}</p>
       </div>
 
       {/* Concepts Covered */}
       {conceptsCovered.length > 0 && (
-        <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
+        <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5">
           <h3 className="font-semibold text-stone-900 mb-3">Concepts Covered</h3>
           <div className="flex flex-wrap gap-2">
             {conceptsCovered.map((c, i) => (

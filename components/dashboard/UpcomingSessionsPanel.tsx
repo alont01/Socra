@@ -39,7 +39,7 @@ function formatDate(dateStr: string | null) {
 export function UpcomingSessionsPanel({ sessions, role }: UpcomingSessionsPanelProps) {
   if (sessions.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
         <p className="text-stone-500 mb-2">No sessions yet.</p>
         {role === 'TUTOR' && (
           <p className="text-sm text-stone-400">Create one to get started.</p>
@@ -52,7 +52,7 @@ export function UpcomingSessionsPanel({ sessions, role }: UpcomingSessionsPanelP
     <div className="space-y-2">
       {sessions.map((s) => (
         <Link key={s.id} href={s.status === 'completed' ? `/session/${s.id}/review` : `/session/${s.id}`}>
-          <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4 hover:border-orange-300 transition-colors">
+          <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-4 hover:ring-orange-200/70 hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300">
             <div className="flex items-center justify-between mb-1">
               <h4 className="font-medium text-stone-900 text-sm">
                 {s.topic || 'Untitled Session'}

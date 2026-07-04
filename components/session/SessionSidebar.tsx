@@ -50,7 +50,7 @@ export function SessionSidebar({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4 h-full flex flex-col">
+    <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-4 h-full flex flex-col">
       {/* Tab switcher */}
       <div className="flex bg-stone-100 rounded-lg p-0.5 mb-3">
         <button

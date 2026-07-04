@@ -83,7 +83,7 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
   return (
     <>
       {/* Welcome banner */}
-      <div className="bg-orange-500 rounded-2xl p-6 text-white mb-8">
+      <div className="bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 rounded-3xl p-6 text-white mb-8 shadow-brand">
         <h1 className="text-2xl font-bold">Welcome back, {tutorName}!</h1>
         <p className="text-orange-100 mt-1">
           {students.length} student{students.length !== 1 ? 's' : ''} · {sessions.filter((s) => s.status !== 'cancelled').length} session{sessions.length !== 1 ? 's' : ''}
@@ -99,7 +99,7 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
 
       {/* New Session form */}
       {showNewSession && (
-        <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5 mb-6">
+        <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 mb-6">
           <h3 className="font-semibold text-stone-900 mb-3">Create Session</h3>
           <div className="flex flex-wrap gap-3">
             <input

@@ -20,7 +20,7 @@ function masteryLabel(mastery: number) {
 export function MasteryChart({ progress }: MasteryChartProps) {
   if (progress.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
         <p className="text-stone-500">No progress data yet. Complete practice sets to track your mastery!</p>
       </div>
     )
@@ -32,7 +32,7 @@ export function MasteryChart({ progress }: MasteryChartProps) {
         const label = masteryLabel(p.mastery)
         const pct = Math.round(p.mastery * 100)
         return (
-          <div key={p.topic} className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4">
+          <div key={p.topic} className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium text-stone-900 text-sm">{p.topic}</h3>
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${label.color}`}>

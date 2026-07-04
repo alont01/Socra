@@ -72,7 +72,7 @@ export default function PracticeSetPage({
             {fetching ? (
               <div className="flex justify-center py-12"><LoadingDots /></div>
             ) : problems.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
+              <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
                 <p className="text-stone-500">No problems in this set.</p>
               </div>
             ) : (
@@ -86,8 +86,8 @@ export default function PracticeSetPage({
 
           {/* Always-available math assistant */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl border border-orange-100 shadow-sm overflow-hidden lg:sticky lg:top-8 flex flex-col h-[600px]">
-              <div className="border-b border-orange-100 px-4 py-3">
+            <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft overflow-hidden lg:sticky lg:top-8 flex flex-col h-[600px]">
+              <div className="border-b border-stone-900/5 px-4 py-3">
                 <h2 className="font-semibold text-stone-900 text-sm">Ask Socra</h2>
                 <p className="text-xs text-stone-400">Stuck? Ask any math question while you work.</p>
               </div>

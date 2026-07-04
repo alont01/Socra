@@ -43,7 +43,7 @@ export default function PracticePage() {
         {fetching ? (
           <div className="flex justify-center py-12"><LoadingDots /></div>
         ) : sets.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
+          <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
             <p className="text-stone-500">No homework assigned yet. Your tutor will assign sets after your sessions!</p>
           </div>
         ) : (

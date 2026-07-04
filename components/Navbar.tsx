@@ -17,11 +17,13 @@ export function Navbar() {
   const isStudent = user?.role === 'STUDENT'
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-orange-100">
+    <nav className="sticky top-0 z-50 bg-[#FFFBF5]/70 backdrop-blur-xl border-b border-stone-900/5">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-orange-500">∑</span>
-          <span className="text-xl font-bold text-stone-900">Socra</span>
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <span className="grid place-items-center h-8 w-8 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white text-lg font-bold shadow-brand transition-transform duration-200 group-hover:scale-105">
+            ∑
+          </span>
+          <span className="text-lg font-bold tracking-tight text-stone-900">Socra</span>
         </Link>
 
         <div className="flex items-center gap-3">

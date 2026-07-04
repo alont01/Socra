@@ -191,7 +191,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
   }, [])
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-2xl border border-orange-100 shadow-sm overflow-hidden">
+    <div className="flex flex-col h-full bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft overflow-hidden">
       {isTutor && (
         <div className="p-2 border-b border-stone-100">
           <WhiteboardToolbar

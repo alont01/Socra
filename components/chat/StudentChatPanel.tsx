@@ -97,7 +97,11 @@ export function StudentChatPanel() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-12">
-            <div className="text-4xl mb-3">💬</div>
+            <div className="mx-auto mb-4 grid place-items-center h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-100 ring-1 ring-orange-100 text-orange-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+                <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5Z" />
+              </svg>
+            </div>
             <p className="text-stone-500">Ask me anything about math!</p>
             <p className="text-xs text-stone-400 mt-1">I can help you practice, explain concepts, or work through problems.</p>
           </div>
@@ -106,7 +110,7 @@ export function StudentChatPanel() {
         {messages.map((msg, i) => (
           <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-sm font-bold text-white shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-brand">
                 ∑
               </div>
             )}
@@ -134,7 +138,7 @@ export function StudentChatPanel() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-orange-100 p-4">
+      <div className="border-t border-stone-900/5 p-4">
         <div className="flex gap-2">
           <input
             type="text"

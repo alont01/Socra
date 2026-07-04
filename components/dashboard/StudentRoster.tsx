@@ -59,7 +59,7 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
+    <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5">
       <h3 className="font-semibold text-stone-900 mb-4">My Students</h3>
 
       <form onSubmit={addStudent} className="flex gap-2 mb-4">

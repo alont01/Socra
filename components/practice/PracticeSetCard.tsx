@@ -17,7 +17,7 @@ export function PracticeSetCard({ id, title, topic, problemCount, completedCount
 
   return (
     <Link href={`/student/practice/${id}`}>
-      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5 hover:border-orange-300 transition-colors">
+      <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 hover:ring-orange-200/70 hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-semibold text-stone-900 text-sm">{title || 'Practice Set'}</h3>
           {isComplete ? (

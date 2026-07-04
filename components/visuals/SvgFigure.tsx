@@ -21,7 +21,7 @@ export function SvgFigure({ svg }: { svg: string }) {
 
   return (
     <div
-      className="my-2 flex justify-center rounded-lg border border-orange-100 bg-white p-2 [&>svg]:h-auto [&>svg]:max-w-full"
+      className="my-2 flex justify-center rounded-lg ring-1 ring-stone-900/5 bg-white p-2 [&>svg]:h-auto [&>svg]:max-w-full"
       // Sanitized above — safe to inject.
       dangerouslySetInnerHTML={{ __html: clean }}
     />

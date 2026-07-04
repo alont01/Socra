@@ -32,7 +32,7 @@ export function NotesSidebar({ sessionId, initialNotes }: NotesSidebarProps) {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4 h-full flex flex-col">
+    <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-4 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-stone-900 text-sm">Session Notes</h3>
         <span className="text-xs text-stone-400">

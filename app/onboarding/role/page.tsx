@@ -84,7 +84,7 @@ export default function RoleSelectionPage() {
                         : 'border-stone-200 text-stone-600 hover:border-orange-300'
                     }`}
                   >
-                    {r === 'STUDENT' ? '🎓 Student' : '📚 Tutor'}
+                    {r === 'STUDENT' ? 'Student' : 'Tutor'}
                   </button>
                 ))}
               </div>

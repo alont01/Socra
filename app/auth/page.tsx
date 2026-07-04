@@ -159,7 +159,7 @@ function AuthForm() {
                         : 'border-stone-200 text-stone-600 hover:border-orange-300'
                     }`}
                   >
-                    {r === 'STUDENT' ? '🎓 Student' : '📚 Tutor'}
+                    {r === 'STUDENT' ? 'Student' : 'Tutor'}
                   </button>
                 ))}
               </div>
@@ -234,7 +234,7 @@ export default function AuthPage() {
       </div>
 
       <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <Suspense fallback={<div className="w-full max-w-sm h-96 animate-pulse bg-white rounded-2xl border border-orange-100" />}>
+        <Suspense fallback={<div className="w-full max-w-sm h-96 animate-pulse bg-white rounded-3xl ring-1 ring-stone-900/5" />}>
           <AuthForm />
         </Suspense>
       </div>

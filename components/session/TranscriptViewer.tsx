@@ -8,7 +8,7 @@ interface TranscriptViewerProps {
 export function TranscriptViewer({ content }: TranscriptViewerProps) {
   if (!content) {
     return (
-      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5 text-center">
+      <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 text-center">
         <p className="text-sm text-stone-400">No transcript available for this session.</p>
       </div>
     )
@@ -18,7 +18,7 @@ export function TranscriptViewer({ content }: TranscriptViewerProps) {
   const lines = content.split('\n').filter((l) => l.trim())
 
   return (
-    <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
+    <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5">
       <h3 className="font-semibold text-stone-900 mb-3">Transcript</h3>
       <div className="max-h-96 overflow-y-auto space-y-2 pr-2">
         {lines.map((line, i) => {

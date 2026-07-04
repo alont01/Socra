@@ -151,7 +151,7 @@ export function HomeworkManager({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
+    <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-semibold text-stone-900">Homework</h3>

@@ -126,7 +126,7 @@ export default function ResetPasswordPage() {
             <p className="text-stone-500 mt-2">Choose a strong password for your account</p>
           </div>
 
-          <Suspense fallback={<div className="h-48 animate-pulse bg-white rounded-2xl border border-orange-100" />}>
+          <Suspense fallback={<div className="h-48 animate-pulse bg-white rounded-3xl ring-1 ring-stone-900/5" />}>
             <ResetPasswordForm />
           </Suspense>
         </div>

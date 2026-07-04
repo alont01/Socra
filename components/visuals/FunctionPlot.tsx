@@ -121,7 +121,7 @@ export function FunctionPlot({ spec }: { spec: PlotSpec }) {
   const axisX0 = xmin <= 0 && xmax >= 0 ? sx(0) : null
 
   return (
-    <div className="my-2 rounded-lg border border-orange-100 bg-white p-2">
+    <div className="my-2 rounded-lg ring-1 ring-stone-900/5 bg-white p-2">
       {spec.title && <div className="mb-1 text-center text-xs font-semibold text-stone-700">{spec.title}</div>}
       <svg viewBox={`0 0 ${VB_W} ${VB_H}`} className="h-auto w-full" role="img" aria-label={spec.title || 'graph'}>
         {/* gridlines + ticks */}

@@ -166,7 +166,7 @@ export default function ReviewPage({
         )}
 
         {status === 'processing' && (
-          <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-8 text-center">
+          <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
             <LoadingDots />
             <p className="text-stone-500 mt-4">Analyzing your session...</p>
             <p className="text-xs text-stone-400 mt-1">This may take a few minutes while the transcript is processed.</p>
@@ -222,7 +222,7 @@ export default function ReviewPage({
             </div>
 
             {whiteboardImage && (
-              <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
+              <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6">
                 <h3 className="font-semibold text-stone-900 mb-3">Whiteboard</h3>
                 <img
                   src={`data:image/png;base64,${whiteboardImage}`}

@@ -42,7 +42,7 @@ export function WhiteboardToolbar({
   onClear,
 }: WhiteboardToolbarProps) {
   return (
-    <div className="flex items-center gap-1 bg-white rounded-xl border border-orange-100 shadow-sm px-2 py-1.5 flex-wrap">
+    <div className="flex items-center gap-1 bg-white rounded-xl ring-1 ring-stone-900/5 shadow-soft px-2 py-1.5 flex-wrap">
       {/* Drawing tools */}
       {toolButtons.map(({ tool, label, icon }) => (
         <button

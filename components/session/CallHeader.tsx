@@ -31,7 +31,7 @@ export function CallHeader({ topic, startedAt, onEndCall, ending, isTutor, white
   }, [startedAt])
 
   return (
-    <div className="flex items-center justify-between bg-white rounded-2xl border border-orange-100 shadow-sm px-5 py-3">
+    <div className="flex items-center justify-between bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft px-5 py-3">
       <div>
         <h2 className="font-semibold text-stone-900">{topic || 'Session'}</h2>
         <p className="text-xs text-stone-400">{elapsed}</p>

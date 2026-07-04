@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import defaultTheme from 'tailwindcss/defaultTheme'
 
 const config: Config = {
   content: [
@@ -10,6 +11,18 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', ...defaultTheme.fontFamily.sans],
+      },
+      borderRadius: {
+        '4xl': '2rem',
+      },
+      boxShadow: {
+        // Layered, low-contrast shadows tuned for the warm cream background.
+        soft: '0 1px 2px rgba(28, 25, 23, 0.04), 0 4px 12px rgba(28, 25, 23, 0.05)',
+        elevated: '0 2px 4px rgba(28, 25, 23, 0.04), 0 12px 32px -8px rgba(28, 25, 23, 0.12)',
+        brand: '0 6px 20px -4px rgba(249, 115, 22, 0.45)',
+      },
       colors: {
         orange: {
           50: '#fff7ed',
@@ -50,12 +63,17 @@ const config: Config = {
         cream: '#FFFBF5',
       },
       animation: {
-        'fade-in-up': 'fadeInUp 0.4s ease-out forwards',
+        'fade-in-up': 'fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'float-slow': 'floatSlow 9s ease-in-out infinite',
       },
       keyframes: {
         fadeInUp: {
           from: { opacity: '0', transform: 'translateY(16px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        floatSlow: {
+          '0%, 100%': { transform: 'translateY(0) translateX(0)' },
+          '50%': { transform: 'translateY(-14px) translateX(6px)' },
         },
       },
     },
