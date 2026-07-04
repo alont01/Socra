@@ -70,8 +70,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
+    // Clear client state synchronously so redirects (e.g. the landing page,
+    // which bounces logged-in users to /dashboard) see a logged-out user
+    // immediately. The cookie-clearing request completes in the background.
     setUser(null)
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // Best-effort — state is already cleared and we're navigating away.
+    }
   }
 
   useEffect(() => {

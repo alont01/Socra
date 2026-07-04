@@ -9,8 +9,10 @@ export function Navbar() {
   const { user, logout } = useAuth()
   const router = useRouter()
 
-  const handleLogout = async () => {
-    await logout()
+  const handleLogout = () => {
+    // logout() clears user state synchronously; redirect immediately for an
+    // instant feel while the cookie-clear request finishes in the background.
+    logout()
     router.push('/')
   }
 
