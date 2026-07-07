@@ -55,8 +55,21 @@ export async function POST(request: Request) {
       include: { studentProfile: true },
     })
 
-    if (!studentUser?.studentProfile) {
-      return NextResponse.json({ error: 'No student found with that email' }, { status: 404 })
+    if (!studentUser) {
+      return NextResponse.json(
+        { error: 'No Socra account uses that email yet. Ask them to sign up as a student first.' },
+        { status: 404 },
+      )
+    }
+    if (!studentUser.studentProfile) {
+      // The user row exists but has no student profile. Two cases:
+      //  - role STUDENT but profile not yet created → onboarding unfinished
+      //    (common right after an OAuth sign-in), or
+      //  - a different role entirely (tutor/parent).
+      const msg = studentUser.role === 'STUDENT'
+        ? 'That person signed in but hasn\'t finished setting up their student profile yet. Ask them to log in and complete onboarding.'
+        : `That account is a ${studentUser.role.toLowerCase()}, not a student. They can switch to Student in Settings.`
+      return NextResponse.json({ error: msg }, { status: 404 })
     }
 
     const existing = await prisma.tutorStudent.findUnique({
