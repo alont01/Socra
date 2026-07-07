@@ -34,6 +34,12 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
 - **Phase 3 — Parent web** ✅: parent dashboard + child progress (reuses
   `MasteryChart`, `SessionAnalysis`), `/parent/join` redemption, invite buttons
   on student dashboard + tutor roster, PARENT signup + `next` redirect.
+- **Settings / profile** ✅ (added alongside phase 3): `/settings` page shows
+  role, member-since, and role-specific fields (grade/goals, expertise/bio);
+  edit via `/api/profile` (PATCH). Lossless role switching via
+  `/api/profile/role` (keeps profiles, re-issues JWT). Super admin codified in
+  `lib/admin.ts` (isAdmin/isSuperAdmin); `requireAdmin` uses it. Admin links
+  surface in settings.
 - **Phase 4 — Mobile app**: Expo app on shared APIs (SecureStore JWT), React
   Query, `ParentDevice` push tokens. ← _next_
 - **Phase 5 — Push + stores**: notification triggers, EAS build, store submission.
