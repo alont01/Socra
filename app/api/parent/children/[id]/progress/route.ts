@@ -1,0 +1,32 @@
+import { NextResponse } from 'next/server'
+import { requireParent } from '@/lib/api-auth'
+import { prisma } from '@/lib/prisma'
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const auth = await requireParent()
+    if (!auth.ok) return auth.response
+    const { id } = await params
+
+    // Ownership: the child must be linked to this parent.
+    const child = await prisma.studentProfile.findFirst({
+      where: { id, parentId: auth.parent.id },
+      select: { id: true, name: true, gradeLevel: true },
+    })
+    if (!child) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const progress = await prisma.studentProgress.findMany({
+      where: { studentId: child.id },
+      orderBy: { mastery: 'desc' },
+      select: { topic: true, mastery: true, updatedAt: true },
+    })
+
+    return NextResponse.json({ child, progress })
+  } catch (err) {
+    console.error('[parent progress]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

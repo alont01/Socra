@@ -52,15 +52,17 @@ model StudentProfile {
   tutoringSessions TutoringSession[] @relation("TutoringStudent")
   practiceSets     PracticeSet[]
   studentProgress  StudentProgress[]
+  parentInvites    ParentInvite[]    @relation("StudentParentInvites")
 }
 
 model ParentProfile {
-  id        String           @id @default(cuid())
-  userId    String           @unique
-  user      User             @relation("UserParent", fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  children  StudentProfile[] @relation("ParentChildren")
-  createdAt DateTime         @default(now())
+  id             String           @id @default(cuid())
+  userId         String           @unique
+  user           User             @relation("UserParent", fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  onboardingDone Boolean          @default(false)
+  children       StudentProfile[] @relation("ParentChildren")
+  createdAt      DateTime         @default(now())
 }
 
 model TutorProfile {
@@ -218,4 +220,24 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([actorId, createdAt])
   @@index([status, createdAt])
+}
+
+// Redeemable invite that links a parent account to a child (student).
+// Created by the student themselves or a tutor on their roster; redeemed by a
+// parent, which sets StudentProfile.parentId.
+model ParentInvite {
+  id                 String    @id @default(cuid())
+  code               String    @unique
+  studentId          String
+  student            StudentProfile @relation("StudentParentInvites", fields: [studentId], references: [id], onDelete: Cascade)
+  createdByUserId    String
+  createdByRole      String    // STUDENT | TUTOR
+  status             String    @default("pending") // pending | redeemed | revoked
+  expiresAt          DateTime
+  redeemedByParentId String?
+  redeemedAt         DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([studentId])
+  @@index([status])
 }
