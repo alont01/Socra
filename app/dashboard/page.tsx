@@ -15,6 +15,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!loading && !user) {
       router.push('/auth')
+    } else if (!loading && user?.role === 'PARENT') {
+      router.replace('/parent/dashboard')
     }
   }, [user, loading, router])
 
@@ -38,6 +40,7 @@ export default function DashboardPage() {
           />
         ) : (
           <StudentDashboard
+            studentId={user?.studentProfile?.id || ''}
             studentName={user?.studentProfile?.name || 'there'}
             goals={user?.studentProfile?.goals || ''}
           />

@@ -26,15 +26,16 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
 
 - **Phase 0 — Foundations**: `AuditLog` model + migration, `recordAudit()` helper,
   instrument key mutations. (`requireAdmin()` already exists.)
-- **Phase 1 — Admin logging**: `/api/admin/audit` + `/api/admin/events`, admin
-  **Logs** viewer (filter/search/paginate). ← _in progress_
-- **Phase 2 — Parent backend**: `ParentInvite`, redemption flow, parent APIs
-  (children / progress / sessions / practice) with strict ownership guards.
-  Bearer-token auth lands here.
-- **Phase 3 — Parent web**: parent dashboard + child progress (reuses
-  `MasteryChart`, `SessionAnalysis`). Parents usable on web.
+- **Phase 1 — Admin logging** ✅: `/api/admin/audit` + `/api/admin/events`, admin
+  **Logs** viewer (filter/search/paginate).
+- **Phase 2 — Parent backend** ✅: `ParentInvite`, redemption flow, parent APIs
+  (children / progress / sessions) with strict ownership guards. Bearer-token
+  auth landed here.
+- **Phase 3 — Parent web** ✅: parent dashboard + child progress (reuses
+  `MasteryChart`, `SessionAnalysis`), `/parent/join` redemption, invite buttons
+  on student dashboard + tutor roster, PARENT signup + `next` redirect.
 - **Phase 4 — Mobile app**: Expo app on shared APIs (SecureStore JWT), React
-  Query, `ParentDevice` push tokens.
+  Query, `ParentDevice` push tokens. ← _next_
 - **Phase 5 — Push + stores**: notification triggers, EAS build, store submission.
 
 ## Future phase — Dynamic / cinematic visualizations (parked)

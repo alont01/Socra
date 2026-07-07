@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { LoadingDots } from '@/components/ui/LoadingDots'
+import { InviteParentButton } from '@/components/parent/InviteParentButton'
 import { useToast } from '@/hooks/useToast'
 import Link from 'next/link'
 
@@ -16,11 +17,12 @@ interface TutoringSession {
 }
 
 interface StudentDashboardProps {
+  studentId: string
   studentName: string
   goals: string
 }
 
-export function StudentDashboard({ studentName, goals }: StudentDashboardProps) {
+export function StudentDashboard({ studentId, studentName, goals }: StudentDashboardProps) {
   const { toast } = useToast()
   const [sessions, setSessions] = useState<TutoringSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,6 +76,14 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
           )}
         </div>
       </div>
+
+      {/* Parent linking */}
+      {studentId && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-white ring-1 ring-stone-900/5 shadow-soft px-5 py-3 mb-6">
+          <p className="text-sm text-stone-500">Want a parent to follow your progress?</p>
+          <InviteParentButton studentId={studentId} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <Link href="/student/practice" className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 hover:ring-orange-200/70 hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300">

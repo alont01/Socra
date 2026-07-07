@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { signIn } from 'next-auth/react'
 import { Input } from '@/components/ui/Input'
@@ -9,11 +9,21 @@ import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 
 type Tab = 'login' | 'signup'
-type Role = 'STUDENT' | 'TUTOR'
+type Role = 'STUDENT' | 'TUTOR' | 'PARENT'
+
+// Only allow same-origin relative redirects to avoid open-redirect abuse.
+function safeNext(next: string | null): string | null {
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : null
+}
 
 function AuthForm() {
+  const searchParams = useSearchParams()
+  const next = safeNext(searchParams.get('next'))
+  // An invite link routes here as ?next=/parent/join... — default to the parent
+  // role in that case so a new parent lands in the right flow.
+  const parentHint = searchParams.get('role') === 'parent' || (next?.startsWith('/parent') ?? false)
   const [tab, setTab] = useState<Tab>('login')
-  const [role, setRole] = useState<Role>('STUDENT')
+  const [role, setRole] = useState<Role>(parentHint ? 'PARENT' : 'STUDENT')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -53,12 +63,19 @@ function AuthForm() {
 
       await refresh()
 
-      if (tab === 'signup') {
-        if (role === 'TUTOR') {
+      // An explicit next (e.g. an invite link) always wins.
+      if (next) {
+        router.push(next)
+      } else if (tab === 'signup') {
+        if (role === 'PARENT') {
+          router.push('/parent/dashboard')
+        } else if (role === 'TUTOR') {
           router.push('/dashboard')
         } else {
           router.push('/onboarding')
         }
+      } else if (data.user?.role === 'PARENT') {
+        router.push('/parent/dashboard')
       } else {
         const profile = data.user?.studentProfile
         if (profile && !profile.onboardingDone) {
@@ -147,8 +164,8 @@ function AuthForm() {
             />
             <div>
               <label className="text-sm font-medium text-stone-700 block mb-2">I am a…</label>
-              <div className="grid grid-cols-2 gap-3">
-                {(['STUDENT', 'TUTOR'] as Role[]).map((r) => (
+              <div className="grid grid-cols-3 gap-2">
+                {(['STUDENT', 'TUTOR', 'PARENT'] as Role[]).map((r) => (
                   <button
                     key={r}
                     type="button"
@@ -159,7 +176,7 @@ function AuthForm() {
                         : 'border-stone-200 text-stone-600 hover:border-orange-300'
                     }`}
                   >
-                    {r === 'STUDENT' ? 'Student' : 'Tutor'}
+                    {r === 'STUDENT' ? 'Student' : r === 'TUTOR' ? 'Tutor' : 'Parent'}
                   </button>
                 ))}
               </div>

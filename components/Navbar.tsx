@@ -19,6 +19,7 @@ export function Navbar() {
   }
 
   const isStudent = user?.role === 'STUDENT'
+  const isParent = user?.role === 'PARENT'
 
   return (
     <nav className="sticky top-0 z-50 bg-[#FFFBF5]/70 backdrop-blur-xl border-b border-stone-900/5">
@@ -33,7 +34,7 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <Link href="/dashboard">
+              <Link href={isParent ? '/parent/dashboard' : '/dashboard'}>
                 <Button variant="ghost" size="sm">Dashboard</Button>
               </Link>
               {isStudent && (

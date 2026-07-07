@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { InviteParentButton } from '@/components/parent/InviteParentButton'
 
 interface Student {
   id: string
@@ -93,13 +94,16 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
                 <p className="font-medium text-stone-900 text-sm">{s.name}</p>
                 <p className="text-xs text-stone-400">{s.email} · {s.gradeLevel || 'Grade not set'}</p>
               </div>
-              <button
-                onClick={() => removeStudent(s.id)}
-                disabled={removing === s.id}
-                className="text-xs text-stone-400 hover:text-red-500 transition-colors"
-              >
-                {removing === s.id ? '...' : 'Remove'}
-              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                <InviteParentButton studentId={s.id} label="Invite parent" />
+                <button
+                  onClick={() => removeStudent(s.id)}
+                  disabled={removing === s.id}
+                  className="text-xs text-stone-400 hover:text-red-500 transition-colors"
+                >
+                  {removing === s.id ? '...' : 'Remove'}
+                </button>
+              </div>
             </div>
           ))}
         </div>

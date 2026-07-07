@@ -15,12 +15,17 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route))
 
   if (isProtected) {
+    // Preserve where the user was headed so we can return them after login
+    // (e.g. a parent following an invite link /parent/join?code=…).
+    const loginUrl = new URL('/auth', request.url)
+    loginUrl.searchParams.set('next', pathname + request.nextUrl.search)
+
     if (!token) {
-      return NextResponse.redirect(new URL('/auth', request.url))
+      return NextResponse.redirect(loginUrl)
     }
     const payload = await verifyToken(token)
     if (!payload) {
-      const response = NextResponse.redirect(new URL('/auth', request.url))
+      const response = NextResponse.redirect(loginUrl)
       response.cookies.delete('token')
       return response
     }
