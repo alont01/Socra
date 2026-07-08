@@ -28,10 +28,10 @@ export async function POST(request: Request) {
 
     const passwordHash = await hashPassword(password)
 
+    // Signup is restricted to STUDENT | PARENT (see signupSchema); tutors are
+    // created only via an admin invite.
     const profileData = role === 'STUDENT'
       ? { studentProfile: { create: { name } } }
-      : role === 'TUTOR'
-      ? { tutorProfile: { create: { name } } }
       : { parentProfile: { create: { name } } }
 
     const user = await prisma.user.create({

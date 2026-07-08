@@ -87,7 +87,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!loading && user) loadProfile()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user])
 
   const save = async () => {
