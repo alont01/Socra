@@ -59,6 +59,7 @@ export default function SettingsPage() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [error, setError] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [switching, setSwitching] = useState<Role | null>(null)
 
   // Editable fields
   const [name, setName] = useState('')
@@ -113,6 +114,31 @@ export default function SettingsPage() {
       toast('Could not save', 'error')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Super-admin only: switch your own role (student/tutor/parent).
+  const switchRole = async (role: Role) => {
+    if (!data || role === data.role) return
+    setSwitching(role)
+    try {
+      const res = await fetch('/api/profile/role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast(d.error || 'Could not switch role', 'error')
+        return
+      }
+      toast(`You're now a ${ROLE_LABEL[role]}`, 'success')
+      await refresh()
+      router.push(role === 'PARENT' ? '/parent/dashboard' : '/dashboard')
+    } catch {
+      toast('Could not switch role', 'error')
+    } finally {
+      setSwitching(null)
     }
   }
 
@@ -215,15 +241,45 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Account type (read-only) */}
+        {/* Account type */}
         <section className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6">
           <h2 className="font-semibold text-stone-900 mb-1">Account type</h2>
-          <p className="text-sm text-stone-600">
-            You&apos;re a <span className="font-medium text-stone-900">{ROLE_LABEL[data.role]}</span>. Account
-            types are managed by Socra and can&apos;t be changed here.
-          </p>
-          {data.role === 'PARENT' && (
-            <p className="text-sm text-stone-500 mt-2">Link children from your dashboard using a tutor&apos;s invite.</p>
+          {data.isSuperAdmin ? (
+            <>
+              <p className="text-sm text-stone-600 mb-4">
+                As a super admin you can switch your own role. Your existing data is kept, so you can switch back anytime.
+              </p>
+              <div className="grid grid-cols-3 gap-2" role="group" aria-label="Switch account type">
+                {(['STUDENT', 'TUTOR', 'PARENT'] as Role[]).map((r) => {
+                  const active = data.role === r
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => switchRole(r)}
+                      disabled={active || switching !== null}
+                      aria-current={active ? 'true' : undefined}
+                      className={`py-3 rounded-xl border-2 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 disabled:cursor-not-allowed ${
+                        active
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-stone-200 text-stone-600 hover:border-orange-300 disabled:opacity-50'
+                      }`}
+                    >
+                      {switching === r ? '…' : ROLE_LABEL[r]}{active ? ' ✓' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-stone-600">
+                You&apos;re a <span className="font-medium text-stone-900">{ROLE_LABEL[data.role]}</span>. Account
+                types are managed by Socra and can&apos;t be changed here.
+              </p>
+              {data.role === 'PARENT' && (
+                <p className="text-sm text-stone-500 mt-2">Link children from your dashboard using a tutor&apos;s invite.</p>
+              )}
+            </>
           )}
         </section>
       </main>
