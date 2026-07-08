@@ -100,6 +100,7 @@ export default function AdminDashboardPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-stone-900">System Health</h1>
               <Link href="/admin/logs" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Logs →</Link>
+              <Link href="/admin/tutors" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Tutors →</Link>
             </div>
             {metrics && (
               <p className="text-xs text-stone-500 mt-1">

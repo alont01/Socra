@@ -59,7 +59,6 @@ export default function SettingsPage() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [error, setError] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [switching, setSwitching] = useState<Role | null>(null)
 
   // Editable fields
   const [name, setName] = useState('')
@@ -118,32 +117,6 @@ export default function SettingsPage() {
     }
   }
 
-  const switchRole = async (role: Role) => {
-    if (!data || role === data.role) return
-    if (!confirm(`Switch your account to ${ROLE_LABEL[role]}? You can switch back anytime — your existing data is kept.`)) return
-    setSwitching(role)
-    try {
-      const res = await fetch('/api/profile/role', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        toast(d.error || 'Could not switch role', 'error')
-        return
-      }
-      toast(`You're now a ${ROLE_LABEL[role]}`, 'success')
-      await refresh()
-      // Land on the right home for the new role.
-      router.push(role === 'PARENT' ? '/parent/dashboard' : '/dashboard')
-    } catch {
-      toast('Could not switch role', 'error')
-    } finally {
-      setSwitching(null)
-    }
-  }
-
   if (loading || (!data && !error)) {
     return (
       <div className="min-h-screen bg-[#FFFBF5]">
@@ -190,9 +163,10 @@ export default function SettingsPage() {
           </div>
           <p className="text-xs text-stone-400 mt-4">{memberSinceText(data.memberSince)}</p>
           {data.isAdmin && (
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4 flex flex-wrap gap-3">
               <Link href="/admin" className="text-sm text-orange-600 hover:text-orange-700 font-medium">System Health →</Link>
               <Link href="/admin/logs" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Logs →</Link>
+              <Link href="/admin/tutors" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Tutors →</Link>
             </div>
           )}
         </section>
@@ -242,33 +216,15 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Role switch */}
+        {/* Account type (read-only) */}
         <section className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6">
           <h2 className="font-semibold text-stone-900 mb-1">Account type</h2>
-          <p className="text-sm text-stone-500 mb-4">
-            Switch roles anytime. Your existing data is kept, so you can switch back without losing anything.
+          <p className="text-sm text-stone-600">
+            You&apos;re a <span className="font-medium text-stone-900">{ROLE_LABEL[data.role]}</span>. Account
+            types are managed by Socra and can&apos;t be changed here.
           </p>
-          <div className="grid grid-cols-3 gap-2">
-            {(['STUDENT', 'TUTOR', 'PARENT'] as Role[]).map((r) => {
-              const active = data.role === r
-              return (
-                <button
-                  key={r}
-                  onClick={() => switchRole(r)}
-                  disabled={active || switching !== null}
-                  className={`py-3 rounded-xl border-2 text-sm font-medium transition-all disabled:cursor-not-allowed ${
-                    active
-                      ? 'border-orange-500 bg-orange-50 text-orange-700'
-                      : 'border-stone-200 text-stone-600 hover:border-orange-300 disabled:opacity-50'
-                  }`}
-                >
-                  {switching === r ? '…' : ROLE_LABEL[r]}{active ? ' ✓' : ''}
-                </button>
-              )
-            })}
-          </div>
           {data.role === 'PARENT' && (
-            <p className="text-xs text-stone-400 mt-3">As a parent, link children from your dashboard using an invite code.</p>
+            <p className="text-sm text-stone-500 mt-2">Link children from your dashboard using a tutor&apos;s invite.</p>
           )}
         </section>
       </main>

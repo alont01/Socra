@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 
-type Role = 'STUDENT' | 'TUTOR'
+type Role = 'STUDENT' | 'PARENT'
 
 export default function RoleSelectionPage() {
   const router = useRouter()
@@ -37,7 +37,7 @@ export default function RoleSelectionPage() {
       }
 
       await refresh()
-      router.push('/onboarding')
+      router.push(role === 'PARENT' ? '/parent/dashboard' : '/onboarding')
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -72,19 +72,21 @@ export default function RoleSelectionPage() {
 
             <div>
               <label className="text-sm font-medium text-stone-700 block mb-2">I am a…</label>
-              <div className="grid grid-cols-2 gap-3">
-                {(['STUDENT', 'TUTOR'] as Role[]).map((r) => (
+              <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Account type">
+                {(['STUDENT', 'PARENT'] as Role[]).map((r) => (
                   <button
                     key={r}
                     type="button"
+                    role="radio"
+                    aria-checked={role === r}
                     onClick={() => setRole(r)}
-                    className={`py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                    className={`py-3 rounded-xl border-2 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 ${
                       role === r
                         ? 'border-orange-500 bg-orange-50 text-orange-700'
                         : 'border-stone-200 text-stone-600 hover:border-orange-300'
                     }`}
                   >
-                    {r === 'STUDENT' ? 'Student' : 'Tutor'}
+                    {r === 'STUDENT' ? 'Student' : 'Parent'}
                   </button>
                 ))}
               </div>

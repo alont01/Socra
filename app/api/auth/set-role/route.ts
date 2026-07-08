@@ -43,7 +43,8 @@ export async function POST(request: Request) {
         data: { userId: user.id, name },
       })
     } else {
-      await tx.tutorProfile.create({
+      // role === 'PARENT'
+      await tx.parentProfile.create({
         data: { userId: user.id, name },
       })
     }

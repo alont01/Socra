@@ -35,11 +35,16 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   `MasteryChart`, `SessionAnalysis`), `/parent/join` redemption, invite buttons
   on student dashboard + tutor roster, PARENT signup + `next` redirect.
 - **Settings / profile** ✅ (added alongside phase 3): `/settings` page shows
-  role, member-since, and role-specific fields (grade/goals, expertise/bio);
-  edit via `/api/profile` (PATCH). Lossless role switching via
-  `/api/profile/role` (keeps profiles, re-issues JWT). Super admin codified in
-  `lib/admin.ts` (isAdmin/isSuperAdmin); `requireAdmin` uses it. Admin links
-  surface in settings.
+  role (read-only), member-since, and role-specific fields (grade/goals,
+  expertise/bio); edit via `/api/profile` (PATCH). Super admin codified in
+  `lib/admin.ts` (isAdmin/isSuperAdmin); `requireAdmin` uses it.
+- **Auth model hardening** ✅: public signup is STUDENT/PARENT only; TUTOR is
+  created solely by redeeming an admin-issued invite (`/admin/tutors` →
+  `TutorInvite` → `/tutor/join` → `/api/tutor-invites/redeem`). Users can't
+  change their own role (self-serve `/api/profile/role` removed). Parent invites
+  are tutor-only. Accessibility pass on dashboards + auth (landmarks, labels,
+  focus-visible, `prefers-reduced-motion`). Dashboards restructured with stats +
+  guide sections.
 - **Phase 4 — Mobile app**: Expo app on shared APIs (SecureStore JWT), React
   Query, `ParentDevice` push tokens. ← _next_
 - **Phase 5 — Push + stores**: notification triggers, EAS build, store submission.

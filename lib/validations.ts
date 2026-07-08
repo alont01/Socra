@@ -7,10 +7,12 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 })
 
+// Public signup is limited to STUDENT and PARENT. Tutor accounts are created
+// only by redeeming an admin-issued tutor invite (see /api/tutor-invites).
 export const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  role: z.enum(['STUDENT', 'TUTOR', 'PARENT']),
+  role: z.enum(['STUDENT', 'PARENT']),
   name: z.string().min(1, 'Name is required'),
 })
 
@@ -24,7 +26,7 @@ export const resetPasswordSchema = z.object({
 })
 
 export const setRoleSchema = z.object({
-  role: z.enum(['STUDENT', 'TUTOR']),
+  role: z.enum(['STUDENT', 'PARENT']),
   name: z.string().min(1, 'Name is required'),
 })
 

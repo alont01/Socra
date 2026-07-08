@@ -241,3 +241,19 @@ model ParentInvite {
   @@index([studentId])
   @@index([status])
 }
+
+// Redeemable invite that promotes the redeeming user to TUTOR. Created only by
+// an admin (super admin); this is the sole path to a tutor account.
+model TutorInvite {
+  id                String    @id @default(cuid())
+  code              String    @unique
+  createdByUserId   String
+  note              String    @default("") // optional label, e.g. intended name/email
+  status            String    @default("pending") // pending | redeemed | revoked
+  expiresAt         DateTime
+  redeemedByUserId  String?
+  redeemedAt        DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([status])
+}

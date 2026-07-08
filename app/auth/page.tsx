@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 
 type Tab = 'login' | 'signup'
-type Role = 'STUDENT' | 'TUTOR' | 'PARENT'
+// Public signup is Student or Parent only. Tutor accounts are created by
+// redeeming an admin-issued invite (/tutor/join).
+type Role = 'STUDENT' | 'PARENT'
 
 // Only allow same-origin relative redirects to avoid open-redirect abuse.
 function safeNext(next: string | null): string | null {
@@ -69,8 +71,6 @@ function AuthForm() {
       } else if (tab === 'signup') {
         if (role === 'PARENT') {
           router.push('/parent/dashboard')
-        } else if (role === 'TUTOR') {
-          router.push('/dashboard')
         } else {
           router.push('/onboarding')
         }
@@ -164,19 +164,21 @@ function AuthForm() {
             />
             <div>
               <label className="text-sm font-medium text-stone-700 block mb-2">I am a…</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['STUDENT', 'TUTOR', 'PARENT'] as Role[]).map((r) => (
+              <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Account type">
+                {(['STUDENT', 'PARENT'] as Role[]).map((r) => (
                   <button
                     key={r}
                     type="button"
+                    role="radio"
+                    aria-checked={role === r}
                     onClick={() => setRole(r)}
-                    className={`py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                    className={`py-3 rounded-xl border-2 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 ${
                       role === r
                         ? 'border-orange-500 bg-orange-50 text-orange-700'
                         : 'border-stone-200 text-stone-600 hover:border-orange-300'
                     }`}
                   >
-                    {r === 'STUDENT' ? 'Student' : r === 'TUTOR' ? 'Tutor' : 'Parent'}
+                    {r === 'STUDENT' ? 'Student' : 'Parent'}
                   </button>
                 ))}
               </div>

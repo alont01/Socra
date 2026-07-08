@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { LoadingDots } from '@/components/ui/LoadingDots'
-import { InviteParentButton } from '@/components/parent/InviteParentButton'
 import { useToast } from '@/hooks/useToast'
-import Link from 'next/link'
 
 interface TutoringSession {
   id: string
@@ -17,114 +16,141 @@ interface TutoringSession {
 }
 
 interface StudentDashboardProps {
-  studentId: string
   studentName: string
   goals: string
 }
 
-export function StudentDashboard({ studentId, studentName, goals }: StudentDashboardProps) {
+const ICONS = {
+  practice: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4',
+  progress: 'M4 19V5m0 14h16M7 15l3.5-3.5 3 3L20 8m0 0h-4m4 0v4',
+  chat: 'M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5Z',
+}
+
+const actions = [
+  { href: '/student/practice', icon: ICONS.practice, title: 'Practice Sets', desc: 'Work through problems built from your sessions.' },
+  { href: '/student/progress', icon: ICONS.progress, title: 'My Progress', desc: 'See your mastery grow, topic by topic.' },
+  { href: '/student/chat', icon: ICONS.chat, title: 'AI Help', desc: 'Ask the AI tutor anything, anytime.' },
+]
+
+const steps = [
+  { n: '1', title: 'Meet your tutor', desc: 'Join a live video session. Your tutor teaches while the AI quietly takes notes.' },
+  { n: '2', title: 'Get your recap', desc: 'When the session ends, the AI summarizes what you covered and spots any gaps.' },
+  { n: '3', title: 'Practice & improve', desc: 'Complete practice built from your gaps — your mastery updates automatically.' },
+]
+
+export function StudentDashboard({ studentName, goals }: StudentDashboardProps) {
   const { toast } = useToast()
   const [sessions, setSessions] = useState<TutoringSession[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/tutoring-sessions')
-      .then((r) => {
-        if (!r.ok) throw new Error()
-        return r.json()
-      })
-      .then((data) => {
-        setSessions(data.sessions || [])
-      })
-      .catch(() => {
-        toast('Failed to load sessions', 'error')
-      })
-      .finally(() => setLoading(false))
-  }, [toast])
-
   const [practiceSets, setPracticeSets] = useState<{ completedCount: number; problemCount: number }[]>([])
 
   useEffect(() => {
+    fetch('/api/tutoring-sessions')
+      .then((r) => { if (!r.ok) throw new Error(); return r.json() })
+      .then((data) => setSessions(data.sessions || []))
+      .catch(() => toast('Failed to load sessions', 'error'))
+      .finally(() => setLoading(false))
+  }, [toast])
+
+  useEffect(() => {
     fetch('/api/student/practice')
-      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => setPracticeSets(data.practiceSets || []))
       .catch(() => {})
   }, [])
 
   const activeSessions = sessions.filter((s) => s.status === 'active')
   const pendingPractice = practiceSets.filter((s) => s.completedCount < s.problemCount).length
+  const completedPractice = practiceSets.filter((s) => s.problemCount > 0 && s.completedCount >= s.problemCount).length
+  const upcomingCount = sessions.filter((s) => s.status === 'scheduled' || s.status === 'active').length
+
+  const stats = [
+    { label: 'Practice to do', value: pendingPractice },
+    { label: 'Sets completed', value: completedPractice },
+    { label: 'Upcoming sessions', value: upcomingCount },
+  ]
 
   return (
-    <>
+    <div className="space-y-8">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 rounded-3xl p-6 text-white mb-8 shadow-brand">
+      <section aria-labelledby="welcome-heading" className="relative overflow-hidden bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 rounded-3xl p-6 sm:p-8 text-white shadow-brand">
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className="absolute -top-16 -right-8 h-52 w-52 rounded-full bg-white/15 blur-2xl" />
           <div className="absolute inset-0 [background-image:radial-gradient(circle,rgba(255,255,255,0.14)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]" />
         </div>
         <div className="relative">
-          <h1 className="text-2xl font-bold tracking-tight">Hey {studentName}!</h1>
-          <p className="text-orange-100 mt-1">
-            {goals ? `Goal: ${goals}` : 'Ready to learn some math today?'}
+          <h1 id="welcome-heading" className="text-2xl sm:text-3xl font-bold tracking-tight">Hey {studentName}!</h1>
+          <p className="text-orange-50 mt-1">
+            {goals ? `Your goal: ${goals}` : 'Ready to learn some math today?'}
           </p>
+
+          {/* Inline stats */}
+          <dl className="mt-5 grid grid-cols-3 gap-3 max-w-md">
+            {stats.map((s) => (
+              <div key={s.label} className="rounded-2xl bg-white/15 backdrop-blur px-3 py-2 ring-1 ring-white/20">
+                <dt className="text-[11px] text-orange-50/90 leading-tight">{s.label}</dt>
+                <dd className="text-2xl font-bold tabular-nums leading-tight">{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+
           {activeSessions.length > 0 && (
-            <Link href={`/session/${activeSessions[0].id}`}>
-              <button className="mt-4 bg-white text-orange-600 font-semibold px-6 py-2 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm">
-                Join Live Session
-              </button>
+            <Link
+              href={`/session/${activeSessions[0].id}`}
+              className="inline-flex mt-5 bg-white text-orange-600 font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-orange-600"
+            >
+              Join your live session →
             </Link>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Parent linking */}
-      {studentId && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl bg-white ring-1 ring-stone-900/5 shadow-soft px-5 py-3 mb-6">
-          <p className="text-sm text-stone-500">Want a parent to follow your progress?</p>
-          <InviteParentButton studentId={studentId} />
+      {/* Quick actions */}
+      <section aria-labelledby="actions-heading">
+        <h2 id="actions-heading" className="sr-only">Quick actions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {actions.map((a) => (
+            <Link
+              key={a.href}
+              href={a.href}
+              className="group bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 hover:ring-orange-200/70 hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+            >
+              <div aria-hidden className="mb-3 grid place-items-center h-11 w-11 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-100 ring-1 ring-orange-100 text-orange-600 transition-transform duration-300 group-hover:scale-105">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                  <path d={a.icon} />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-stone-900">{a.title}</h3>
+              <p className="text-sm text-stone-500 mt-1 leading-relaxed">{a.desc}</p>
+            </Link>
+          ))}
         </div>
-      )}
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <Link href="/student/practice" className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 hover:ring-orange-200/70 hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300">
-          <div className="mb-3 grid place-items-center h-10 w-10 rounded-xl bg-gradient-to-br from-orange-50 to-amber-100 ring-1 ring-orange-100 text-orange-600">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4" />
-            </svg>
-          </div>
-          <h3 className="font-semibold text-stone-900 text-sm">Practice Sets</h3>
-          <p className="text-xs text-stone-400 mt-1">
-            {pendingPractice > 0 ? `${pendingPractice} sets to complete` : 'All caught up!'}
-          </p>
-        </Link>
-        <Link href="/student/progress" className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 hover:ring-orange-200/70 hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300">
-          <div className="mb-3 grid place-items-center h-10 w-10 rounded-xl bg-gradient-to-br from-orange-50 to-amber-100 ring-1 ring-orange-100 text-orange-600">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-              <path d="M4 19V5m0 14h16M7 15l3.5-3.5 3 3L20 8m0 0h-4m4 0v4" />
-            </svg>
-          </div>
-          <h3 className="font-semibold text-stone-900 text-sm">My Progress</h3>
-          <p className="text-xs text-stone-400 mt-1">Track your mastery</p>
-        </Link>
-        <Link href="/student/chat" className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5 hover:ring-orange-200/70 hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-300">
-          <div className="mb-3 grid place-items-center h-10 w-10 rounded-xl bg-gradient-to-br from-orange-50 to-amber-100 ring-1 ring-orange-100 text-orange-600">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-              <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5Z" />
-            </svg>
-          </div>
-          <h3 className="font-semibold text-stone-900 text-sm">AI Help</h3>
-          <p className="text-xs text-stone-400 mt-1">Ask AI anything, anytime</p>
-        </Link>
-      </div>
+      {/* Sessions */}
+      <section aria-labelledby="sessions-heading">
+        <h2 id="sessions-heading" className="text-lg font-bold text-stone-900 mb-4">Your sessions</h2>
+        {loading ? (
+          <div className="flex justify-center py-8"><LoadingDots /></div>
+        ) : (
+          <UpcomingSessionsPanel sessions={sessions} role="STUDENT" />
+        )}
+      </section>
 
-      <h2 className="font-bold text-stone-900 mb-4">Sessions</h2>
-      {loading ? (
-        <div className="flex justify-center py-8">
-          <LoadingDots />
-        </div>
-      ) : (
-        <UpcomingSessionsPanel sessions={sessions} role="STUDENT" />
-      )}
-    </>
+      {/* Guide */}
+      <section aria-labelledby="guide-heading" className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6 sm:p-8">
+        <h2 id="guide-heading" className="text-lg font-bold text-stone-900">How Socra helps you learn</h2>
+        <p className="text-sm text-stone-500 mt-1 mb-6">Every session makes your practice smarter. Here&apos;s the loop:</p>
+        <ol className="grid gap-5 sm:grid-cols-3">
+          {steps.map((s) => (
+            <li key={s.n} className="relative">
+              <span aria-hidden className="grid place-items-center h-8 w-8 rounded-full bg-orange-100 text-orange-700 font-bold text-sm mb-3">{s.n}</span>
+              <h3 className="font-semibold text-stone-900 text-sm">{s.title}</h3>
+              <p className="text-sm text-stone-500 mt-1 leading-relaxed">{s.desc}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>
   )
 }

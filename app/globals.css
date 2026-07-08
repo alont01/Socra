@@ -92,6 +92,19 @@ body {
   vertical-align: middle;
 }
 
+/* Accessibility: honor reduced-motion preferences. Disables the ambient float,
+   fade-ins, ping, and any transitions for users who opt out. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Utility: gradient brand text */
 .text-gradient-brand {
   background-image: linear-gradient(120deg, #fb923c 0%, #f97316 45%, #ea580c 100%);

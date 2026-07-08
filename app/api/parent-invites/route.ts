@@ -8,23 +8,17 @@ const INVITE_TTL_DAYS = 14
 
 /**
  * Determine whether `userId` may manage parent invites for `studentId`.
- * Allowed for the student themselves, or a tutor who has them on their roster.
- * Returns the creator role ('STUDENT' | 'TUTOR') or null.
+ * Only a tutor who has the student on their roster may do so.
+ * Returns 'TUTOR' or null.
  */
-async function creatorRoleFor(userId: string, studentId: string): Promise<'STUDENT' | 'TUTOR' | null> {
-  const [student, tutor] = await Promise.all([
-    prisma.studentProfile.findUnique({ where: { userId }, select: { id: true } }),
-    prisma.tutorProfile.findUnique({ where: { userId }, select: { id: true } }),
-  ])
-  if (student?.id === studentId) return 'STUDENT'
-  if (tutor) {
-    const link = await prisma.tutorStudent.findUnique({
-      where: { tutorId_studentId: { tutorId: tutor.id, studentId } },
-      select: { id: true },
-    })
-    if (link) return 'TUTOR'
-  }
-  return null
+async function creatorRoleFor(userId: string, studentId: string): Promise<'TUTOR' | null> {
+  const tutor = await prisma.tutorProfile.findUnique({ where: { userId }, select: { id: true } })
+  if (!tutor) return null
+  const link = await prisma.tutorStudent.findUnique({
+    where: { tutorId_studentId: { tutorId: tutor.id, studentId } },
+    select: { id: true },
+  })
+  return link ? 'TUTOR' : null
 }
 
 export async function POST(request: Request) {

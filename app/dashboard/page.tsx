@@ -40,7 +40,6 @@ export default function DashboardPage() {
           />
         ) : (
           <StudentDashboard
-            studentId={user?.studentProfile?.id || ''}
             studentName={user?.studentProfile?.name || 'there'}
             goals={user?.studentProfile?.goals || ''}
           />
