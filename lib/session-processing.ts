@@ -33,8 +33,25 @@ export async function processSessionPostCompletion(sessionId: string) {
   // Step 1: Fetch and save transcript
   const transcriptText = await fetchAndSaveTranscript(sessionId, session.dailyRoomName, session.tutor.name, student.name)
 
+  // Guard: if nothing meaningful was captured (no transcript, no notes, no
+  // whiteboard), don't ask the model to analyze "nothing" — it would
+  // hallucinate. Save a clear, retryable state and stop.
+  const hasWhiteboard = !!session.whiteboardImage
+  if (!hasMeaningfulContent(transcriptText, session.tutorNotes, session.capturedNotes, hasWhiteboard)) {
+    logger.warn('Insufficient content to analyze', { sessionId })
+    await saveInsufficientAnalysis(sessionId)
+    recordEvent({
+      category: 'session',
+      name: 'session.processed',
+      level: 'warn',
+      success: false,
+      metadata: { sessionId, reason: 'insufficient_content' },
+    })
+    return
+  }
+
   // Step 2: Analyze session
-  const contentToAnalyze = transcriptText || session.tutorNotes || session.capturedNotes || 'No transcript or notes available.'
+  const contentToAnalyze = transcriptText || session.tutorNotes || session.capturedNotes || ''
   if (!transcriptText) {
     logger.warn('No transcript available, falling back to notes', { sessionId, hasNotes: !!session.tutorNotes, hasCaptured: !!session.capturedNotes })
   }
@@ -74,6 +91,45 @@ export async function processSessionPostCompletion(sessionId: string) {
     success: true,
     metadata: { sessionId, usedTranscript: !!transcriptText },
   })
+}
+
+// Enough signal to analyze? A whiteboard drawing alone counts; otherwise we
+// need a reasonable amount of transcript/notes text (not just a stray word).
+function hasMeaningfulContent(
+  transcript: string,
+  tutorNotes: string,
+  capturedNotes: string,
+  hasWhiteboard: boolean,
+): boolean {
+  if (hasWhiteboard) return true
+  const combined = [transcript, tutorNotes, capturedNotes]
+    .map((t) => (t || '').trim())
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return combined.length >= 25
+}
+
+// Save a clear, retryable "not enough captured" analysis (mirrors the failure
+// placeholder). Empty concepts mean the review UI shows its retry affordance.
+async function saveInsufficientAnalysis(sessionId: string) {
+  try {
+    await prisma.sessionAnalysis.upsert({
+      where: { tutoringSessionId: sessionId },
+      create: {
+        tutoringSessionId: sessionId,
+        summary:
+          "Not enough was captured from this session to generate an analysis. Add tutor notes (or make sure the session was recorded), then retry.",
+        conceptsCovered: '[]',
+        studentStrengths: '[]',
+        studentGaps: '[]',
+        tutorFeedback: '',
+      },
+      update: {}, // never overwrite a real analysis
+    })
+  } catch (err) {
+    logger.error('Failed to save insufficient-content analysis', err, { sessionId })
+  }
 }
 
 async function fetchAndSaveTranscript(

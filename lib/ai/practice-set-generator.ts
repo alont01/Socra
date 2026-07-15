@@ -1,4 +1,5 @@
 import { trackedMessage } from './client'
+import { extractJson } from './parse-json'
 import type { PracticeProblem } from './types'
 import { VISUAL_PROMPT_JSON } from './visual-prompt'
 import { config } from '@/lib/config'
@@ -56,12 +57,17 @@ Only output the JSON array, nothing else.`,
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
-  // Strip markdown code fences if present
-  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+  const parsed = extractJson<Array<PracticeProblem & { answer?: string }>>(text)
+  if (!Array.isArray(parsed)) {
+    // Non-critical: the pipeline continues without a practice set rather than
+    // failing the whole session. Logged for visibility.
+    logger.error('Failed to parse practice set', undefined, { rawText: text.slice(0, 500) })
+    return []
+  }
 
-  try {
-    const problems = JSON.parse(cleaned)
-    return problems.map((p: PracticeProblem & { answer?: string }, i: number) => ({
+  return parsed
+    .filter((p) => p && typeof p.question === 'string' && p.question.trim())
+    .map((p, i) => ({
       id: p.id || `p${i + 1}`,
       question: p.question,
       hint: p.hint || '',
@@ -69,8 +75,4 @@ Only output the JSON array, nothing else.`,
       topic: p.topic || input.topic,
       answer: p.answer || '',
     }))
-  } catch (err) {
-    logger.error('Failed to parse AI response', err, { rawText: text.slice(0, 500) })
-    throw new Error('Failed to parse practice set from AI response')
-  }
 }

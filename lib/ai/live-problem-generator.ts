@@ -1,4 +1,5 @@
 import { trackedMessage } from './client'
+import { extractJson } from './parse-json'
 import type { PracticeProblem } from './types'
 import { VISUAL_PROMPT_JSON } from './visual-prompt'
 import { config } from '@/lib/config'
@@ -86,20 +87,22 @@ Only output the JSON array, nothing else.`
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
 
-  try {
-    const problems = JSON.parse(cleaned)
-    return problems.map((p: PracticeProblem & { answer?: string }, i: number) => ({
-      id: p.id || `lp${i + 1}`,
-      question: p.question,
-      hint: p.hint || '',
-      difficulty: p.difficulty || 'medium',
-      topic: p.topic || input.topic,
-      answer: p.answer || '',
-    }))
-  } catch (err) {
-    logger.error('Failed to parse live practice response', err, { rawText: text.slice(0, 500) })
-    throw new Error('Failed to parse live practice problems from AI response')
+  const parsed = extractJson<Array<PracticeProblem & { answer?: string }>>(text)
+  if (Array.isArray(parsed)) {
+    const problems = parsed
+      .filter((p) => p && typeof p.question === 'string' && p.question.trim())
+      .map((p, i) => ({
+        id: p.id || `lp${i + 1}`,
+        question: p.question,
+        hint: p.hint || '',
+        difficulty: p.difficulty || 'medium',
+        topic: p.topic || input.topic,
+        answer: p.answer || '',
+      }))
+    if (problems.length > 0) return problems
   }
+
+  logger.error('Failed to parse live practice response', undefined, { rawText: text.slice(0, 500) })
+  throw new Error('Failed to parse live practice problems from AI response')
 }

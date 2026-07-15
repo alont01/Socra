@@ -45,6 +45,13 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   are tutor-only. Accessibility pass on dashboards + auth (landmarks, labels,
   focus-visible, `prefers-reduced-motion`). Dashboards restructured with stats +
   guide sections.
+- **Reliability hardening** ✅: shared robust JSON extractor
+  (`lib/ai/parse-json.ts` — fence-strip, prose-slice, trailing-comma/comment
+  repair) wired into the analyzer + practice + live-practice generators, so a
+  malformed AI response degrades gracefully instead of throwing. Pipeline now
+  guards against empty sessions (no transcript/notes/whiteboard) with a clear,
+  retryable "insufficient content" state instead of hallucinating. Notes
+  fallback already existed. Unit tests for the parser.
 - **Phase 4 — Mobile app**: Expo app on shared APIs (SecureStore JWT), React
   Query, `ParentDevice` push tokens. ← _next_
 - **Phase 5 — Push + stores**: notification triggers, EAS build, store submission.

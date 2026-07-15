@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedMessage } from './client'
+import { extractJson } from './parse-json'
 import type { SessionAnalysisResult } from './types'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
@@ -70,20 +71,18 @@ Only output the JSON, nothing else.`
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
-  // Strip markdown code fences if present
-  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-
-  try {
-    const result = JSON.parse(cleaned)
-    return {
-      summary: result.summary || '',
-      conceptsCovered: result.conceptsCovered || [],
-      studentStrengths: result.studentStrengths || [],
-      studentGaps: result.studentGaps || [],
-      tutorFeedback: result.tutorFeedback || '',
-    }
-  } catch (err) {
-    logger.error('Failed to parse AI response', err, { rawText: text.slice(0, 500) })
+  const result = extractJson<Partial<SessionAnalysisResult>>(text)
+  if (!result) {
+    logger.error('Failed to parse AI response', undefined, { rawText: text.slice(0, 500) })
     throw new Error('Failed to parse session analysis from AI response')
+  }
+
+  const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [])
+  return {
+    summary: typeof result.summary === 'string' ? result.summary : '',
+    conceptsCovered: arr(result.conceptsCovered),
+    studentStrengths: arr(result.studentStrengths),
+    studentGaps: arr(result.studentGaps),
+    tutorFeedback: typeof result.tutorFeedback === 'string' ? result.tutorFeedback : '',
   }
 }
