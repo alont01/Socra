@@ -49,6 +49,38 @@ redeeming a tutor's invite link.
 - `app/(app)/child/[id].tsx` — topic mastery + recent session summaries
   (`GET /api/parent/children/[id]/progress` and `/sessions`).
 
+## Publishing (EAS)
+
+Binaries are built in Expo's cloud (no Mac required) and submitted to the
+stores. One-time accounts: Apple Developer ($99/yr) and Google Play ($25 once).
+
+```bash
+npm install -g eas-cli
+eas login
+eas init            # links the project + writes extra.eas.projectId to app.json
+eas build --platform all          # cloud-builds iOS .ipa + Android .aab
+eas submit --platform ios         # uploads to App Store Connect
+eas submit --platform android      # uploads to Play Console
+```
+
+Before `eas submit`:
+- Fill in the `submit.production.ios` fields in `eas.json` (Apple ID, App Store
+  Connect app id, Apple team id).
+- For Android automated submit, drop a Google **service-account key** at
+  `mobile/play-service-account.json` (gitignored). Or upload the `.aab` to the
+  Play Console manually the first time.
+
+Over-the-air JS updates (no store review) once shipped:
+```bash
+eas update --branch production
+```
+
+### Assets
+`assets/icon.png`, `assets/adaptive-icon.png`, `assets/splash-icon.png`, and
+`assets/favicon.png` are **brand-colored placeholders** (orange + white).
+Replace them with real artwork before submitting — keep the same filenames/sizes
+(icon 1024×1024, adaptive foreground 1024×1024, favicon 48×48).
+
 ## Notes
 - Native fetch is not subject to browser CORS, so the app talks to the API
   directly. (Expo **web** would need CORS headers — native is the target.)

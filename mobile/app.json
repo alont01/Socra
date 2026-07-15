@@ -4,6 +4,7 @@
     "slug": "socra-parent",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "socra",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -14,16 +15,27 @@
     "android": {
       "package": "com.socra.parent",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFBF5"
       }
     },
     "web": {
       "bundler": "metro",
-      "output": "static"
+      "output": "static",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFBF5"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
