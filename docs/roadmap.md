@@ -56,14 +56,16 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   Query, `ParentDevice` push tokens. ← _next_
 - **Phase 5 — Push + stores**: notification triggers, EAS build, store submission.
 
-## Future phase — Dynamic / cinematic visualizations (parked)
+## Visualizations
 
-Two complementary layers beyond the current inline visuals:
-
-1. **Web-native interactive plots (real-time, in-session):** expression-driven,
-   client-side function evaluation (in-house safe parser), hover coordinates,
-   parameter sliders, auto-annotation (roots/vertex/asymptotes), reliable
-   geometry primitives. This is the primary differentiator — instant + interactive.
+1. **Web-native interactive plots** ✅ (shipped): expression-driven plots via an
+   in-house safe evaluator (`lib/math-eval.ts` — no eval; + - * / ^, implicit
+   multiplication, constants, whitelisted functions). `FunctionPlot` samples
+   `expr` client-side, shows a hover crosshair with (x, y), and renders
+   parameter sliders (`params`) that re-plot live. Backward-compatible with the
+   old points-based specs. AI prompt updated to prefer `expr`. Robust plot-JSON
+   parsing via `extractJson`. _Remaining/optional: auto-annotation
+   (roots/vertex/asymptotes), reliable geometry primitives._
 2. **Manim (3Blue1Brown engine) explainer videos (async, pre-rendered):**
    Manim is Python, an offline batch renderer → MP4 (needs FFmpeg/Cairo/Pango/
    LaTeX), not real-time and not a browser lib. Fit: a **separate Python render

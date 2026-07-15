@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import MathRenderer from '@/components/MathRenderer'
 import { FunctionPlot, type PlotSpec } from '@/components/visuals/FunctionPlot'
 import { SvgFigure } from '@/components/visuals/SvgFigure'
+import { extractJson } from '@/lib/ai/parse-json'
 
 type Block =
   | { kind: 'text'; value: string }
@@ -31,12 +32,8 @@ function parse(content: string): Block[] {
 
 function PlotBlock({ value }: { value: string }) {
   const spec = useMemo<PlotSpec | null>(() => {
-    try {
-      const parsed: unknown = JSON.parse(value)
-      return parsed && typeof parsed === 'object' ? (parsed as PlotSpec) : null
-    } catch {
-      return null
-    }
+    const parsed = extractJson<PlotSpec>(value)
+    return parsed && typeof parsed === 'object' ? parsed : null
   }, [value])
 
   if (!spec) {
