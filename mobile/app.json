@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Socra Parent",
+    "slug": "socra-parent",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "socra",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.socra.parent"
+    },
+    "android": {
+      "package": "com.socra.parent",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFBF5"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiUrl": "https://www.socratutoring.com"
+    }
+  }
+}

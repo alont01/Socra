@@ -1,6 +1,8 @@
 import nextConfig from "eslint-config-next";
 
 export default [
+  // The Expo mobile app has its own toolchain/lint; keep it out of the web lint.
+  { ignores: ["mobile/**"] },
   ...nextConfig,
   {
     rules: {

@@ -52,9 +52,13 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   guards against empty sessions (no transcript/notes/whiteboard) with a clear,
   retryable "insufficient content" state instead of hallucinating. Notes
   fallback already existed. Unit tests for the parser.
-- **Phase 4 — Mobile app**: Expo app on shared APIs (SecureStore JWT), React
-  Query, `ParentDevice` push tokens. ← _next_
-- **Phase 5 — Push + stores**: notification triggers, EAS build, store submission.
+- **Phase 4 — Mobile app** 🚧 scaffolded (`mobile/`): Expo SDK 52 + expo-router,
+  SecureStore JWT via `/api/auth/token` (Bearer), React Query. Screens: login
+  (parent-only gate) → children list → child detail (mastery + session
+  summaries) on the parent APIs. Excluded from the web tsconfig/eslint.
+  _Pending: run/test on device (owner-driven), app icons/splash, EAS._
+- **Phase 5 — Push + stores**: `expo-notifications` + `ParentDevice` token
+  registration + notification triggers, EAS build, store submission.
 
 ## Visualizations
 
