@@ -281,17 +281,20 @@ async function updateMasteryForConcepts(studentId: string, concepts: string[]) {
           where: { studentId_topic: { studentId, topic: concept } },
         })
 
+        const nextMastery = existing
+          ? Math.min(1.0, existing.mastery + sessionCoverageIncrement)
+          : initialSessionCoverage
+
         if (existing) {
-          const newMastery = Math.min(1.0, existing.mastery + sessionCoverageIncrement)
-          await tx.studentProgress.update({
-            where: { id: existing.id },
-            data: { mastery: newMastery },
-          })
+          await tx.studentProgress.update({ where: { id: existing.id }, data: { mastery: nextMastery } })
         } else {
-          await tx.studentProgress.create({
-            data: { studentId, topic: concept, mastery: initialSessionCoverage },
-          })
+          await tx.studentProgress.create({ data: { studentId, topic: concept, mastery: nextMastery } })
         }
+
+        // Time-series snapshot for the progress-over-time trend.
+        await tx.masteryHistory.create({
+          data: { studentId, topic: concept, mastery: nextMastery, source: 'session' },
+        })
       })
     } catch (err) {
       logger.error(`Failed to update mastery for concept "${concept}"`, err, { studentId })

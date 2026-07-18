@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/Navbar'
 import { MasteryChart } from '@/components/progress/MasteryChart'
+import { MasteryTrend, type TrendPoint } from '@/components/progress/MasteryTrend'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 
 interface ProgressItem { topic: string; mastery: number; updatedAt: string }
@@ -24,6 +25,7 @@ export default function ParentChildPage() {
 
   const [childName, setChildName] = useState('')
   const [progress, setProgress] = useState<ProgressItem[] | null>(null)
+  const [trend, setTrend] = useState<TrendPoint[]>([])
   const [sessions, setSessions] = useState<SessionItem[] | null>(null)
   const [notFound, setNotFound] = useState(false)
 
@@ -44,6 +46,7 @@ export default function ParentChildPage() {
         const [p, s] = await Promise.all([pRes.json(), sRes.json()])
         setChildName(p.child?.name || s.child?.name || '')
         setProgress(p.progress || [])
+        setTrend(p.trend || [])
         setSessions(s.sessions || [])
       })
       .catch(() => setNotFound(true))
@@ -71,6 +74,11 @@ export default function ParentChildPage() {
             <h1 className="text-2xl font-bold tracking-tight text-stone-900 mt-3 mb-6">
               {childName}&apos;s progress
             </h1>
+
+            {/* Trend over time */}
+            <section className="mb-8">
+              <MasteryTrend points={trend} />
+            </section>
 
             {/* Mastery */}
             <section className="mb-10">

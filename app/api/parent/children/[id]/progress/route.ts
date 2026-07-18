@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireParent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { buildOverallTrend } from '@/lib/mastery-trend'
 
 export async function GET(
   _request: Request,
@@ -18,13 +19,24 @@ export async function GET(
     })
     if (!child) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const progress = await prisma.studentProgress.findMany({
-      where: { studentId: child.id },
-      orderBy: { mastery: 'desc' },
-      select: { topic: true, mastery: true, updatedAt: true },
-    })
+    const [progress, history] = await Promise.all([
+      prisma.studentProgress.findMany({
+        where: { studentId: child.id },
+        orderBy: { mastery: 'desc' },
+        select: { topic: true, mastery: true, updatedAt: true },
+      }),
+      prisma.masteryHistory.findMany({
+        where: { studentId: child.id },
+        orderBy: { createdAt: 'asc' },
+        select: { topic: true, mastery: true, createdAt: true },
+      }),
+    ])
 
-    return NextResponse.json({ child, progress })
+    const trend = buildOverallTrend(
+      history.map((h) => ({ topic: h.topic, mastery: h.mastery, createdAt: h.createdAt.toISOString() })),
+    )
+
+    return NextResponse.json({ child, progress, trend })
   } catch (err) {
     console.error('[parent progress]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -52,6 +52,7 @@ model StudentProfile {
   tutoringSessions TutoringSession[] @relation("TutoringStudent")
   practiceSets     PracticeSet[]
   studentProgress  StudentProgress[]
+  masteryHistory   MasteryHistory[]
   parentInvites    ParentInvite[]    @relation("StudentParentInvites")
 }
 
@@ -178,6 +179,22 @@ model StudentProgress {
   updatedAt DateTime       @updatedAt
 
   @@unique([studentId, topic])
+}
+
+// Time-series of mastery changes — one row each time a topic's mastery is
+// updated (session concept coverage or a practice attempt). Powers the
+// progress-over-time trend on the student + parent views.
+model MasteryHistory {
+  id        String         @id @default(cuid())
+  studentId String
+  student   StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  topic     String
+  mastery   Float
+  source    String         @default("session") // session | practice
+  createdAt DateTime       @default(now())
+
+  @@index([studentId, createdAt])
+  @@index([studentId, topic, createdAt])
 }
 
 // Operational telemetry for the admin system-health dashboard.

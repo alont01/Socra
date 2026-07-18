@@ -17,20 +17,19 @@ export async function updateMasteryScore(studentId: string, topic: string, corre
       where: { studentId_topic: { studentId, topic } },
     })
 
+    const nextMastery = existing
+      ? clampMastery(alpha * newValue + (1 - alpha) * existing.mastery)
+      : clampMastery(newValue * alpha)
+
     if (existing) {
-      const updated = clampMastery(alpha * newValue + (1 - alpha) * existing.mastery)
-      await tx.studentProgress.update({
-        where: { id: existing.id },
-        data: { mastery: updated },
-      })
+      await tx.studentProgress.update({ where: { id: existing.id }, data: { mastery: nextMastery } })
     } else {
-      await tx.studentProgress.create({
-        data: {
-          studentId,
-          topic,
-          mastery: clampMastery(newValue * alpha),
-        },
-      })
+      await tx.studentProgress.create({ data: { studentId, topic, mastery: nextMastery } })
     }
+
+    // Time-series snapshot for the progress-over-time trend.
+    await tx.masteryHistory.create({
+      data: { studentId, topic, mastery: nextMastery, source: 'practice' },
+    })
   })
 }

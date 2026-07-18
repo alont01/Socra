@@ -59,8 +59,19 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   submit), icon/splash/adaptive-icon wired with brand placeholder PNGs. Excluded
   from the web tsconfig/eslint. _Pending: run/test on device (owner-driven),
   real icon art, `eas init` + build/submit, store accounts._
-- **Phase 5 — Push + stores**: `expo-notifications` + `ParentDevice` token
-  registration + notification triggers, EAS build, store submission.
+- **Phase 5 — Push + stores** (BACKLOG): `expo-notifications` + `ParentDevice`
+  token registration + notification triggers, EAS build, store submission.
+  Publishing is owner-driven (needs Apple/Google accounts); parked for now while
+  we focus on the web experience.
+
+## Web experience
+
+- **Progress over time** ✅: `MasteryHistory` model + migration records a
+  snapshot each time a topic's mastery changes (session concept coverage or a
+  practice attempt). `buildOverallTrend` reconstructs an overall-average-over-
+  time series; `MasteryTrend` area chart shows it (current % + delta since
+  start) on the student progress page and the parent child-detail page.
+  Existing users' trends populate as new sessions/practice happen.
 
 ## Visualizations
 
