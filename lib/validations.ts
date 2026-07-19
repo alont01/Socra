@@ -30,6 +30,15 @@ export const setRoleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
 })
 
+export const verifyEmailSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+})
+
+export const resendVerificationSchema = z.object({
+  email: z.string().email('Invalid email address'),
+})
+
 // ── Onboarding ──
 
 export const onboardingSchema = z.object({

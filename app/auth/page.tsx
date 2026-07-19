@@ -58,6 +58,14 @@ function AuthForm() {
 
       const data = await res.json()
 
+      // New signup, or login on an unverified account → go verify the email.
+      if (data.needsVerification) {
+        const params = new URLSearchParams({ email: (data.email as string) || email })
+        if (next) params.set('next', next)
+        router.push(`/auth/verify?${params.toString()}`)
+        return
+      }
+
       if (!res.ok) {
         setError(data.error || 'Something went wrong')
         return

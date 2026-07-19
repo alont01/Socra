@@ -36,6 +36,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
+    if (!user.emailVerified) {
+      return NextResponse.json({ error: 'Please verify your email on the web first, then sign in here.' }, { status: 403 })
+    }
+
     const token = await signToken({ userId: user.id, email: user.email, role: user.role })
     recordAudit({ action: 'auth.token', actor: { id: user.id, email: user.email, role: user.role }, ...ctx, metadata: { client: 'mobile' } })
 

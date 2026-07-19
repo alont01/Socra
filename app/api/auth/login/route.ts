@@ -5,6 +5,7 @@ import { signToken } from '@/lib/auth'
 import { loginSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
+import { issueVerificationCode } from '@/lib/email-verification'
 
 export async function POST(request: Request) {
   const ctx = auditContext(request)
@@ -35,6 +36,14 @@ export async function POST(request: Request) {
     if (!valid) {
       recordAudit({ action: 'auth.login', status: 'failure', actor: { id: user.id, email, role: user.role }, ...ctx, metadata: { reason: 'bad_password' } })
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+    }
+
+    // Unverified email/password accounts must verify before logging in. Re-issue
+    // a fresh code and route the client to the verification step.
+    if (!user.emailVerified) {
+      await issueVerificationCode(user.id, email)
+      recordAudit({ action: 'auth.login', status: 'failure', actor: { id: user.id, email, role: user.role }, ...ctx, metadata: { reason: 'unverified' } })
+      return NextResponse.json({ needsVerification: true, email }, { status: 403 })
     }
 
     const token = await signToken({ userId: user.id, email: user.email, role: user.role })

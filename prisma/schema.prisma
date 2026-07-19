@@ -8,16 +8,30 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String?
-  role         String   @default("STUDENT")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String?
+  role          String   @default("STUDENT")
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   studentProfile       StudentProfile?       @relation("UserProfile")
   parentProfile        ParentProfile?        @relation("UserParent")
   tutorProfile         TutorProfile?         @relation("UserTutor")
   passwordResetTokens  PasswordResetToken[]
+  emailVerification    EmailVerification?
+}
+
+// Short-lived 6-digit code emailed at email/password signup. One active record
+// per user; the code is stored hashed.
+model EmailVerification {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model PasswordResetToken {

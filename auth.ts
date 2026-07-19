@@ -14,8 +14,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account && user?.email) {
         const dbUser = await prisma.user.upsert({
           where: { email: user.email },
-          update: {},
-          create: { email: user.email, passwordHash: null, role: 'STUDENT' },
+          // OAuth providers verify the email, so mark it verified.
+          update: { emailVerified: true },
+          create: { email: user.email, passwordHash: null, role: 'STUDENT', emailVerified: true },
         })
         token.dbUserId = dbUser.id
         token.dbUserRole = dbUser.role

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
-import { signToken } from '@/lib/auth'
 import { signupSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
+import { issueVerificationCode } from '@/lib/email-verification'
 
 export async function POST(request: Request) {
   const ctx = auditContext(request)
@@ -39,23 +39,16 @@ export async function POST(request: Request) {
         email,
         passwordHash,
         role,
+        emailVerified: false,
         ...profileData,
       },
     })
 
-    const token = await signToken({ userId: user.id, email: user.email, role: user.role })
+    // Email a verification code. The account is not logged in until verified.
+    await issueVerificationCode(user.id, email)
     recordAudit({ action: 'auth.signup', actor: { id: user.id, email: user.email, role: user.role }, ...ctx, metadata: { role } })
 
-    const response = NextResponse.json({ success: true })
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
-    })
-
-    return response
+    return NextResponse.json({ needsVerification: true, email })
   } catch (err) {
     console.error(err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

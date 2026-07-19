@@ -88,6 +88,14 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   error+retry state instead of a misleading "no homework". _Remaining: dark
   mode; skeletons on admin/session pages._
 
+- **Email verification** ✅: email/password signup now emails a 6-digit code
+  (`EmailVerification` model, hashed code, 15-min expiry, attempt cap) and does
+  NOT log the user in until verified. `/auth/verify` page (enter/resend code) →
+  verifies, logs in, routes to onboarding/dashboard. Unverified login is blocked
+  and re-routed to verify; the mobile token endpoint rejects unverified. OAuth
+  accounts are auto-verified. Existing users grandfathered (migration backfills
+  emailVerified=true). Shared `lib/email.ts` Resend helper.
+
 ## Visualizations
 
 1. **Web-native interactive plots** ✅ (shipped): expression-driven plots via an
