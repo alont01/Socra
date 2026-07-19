@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/Navbar'
 import { MasteryChart } from '@/components/progress/MasteryChart'
 import { MasteryTrend, type TrendPoint } from '@/components/progress/MasteryTrend'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface ProgressItem { topic: string; mastery: number; updatedAt: string }
 interface SessionItem {
@@ -68,7 +68,11 @@ export default function ParentChildPage() {
             This child isn&apos;t linked to your account.
           </div>
         ) : progress === null || sessions === null ? (
-          <div className="flex justify-center py-16"><LoadingDots /></div>
+          <div className="mt-6 space-y-6">
+            <Skeleton className="h-64 rounded-3xl" />
+            <Skeleton className="h-24 rounded-3xl" />
+            <Skeleton className="h-24 rounded-3xl" />
+          </div>
         ) : (
           <>
             <h1 className="text-2xl font-bold tracking-tight text-stone-900 mt-3 mb-6">

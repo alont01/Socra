@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/hooks/useToast'
 
 interface TutoringSession {
@@ -131,7 +131,10 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
       <section aria-labelledby="sessions-heading">
         <h2 id="sessions-heading" className="text-lg font-bold text-stone-900 mb-4">Your sessions</h2>
         {loading ? (
-          <div className="flex justify-center py-8"><LoadingDots /></div>
+          <div className="space-y-3">
+            <Skeleton className="h-16 rounded-3xl" />
+            <Skeleton className="h-16 rounded-3xl" />
+          </div>
         ) : (
           <UpcomingSessionsPanel sessions={sessions} role="STUDENT" />
         )}

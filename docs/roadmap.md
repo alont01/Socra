@@ -82,7 +82,11 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
 - **Global UX polish** ✅ (pass 1): branded `not-found.tsx` + `error.tsx`,
   reusable `Skeleton` primitive (applied to the progress page load), mobile-
   responsive navbar (horizontal-scroll link row), `.no-scrollbar` utility.
-  _More polish available: skeletons on remaining pages, dark mode._
+- **Global UX polish** ✅ (pass 2): skeleton loading states across the
+  student/parent high-traffic pages (practice list, parent dashboard, child
+  detail, student dashboard sessions); practice list now shows a real
+  error+retry state instead of a misleading "no homework". _Remaining: dark
+  mode; skeletons on admin/session pages._
 
 ## Visualizations
 

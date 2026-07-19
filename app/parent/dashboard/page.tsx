@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/Navbar'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface Child {
   id: string
@@ -69,7 +69,11 @@ export default function ParentDashboardPage() {
         </div>
 
         {loading || (children === null && !error) ? (
-          <div className="flex justify-center py-16"><LoadingDots /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-3xl" />
+            ))}
+          </div>
         ) : error ? (
           <div className="rounded-3xl ring-1 ring-stone-900/5 bg-white shadow-soft p-8 text-center text-stone-500">
             Couldn&apos;t load your children. Please try again.
