@@ -14,6 +14,12 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
   const containerRef = useRef<HTMLDivElement>(null)
   const callRef = useRef<DailyCall | null>(null)
 
+  // Keep the latest onCallFrame in a ref so the call-frame effect doesn't have
+  // to depend on it — re-running the effect would tear down and rebuild the
+  // live Daily call every time the parent re-passes the callback.
+  const onCallFrameRef = useRef(onCallFrame)
+  useEffect(() => { onCallFrameRef.current = onCallFrame }, [onCallFrame])
+
   const handleLeave = useCallback(() => {
     onLeave?.()
   }, [onLeave])
@@ -36,7 +42,7 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
     let destroyed = false
 
     frame.join({ url: roomUrl, token }).then(() => {
-      if (!destroyed) onCallFrame?.(frame)
+      if (!destroyed) onCallFrameRef.current?.(frame)
     })
 
     const handleParticipantLeft = (event: DailyEventObjectParticipantLeft) => {
@@ -52,7 +58,7 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
       destroyed = true
       frame.off('left-meeting', handleLeave)
       frame.off('participant-left', handleParticipantLeft)
-      onCallFrame?.(null)
+      onCallFrameRef.current?.(null)
       frame.destroy()
       callRef.current = null
     }

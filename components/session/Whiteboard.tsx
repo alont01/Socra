@@ -15,7 +15,6 @@ interface WhiteboardProps {
 export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, snapshotRef }: WhiteboardProps) {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fabricCanvasRef = useRef<any>(null)
   const isUpdatingRef = useRef(false)
 
@@ -50,7 +49,6 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
       el.width = width
       el.height = canvasHeight
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let canvas: any
       if (isTutor) {
         const c = new fabricModule.Canvas(el, {
@@ -172,7 +170,6 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
     if (!canvas) return
     const active = canvas.getActiveObjects()
     if (active && active.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       active.forEach((obj: any) => canvas.remove(obj))
       canvas.discardActiveObject()
       canvas.requestRenderAll()

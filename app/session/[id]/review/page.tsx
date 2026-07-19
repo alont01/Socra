@@ -224,6 +224,9 @@ export default function ReviewPage({
             {whiteboardImage && (
               <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6">
                 <h3 className="font-semibold text-stone-900 mb-3">Whiteboard</h3>
+                {/* Base64 data URL — next/image can't optimize these and needs
+                    fixed dimensions, so a plain <img> is the right tool here. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`data:image/png;base64,${whiteboardImage}`}
                   alt="Session whiteboard"

@@ -59,6 +59,9 @@ export function CaptureNotesButton({ sessionId }: CaptureNotesButtonProps) {
   if (preview) {
     return (
       <div className="absolute bottom-4 right-4 z-10 bg-white rounded-xl shadow-lg p-3 w-72">
+        {/* Base64 data URL — next/image can't optimize these and needs fixed
+            dimensions, so a plain <img> is the right tool here. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={preview}
           alt="Captured notes preview"
