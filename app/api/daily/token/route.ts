@@ -24,6 +24,11 @@ export async function POST(request: Request) {
 
     if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
     if (!session.dailyRoomName) return NextResponse.json({ error: 'No room created yet' }, { status: 400 })
+    // Don't mint join tokens for sessions that are over — the room may still be
+    // alive until it expires, but nobody should be able to (re)enter.
+    if (session.status !== 'active') {
+      return NextResponse.json({ error: 'This session is not active' }, { status: 400 })
+    }
 
     // Verify user is either the tutor or the student
     const isTutor = session.tutor.userId === auth.payload.userId

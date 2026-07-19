@@ -34,15 +34,26 @@ export async function POST(request: Request) {
       ? { studentProfile: { create: { name } } }
       : { parentProfile: { create: { name } } }
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        role,
-        emailVerified: false,
-        ...profileData,
-      },
-    })
+    let user
+    try {
+      user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          role,
+          emailVerified: false,
+          ...profileData,
+        },
+      })
+    } catch (createErr) {
+      // Unique-constraint collision — two concurrent signups for the same email
+      // raced past the findUnique check above. Return the same 409 as the
+      // sequential case rather than a 500.
+      if (createErr && typeof createErr === 'object' && (createErr as { code?: string }).code === 'P2002') {
+        return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
+      }
+      throw createErr
+    }
 
     // Email a verification code. The account is not logged in until verified.
     await issueVerificationCode(user.id, email)

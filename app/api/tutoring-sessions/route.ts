@@ -11,6 +11,18 @@ export async function GET(request: Request) {
     const take = Math.min(Number(searchParams.get('limit')) || 50, 100)
     const cursor = searchParams.get('cursor') || undefined
 
+    // Explicit scalar allowlist — never ship tutorNotes, capturedNotes, or the
+    // (large, base64) whiteboardImage to a list view. tutorNotes in particular
+    // must not reach students.
+    const listFields = {
+      id: true,
+      topic: true,
+      status: true,
+      scheduledAt: true,
+      startedAt: true,
+      createdAt: true,
+    } as const
+
     const paginationArgs = {
       take: take + 1, // fetch one extra to detect next page
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -25,7 +37,8 @@ export async function GET(request: Request) {
 
       sessions = await prisma.tutoringSession.findMany({
         where: { tutorId: tutor.id },
-        include: {
+        select: {
+          ...listFields,
           student: { select: { id: true, name: true, gradeLevel: true } },
         },
         ...paginationArgs,
@@ -36,7 +49,8 @@ export async function GET(request: Request) {
 
       sessions = await prisma.tutoringSession.findMany({
         where: { studentId: student.id },
-        include: {
+        select: {
+          ...listFields,
           tutor: { select: { id: true, name: true } },
         },
         ...paginationArgs,

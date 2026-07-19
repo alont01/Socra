@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { updateMasteryScore } from '@/lib/progress'
 import { safeJsonParse } from '@/lib/json'
 import { rateLimit } from '@/lib/rate-limit'
+import { answersMatch } from '@/lib/answer-check'
 
 export async function POST(
   request: Request,
@@ -50,7 +51,7 @@ export async function POST(
     }
 
     const correct = problem.answer
-      ? studentAnswer.trim().toLowerCase() === problem.answer.trim().toLowerCase()
+      ? answersMatch(studentAnswer, problem.answer)
       : false
 
     const attempt = await prisma.practiceSetAttempt.create({

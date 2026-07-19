@@ -1,8 +1,9 @@
 'use client'
 
-import { use, useEffect, useState, useRef } from 'react'
+import { use, useEffect, useState, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/hooks/useToast'
 import { Navbar } from '@/components/Navbar'
 import { AnalysisSummary } from '@/components/session/AnalysisSummary'
 import { TranscriptViewer } from '@/components/session/TranscriptViewer'
@@ -20,6 +21,7 @@ export default function ReviewPage({
   const { id } = use(params)
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
+  const { toast } = useToast()
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null)
   const [transcript, setTranscript] = useState<TranscriptData | null>(null)
   const [whiteboardImage, setWhiteboardImage] = useState<string | null>(null)
@@ -35,10 +37,54 @@ export default function ReviewPage({
     }
   }, [user, authLoading, router])
 
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null }
+  }, [])
+
+  const fetchTranscript = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tutoring-sessions/${id}/transcript`)
+      if (res.ok) {
+        const data = await res.json()
+        setTranscript(data.transcript)
+      }
+    } catch {
+      // Non-fatal — the analysis is the primary payload.
+    }
+  }, [id])
+
+  // Poll the analysis endpoint until it's ready. If it never lands within the
+  // window, surface a retryable error rather than a blank "ready" page.
+  const pollForAnalysis = useCallback(() => {
+    stopPolling()
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/tutoring-sessions/${id}/analysis`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.status === 'ready') {
+          setAnalysis(data.analysis)
+          setStatus('ready')
+          stopPolling()
+          // The transcript often finishes alongside the analysis — refresh it.
+          fetchTranscript()
+        }
+      } catch {
+        // Transient — keep polling.
+      }
+    }, 5000)
+    // Transcript fetch can take up to ~3 min; give it 5 before giving up.
+    timeoutRef.current = setTimeout(() => {
+      stopPolling()
+      setStatus((s) => (s === 'processing' ? 'error' : s))
+    }, 300_000)
+  }, [id, stopPolling, fetchTranscript])
+
   useEffect(() => {
     if (!user || !id) return
 
-    const fetchData = async () => {
+    const load = async () => {
       try {
         // Fetch session info to determine role
         const sessionRes = await fetch(`/api/tutoring-sessions/${id}`)
@@ -50,55 +96,32 @@ export default function ReviewPage({
           }
         }
 
+        // Always load whatever transcript exists (independent of analysis state).
+        await fetchTranscript()
+
         // Fetch analysis
         const analysisRes = await fetch(`/api/tutoring-sessions/${id}/analysis`)
-        if (analysisRes.ok) {
-          const data = await analysisRes.json()
-          if (data.status === 'processing') {
-            setStatus('processing')
-            // Poll for completion — clean up on unmount
-            pollRef.current = setInterval(async () => {
-              const retry = await fetch(`/api/tutoring-sessions/${id}/analysis`)
-              if (retry.ok) {
-                const retryData = await retry.json()
-                if (retryData.status === 'ready') {
-                  setAnalysis(retryData.analysis)
-                  setStatus('ready')
-                  if (pollRef.current) clearInterval(pollRef.current)
-                  if (timeoutRef.current) clearTimeout(timeoutRef.current)
-                }
-              }
-            }, 5000)
-            // Stop polling after 5 minutes (transcript fetch can take up to 3 min)
-            timeoutRef.current = setTimeout(() => {
-              if (pollRef.current) clearInterval(pollRef.current)
-              setStatus('ready')
-            }, 300_000)
-            return
-          }
-          setAnalysis(data.analysis)
-          setStatus('ready')
+        if (!analysisRes.ok) {
+          setStatus('error')
+          return
         }
-
-        // Fetch transcript
-        const transcriptRes = await fetch(`/api/tutoring-sessions/${id}/transcript`)
-        if (transcriptRes.ok) {
-          const tData = await transcriptRes.json()
-          setTranscript(tData.transcript)
+        const data = await analysisRes.json()
+        if (data.status === 'processing') {
+          setStatus('processing')
+          pollForAnalysis()
+          return
         }
+        setAnalysis(data.analysis)
+        setStatus('ready')
       } catch {
         setStatus('error')
       }
     }
 
-    fetchData()
+    load()
 
-    // Cleanup polling on unmount
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    }
-  }, [user, id])
+    return () => stopPolling()
+  }, [user, id, fetchTranscript, pollForAnalysis, stopPolling])
 
   if (authLoading) {
     return (
@@ -119,30 +142,13 @@ export default function ReviewPage({
         setStatus('processing')
         setAnalysis(null)
         setTranscript(null)
-        // Re-poll for completion
-        pollRef.current = setInterval(async () => {
-          const retry = await fetch(`/api/tutoring-sessions/${id}/analysis`)
-          if (retry.ok) {
-            const retryData = await retry.json()
-            if (retryData.status === 'ready') {
-              setAnalysis(retryData.analysis)
-              setStatus('ready')
-              if (pollRef.current) clearInterval(pollRef.current)
-              if (timeoutRef.current) clearTimeout(timeoutRef.current)
-              // Re-fetch transcript
-              const tRes = await fetch(`/api/tutoring-sessions/${id}/transcript`)
-              if (tRes.ok) {
-                const tData = await tRes.json()
-                setTranscript(tData.transcript)
-              }
-            }
-          }
-        }, 5000)
-        timeoutRef.current = setTimeout(() => {
-          if (pollRef.current) clearInterval(pollRef.current)
-          setStatus('ready')
-        }, 300_000)
+        pollForAnalysis()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast(data.error || 'Could not retry the analysis. Please try again.', 'error')
       }
+    } catch {
+      toast('Network error retrying the analysis.', 'error')
     } finally {
       setRetrying(false)
     }
@@ -175,7 +181,34 @@ export default function ReviewPage({
 
         {status === 'error' && (
           <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-8 text-center">
-            <p className="text-red-600">Something went wrong loading the review.</p>
+            <p className="text-red-600 mb-1">We couldn&apos;t generate the analysis for this session.</p>
+            <p className="text-sm text-stone-500 mb-4">
+              The transcript may still be processing, or there wasn&apos;t enough captured to analyze.
+            </p>
+            {isTutor && (
+              <button
+                onClick={retryAnalysis}
+                disabled={retrying}
+                className="inline-flex items-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {retrying ? 'Retrying…' : 'Retry analysis'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {status === 'ready' && !analysis && (
+          <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-8 text-center">
+            <p className="text-stone-600 mb-4">No analysis is available for this session yet.</p>
+            {isTutor && (
+              <button
+                onClick={retryAnalysis}
+                disabled={retrying}
+                className="inline-flex items-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {retrying ? 'Retrying…' : 'Retry analysis'}
+              </button>
+            )}
           </div>
         )}
 

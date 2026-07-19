@@ -5,8 +5,10 @@ export const config = {
   daily: {
     roomExpirySeconds: 60 * 60 * 3, // 3 hours
     maxParticipants: 2,
-    transcriptRetryIntervalMs: 10_000,
-    transcriptMaxRetries: 5,
+    // Daily can take a couple of minutes to finish transcription after a call
+    // ends; 12 × 15s ≈ 3 minutes of polling before we fall back to notes.
+    transcriptRetryIntervalMs: 15_000,
+    transcriptMaxRetries: 12,
   },
 
   // Mastery scoring

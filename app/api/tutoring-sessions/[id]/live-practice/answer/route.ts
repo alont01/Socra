@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { updateMasteryScore } from '@/lib/progress'
 import { rateLimit } from '@/lib/rate-limit'
 import { decryptAnswerToken } from '@/lib/answer-token'
+import { answersMatch } from '@/lib/answer-check'
 import { livePracticeAnswerSchema, parseBody } from '@/lib/validations'
 
 export async function POST(
@@ -42,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
-    const correct = answer.trim().toLowerCase() === stored.answer.trim().toLowerCase()
+    const correct = answersMatch(answer, stored.answer)
 
     // Update mastery in real-time
     await updateMasteryScore(auth.student.id, stored.topic, correct)

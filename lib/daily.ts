@@ -117,7 +117,10 @@ function parseVttToText(vtt: string): string {
   return textLines.join('\n')
 }
 
-export async function fetchTranscriptWithRetry(roomName: string, maxRetries = 12): Promise<string | null> {
+export async function fetchTranscriptWithRetry(
+  roomName: string,
+  maxRetries = appConfig.daily.transcriptMaxRetries,
+): Promise<string | null> {
   for (let i = 0; i < maxRetries; i++) {
     const result = await fetchTranscript(roomName)
 
@@ -133,7 +136,7 @@ export async function fetchTranscriptWithRetry(roomName: string, maxRetries = 12
     }
 
     // 'not-ready' — transcript is processing, keep waiting
-    await new Promise((resolve) => setTimeout(resolve, 15_000))
+    await new Promise((resolve) => setTimeout(resolve, appConfig.daily.transcriptRetryIntervalMs))
   }
   console.log(`[daily] Transcript not ready after ${maxRetries} attempts for ${roomName}`)
   return null

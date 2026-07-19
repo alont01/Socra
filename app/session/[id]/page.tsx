@@ -15,6 +15,7 @@ import { useLivePracticeSync } from '@/hooks/useLivePracticeSync'
 import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import { Navbar } from '@/components/Navbar'
+import { useToast } from '@/hooks/useToast'
 import type { DailyCall } from '@daily-co/daily-js'
 import type { PracticeProblem } from '@/lib/ai/types'
 import type { TutoringSessionData } from '@/types'
@@ -27,6 +28,7 @@ export default function SessionPage({
   const { id } = use(params)
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
+  const { toast } = useToast()
   const [session, setSession] = useState<TutoringSessionData | null>(null)
   const [sessionRole, setSessionRole] = useState<'tutor' | 'student'>('student')
   const [sessionLoading, setSessionLoading] = useState(true)
@@ -119,14 +121,26 @@ export default function SessionPage({
     })
   }, [sendWhiteboardStart, sendWhiteboardStop])
 
-  // Start transcription when the tutor joins the call
+  // Start transcription when the tutor joins the call. If it can't start (e.g.
+  // the Daily plan doesn't include transcription), tell the tutor so they know
+  // the post-session recap will fall back to notes rather than the transcript.
   useEffect(() => {
     if (!callFrame || !isTutor) return
-    callFrame.startTranscription()
+
+    const handleTranscriptionError = () => {
+      toast('Transcription unavailable — the recap will use your notes instead.', 'error')
+    }
+    callFrame.on('transcription-error', handleTranscriptionError)
+
+    Promise.resolve(callFrame.startTranscription()).catch(() => {
+      toast('Transcription could not start — the recap will use your notes instead.', 'error')
+    })
+
     return () => {
+      try { callFrame.off('transcription-error', handleTranscriptionError) } catch { /* frame gone */ }
       try { callFrame.stopTranscription() } catch { /* frame already destroyed */ }
     }
-  }, [callFrame, isTutor])
+  }, [callFrame, isTutor, toast])
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -143,14 +157,20 @@ export default function SessionPage({
           setSession(data.session)
           setSessionRole(data.role)
         } else {
+          if (res.status !== 404 && res.status !== 403) {
+            toast('Could not load this session. Please try again.', 'error')
+          }
           router.push('/dashboard')
         }
+      } catch {
+        toast('Network error loading the session.', 'error')
+        router.push('/dashboard')
       } finally {
         setSessionLoading(false)
       }
     }
     if (user && id) fetchSession()
-  }, [user, id, router])
+  }, [user, id, router, toast])
 
   const fetchMeetingToken = useCallback(async (): Promise<boolean> => {
     const tokenRes = await fetch('/api/daily/token', {
@@ -176,7 +196,10 @@ export default function SessionPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'active' }),
       })
-      if (!patchRes.ok) return
+      if (!patchRes.ok) {
+        toast('Could not start the session. Please try again.', 'error')
+        return
+      }
 
       const patchData = await patchRes.json()
       setSession((prev) => prev ? { ...prev, ...patchData.session } : prev)
@@ -188,11 +211,17 @@ export default function SessionPage({
         await new Promise((r) => setTimeout(r, 2000))
         ok = await fetchMeetingToken()
       }
-      if (ok) setInCall(true)
+      if (ok) {
+        setInCall(true)
+      } else {
+        toast('Could not connect to the video room. Please try again.', 'error')
+      }
+    } catch {
+      toast('Something went wrong starting the session.', 'error')
     } finally {
       setJoining(false)
     }
-  }, [id, fetchMeetingToken])
+  }, [id, fetchMeetingToken, toast])
 
   const joinSession = useCallback(async () => {
     setJoining(true)
@@ -202,15 +231,25 @@ export default function SessionPage({
         await new Promise((r) => setTimeout(r, 2000))
         ok = await fetchMeetingToken()
       }
-      if (ok) setInCall(true)
+      if (ok) {
+        setInCall(true)
+      } else {
+        toast('Could not connect to the video room. Please try again.', 'error')
+      }
+    } catch {
+      toast('Something went wrong joining the session.', 'error')
     } finally {
       setJoining(false)
     }
-  }, [fetchMeetingToken])
+  }, [fetchMeetingToken, toast])
 
   const endSession = useCallback(async () => {
     setEnding(true)
     try {
+      // Let the student's call leave immediately rather than sitting through the
+      // reconnect grace window once the tutor's frame is torn down.
+      try { callFrame?.sendAppMessage({ type: 'session:ended' }, '*') } catch { /* not joined */ }
+
       // Capture whiteboard snapshot before ending
       if (whiteboardActive && whiteboardSnapshotRef.current) {
         const image = whiteboardSnapshotRef.current()
@@ -228,11 +267,15 @@ export default function SessionPage({
       if (res.ok) {
         setInCall(false)
         router.push(`/session/${id}/review`)
+      } else {
+        toast('Could not end the session cleanly. Please try again.', 'error')
       }
+    } catch {
+      toast('Something went wrong ending the session.', 'error')
     } finally {
       setEnding(false)
     }
-  }, [id, router, whiteboardActive])
+  }, [id, router, whiteboardActive, callFrame, toast])
 
   const handleLeave = useCallback(() => {
     setInCall(false)

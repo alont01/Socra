@@ -69,6 +69,10 @@ export function useWhiteboardSync({
       switch (msg.type) {
         case 'whiteboard:state':
           if (!isTutor && msg.payload) {
+            // Receiving state implies the whiteboard is active — make sure it's
+            // visible. This covers a late-joining/refreshing student who missed
+            // the original 'whiteboard:start' broadcast.
+            onWhiteboardStarted?.()
             onRemoteStateReceived?.(msg.payload)
           }
           break
