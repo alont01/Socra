@@ -6,13 +6,31 @@ import type { DailyCall, DailyEventObjectAppMessage } from '@daily-co/daily-js'
 type WhiteboardMessageType =
   | 'whiteboard:start'
   | 'whiteboard:stop'
-  | 'whiteboard:state'
+  | 'whiteboard:chunk'
   | 'whiteboard:request-state'
 
-interface WhiteboardMessage {
-  type: WhiteboardMessageType
-  payload?: string
+// A whiteboard snapshot is the full fabric.js canvas JSON. It can be tens of KB
+// once a board fills up, but Daily caps a single app-message at ~4KB — so we
+// split every snapshot into ordered chunks and reassemble them on the receiver.
+// Daily's data channel is reliable and ordered, so chunks arrive intact and in
+// sequence; a newer snapshot's first chunk supersedes any older incomplete one.
+interface WhiteboardChunk {
+  type: 'whiteboard:chunk'
+  mid: string // snapshot id — all chunks of one snapshot share it
+  i: number // chunk index
+  n: number // total chunks
+  data: string
 }
+
+interface WhiteboardSignal {
+  type: 'whiteboard:start' | 'whiteboard:stop' | 'whiteboard:request-state'
+}
+
+type WhiteboardMessage = WhiteboardChunk | WhiteboardSignal
+
+// Keep each chunk's serialized message comfortably under Daily's ~4KB limit,
+// leaving headroom for the envelope and UTF-8 expansion.
+const CHUNK_SIZE = 2000
 
 interface UseWhiteboardSyncOptions {
   callFrame: DailyCall | null
@@ -22,6 +40,13 @@ interface UseWhiteboardSyncOptions {
   onWhiteboardStopped?: () => void
 }
 
+function chunkString(s: string, size: number): string[] {
+  if (s.length === 0) return ['']
+  const out: string[] = []
+  for (let i = 0; i < s.length; i += size) out.push(s.slice(i, i + size))
+  return out
+}
+
 export function useWhiteboardSync({
   callFrame,
   isTutor,
@@ -29,32 +54,47 @@ export function useWhiteboardSync({
   onWhiteboardStarted,
   onWhiteboardStopped,
 }: UseWhiteboardSyncOptions) {
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestCanvasJsonRef = useRef<string | null>(null)
+  const seqRef = useRef(0)
+  // Reassembly buffer for the snapshot currently being received (student side).
+  const bufRef = useRef<{ mid: string; n: number; parts: string[]; count: number } | null>(null)
+
+  // Split a full-canvas snapshot into chunks and broadcast them (tutor only).
+  const sendSnapshot = useCallback(
+    (json: string) => {
+      if (!callFrame || !isTutor) return
+      const parts = chunkString(json, CHUNK_SIZE)
+      const mid = `${Date.now().toString(36)}-${(seqRef.current++).toString(36)}`
+      for (let i = 0; i < parts.length; i++) {
+        const msg: WhiteboardChunk = { type: 'whiteboard:chunk', mid, i, n: parts.length, data: parts[i] }
+        callFrame.sendAppMessage(msg, '*')
+      }
+    },
+    [callFrame, isTutor],
+  )
 
   const sendCanvasState = useCallback(
     (json: string) => {
       if (!callFrame || !isTutor) return
       latestCanvasJsonRef.current = json
 
+      // Debounce so a burst of strokes coalesces into one snapshot send.
       if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(() => {
-        const msg: WhiteboardMessage = { type: 'whiteboard:state', payload: json }
-        callFrame.sendAppMessage(msg, '*')
-      }, 150)
+      debounceRef.current = setTimeout(() => sendSnapshot(json), 150)
     },
-    [callFrame, isTutor]
+    [callFrame, isTutor, sendSnapshot],
   )
 
   const sendWhiteboardStart = useCallback(() => {
     if (!callFrame || !isTutor) return
-    const msg: WhiteboardMessage = { type: 'whiteboard:start' }
+    const msg: WhiteboardSignal = { type: 'whiteboard:start' }
     callFrame.sendAppMessage(msg, '*')
   }, [callFrame, isTutor])
 
   const sendWhiteboardStop = useCallback(() => {
     if (!callFrame || !isTutor) return
-    const msg: WhiteboardMessage = { type: 'whiteboard:stop' }
+    const msg: WhiteboardSignal = { type: 'whiteboard:stop' }
     callFrame.sendAppMessage(msg, '*')
   }, [callFrame, isTutor])
 
@@ -64,35 +104,43 @@ export function useWhiteboardSync({
     const handleAppMessage = (event: DailyEventObjectAppMessage | undefined) => {
       if (!event) return
       const msg = event.data as WhiteboardMessage
-      if (!msg || !msg.type) return
+      if (!msg || typeof msg.type !== 'string' || !msg.type.startsWith('whiteboard:')) return
 
       switch (msg.type) {
-        case 'whiteboard:state':
-          if (!isTutor && msg.payload) {
-            // Receiving state implies the whiteboard is active — make sure it's
-            // visible. This covers a late-joining/refreshing student who missed
-            // the original 'whiteboard:start' broadcast.
+        case 'whiteboard:chunk': {
+          if (isTutor) break // tutor is the sender; ignore its own broadcast
+          const c = msg as WhiteboardChunk
+          let buf = bufRef.current
+          // A new snapshot id supersedes any older, still-incomplete one.
+          if (!buf || buf.mid !== c.mid) {
+            buf = { mid: c.mid, n: c.n, parts: new Array(c.n), count: 0 }
+            bufRef.current = buf
+          }
+          if (buf.parts[c.i] === undefined) {
+            buf.parts[c.i] = c.data
+            buf.count++
+          }
+          if (buf.count === buf.n) {
+            const full = buf.parts.join('')
+            bufRef.current = null
+            // Receiving a snapshot implies the whiteboard is active — make sure
+            // it's visible (covers a late-joining / reconnecting student).
             onWhiteboardStarted?.()
-            onRemoteStateReceived?.(msg.payload)
+            onRemoteStateReceived?.(full)
           }
           break
+        }
         case 'whiteboard:start':
-          if (!isTutor) {
-            onWhiteboardStarted?.()
-          }
+          if (!isTutor) onWhiteboardStarted?.()
           break
         case 'whiteboard:stop':
-          if (!isTutor) {
-            onWhiteboardStopped?.()
-          }
+          if (!isTutor) onWhiteboardStopped?.()
           break
         case 'whiteboard:request-state':
+          // A (re)joining student asks for the current board; reply with the
+          // latest full snapshot. Empty board → nothing to send (already blank).
           if (isTutor && latestCanvasJsonRef.current) {
-            const reply: WhiteboardMessage = {
-              type: 'whiteboard:state',
-              payload: latestCanvasJsonRef.current,
-            }
-            callFrame.sendAppMessage(reply, '*')
+            sendSnapshot(latestCanvasJsonRef.current)
           }
           break
       }
@@ -100,9 +148,9 @@ export function useWhiteboardSync({
 
     callFrame.on('app-message', handleAppMessage)
 
-    // Student: request current state on mount (late join)
+    // Student: request the current board on mount (covers a late join).
     if (!isTutor) {
-      const requestMsg: WhiteboardMessage = { type: 'whiteboard:request-state' }
+      const requestMsg: WhiteboardSignal = { type: 'whiteboard:request-state' }
       callFrame.sendAppMessage(requestMsg, '*')
     }
 
@@ -110,7 +158,7 @@ export function useWhiteboardSync({
       callFrame.off('app-message', handleAppMessage)
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [callFrame, isTutor, onRemoteStateReceived, onWhiteboardStarted, onWhiteboardStopped])
+  }, [callFrame, isTutor, sendSnapshot, onRemoteStateReceived, onWhiteboardStarted, onWhiteboardStopped])
 
   return { sendCanvasState, sendWhiteboardStart, sendWhiteboardStop }
 }
