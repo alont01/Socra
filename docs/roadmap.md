@@ -76,6 +76,13 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   (survives refresh), offers starter-prompt chips on an empty chat (a couple
   showcase inline graphs), and has a "New chat" control. Accessibility: labeled
   input, aria-hidden avatar/icon.
+- **Practice experience** ✅: progress bar + live score, results pop in with a
+  quick "Next problem →", tiered completion celebration. a11y: progressbar role,
+  labeled dots/input.
+- **Global UX polish** ✅ (pass 1): branded `not-found.tsx` + `error.tsx`,
+  reusable `Skeleton` primitive (applied to the progress page load), mobile-
+  responsive navbar (horizontal-scroll link row), `.no-scrollbar` utility.
+  _More polish available: skeletons on remaining pages, dark mode._
 
 ## Visualizations
 

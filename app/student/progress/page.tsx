@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Navbar } from '@/components/Navbar'
 import { MasteryChart } from '@/components/progress/MasteryChart'
 import { MasteryTrend, type TrendPoint } from '@/components/progress/MasteryTrend'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface ProgressItem {
   topic: string
@@ -43,7 +43,14 @@ export default function ProgressPage() {
         <h1 className="text-2xl font-bold text-stone-900 mb-6">My Progress</h1>
 
         {fetching ? (
-          <div className="flex justify-center py-12"><LoadingDots /></div>
+          <div className="space-y-6">
+            <Skeleton className="h-64 rounded-3xl" />
+            <div className="space-y-3">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-24 rounded-3xl" />
+              <Skeleton className="h-24 rounded-3xl" />
+            </div>
+          </div>
         ) : (
           <div className="space-y-6">
             <MasteryTrend points={trend} />

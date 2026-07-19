@@ -115,6 +115,15 @@ body {
   }
 }
 
+/* Utility: hide scrollbars (used for horizontally-scrollable nav on mobile) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Utility: gradient brand text */
 .text-gradient-brand {
   background-image: linear-gradient(120deg, #fb923c 0%, #f97316 45%, #ea580c 100%);

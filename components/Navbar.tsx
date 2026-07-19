@@ -23,15 +23,15 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 bg-[#FFFBF5]/70 backdrop-blur-xl border-b border-stone-900/5">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 group">
+      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2.5 group shrink-0">
           <span className="grid place-items-center h-8 w-8 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 text-white text-lg font-bold shadow-brand transition-transform duration-200 group-hover:scale-105">
             ∑
           </span>
           <span className="text-lg font-bold tracking-tight text-stone-900">Socra</span>
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 ml-auto min-w-0 overflow-x-auto no-scrollbar [&>*]:shrink-0">
           {user ? (
             <>
               <Link href={isParent ? '/parent/dashboard' : '/dashboard'}>
