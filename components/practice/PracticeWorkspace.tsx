@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { RichContent } from '@/components/visuals/RichContent'
 import { useToast } from '@/hooks/useToast'
@@ -51,6 +52,13 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
   const problem = problems[currentIndex]
   const existingResult = attempts.get(currentIndex)
 
+  const answeredCount = attempts.size
+  const correctCount = Array.from(attempts.values()).filter((a) => a.correct).length
+  const allAnswered = problems.length > 0 && answeredCount >= problems.length
+  const progressPct = problems.length > 0 ? Math.round((answeredCount / problems.length) * 100) : 0
+
+  const goTo = (i: number) => { setCurrentIndex(i); setAnswer(''); setShowHint(false) }
+
   const submitAnswer = async () => {
     if (!answer.trim()) return
     setSubmitting(true)
@@ -59,10 +67,7 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
       const res = await fetch(`/api/student/practice/${practiceSetId}/attempt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          problemIndex: currentIndex,
-          studentAnswer: answer,
-        }),
+        body: JSON.stringify({ problemIndex: currentIndex, studentAnswer: answer }),
       })
 
       if (res.ok) {
@@ -90,15 +95,50 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
 
   if (!problem) return null
 
+  const scorePct = problems.length > 0 ? Math.round((correctCount / problems.length) * 100) : 0
+  const celebration = scorePct >= 80
+    ? { emoji: '🎉', title: 'Fantastic work!', msg: 'You crushed this set.' }
+    : scorePct >= 50
+    ? { emoji: '💪', title: 'Nice progress!', msg: 'Keep practicing to build mastery.' }
+    : { emoji: '🌱', title: 'Every rep counts.', msg: 'Mistakes are how mastery grows — try another set.' }
+
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Progress */}
-      <div className="flex items-center gap-2 mb-4">
+      {/* Progress + score */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between text-sm text-stone-500 mb-2">
+          <span>{answeredCount} of {problems.length} answered</span>
+          <span className="font-medium text-stone-700 tabular-nums">{correctCount} correct</span>
+        </div>
+        <div className="h-2 rounded-full bg-stone-100 overflow-hidden" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100}>
+          <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-500" style={{ width: `${progressPct}%` }} />
+        </div>
+      </div>
+
+      {/* Completion celebration */}
+      {allAnswered && (
+        <div className="mb-4 animate-pop rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-brand p-6 text-center">
+          <div className="text-4xl mb-2" aria-hidden>{celebration.emoji}</div>
+          <h2 className="text-xl font-bold">{celebration.title}</h2>
+          <p className="text-orange-50 mt-1">{celebration.msg}</p>
+          <p className="mt-3 text-3xl font-bold tabular-nums">{correctCount}/{problems.length}</p>
+          <Link href="/student/practice">
+            <button className="mt-4 bg-white text-orange-600 font-semibold px-6 py-2 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm">
+              Back to practice sets
+            </button>
+          </Link>
+        </div>
+      )}
+
+      {/* Problem number dots */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         {problems.map((_, i) => (
           <button
             key={i}
-            onClick={() => { setCurrentIndex(i); setAnswer(''); setShowHint(false) }}
-            className={`w-8 h-8 rounded-full text-xs font-medium transition-all ${
+            onClick={() => goTo(i)}
+            aria-label={`Problem ${i + 1}${attempts.has(i) ? (attempts.get(i)!.correct ? ', correct' : ', incorrect') : ''}`}
+            aria-current={i === currentIndex ? 'true' : undefined}
+            className={`w-8 h-8 rounded-full text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 ${
               i === currentIndex
                 ? 'bg-orange-500 text-white'
                 : attempts.has(i)
@@ -146,9 +186,9 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
 
         {/* Answer area */}
         {existingResult ? (
-          <div className={`rounded-xl px-4 py-3 ${existingResult.correct ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+          <div className={`animate-pop rounded-xl px-4 py-3 ${existingResult.correct ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
             <p className="text-sm font-medium mb-1">
-              {existingResult.correct ? 'Correct!' : 'Not quite.'}
+              {existingResult.correct ? '✓ Correct!' : 'Not quite.'}
             </p>
             <p className="text-xs text-stone-500">Your answer: {existingResult.answer}</p>
             {!existingResult.correct && existingResult.correctAnswer && (
@@ -159,6 +199,14 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
             {!existingResult.correct && (
               <p className="text-xs text-orange-500 mt-2">Keep going — every mistake is a step closer to mastery!</p>
             )}
+            {currentIndex < problems.length - 1 && (
+              <button
+                onClick={() => goTo(currentIndex + 1)}
+                className="mt-3 text-sm font-semibold text-orange-600 hover:text-orange-700"
+              >
+                Next problem →
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex gap-2">
@@ -168,6 +216,7 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitAnswer()}
               placeholder="Type your answer..."
+              aria-label="Your answer"
               className="flex-1 px-4 py-2 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-orange-400"
             />
             <Button onClick={submitAnswer} loading={submitting} size="sm">
@@ -182,7 +231,7 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => { setCurrentIndex((i) => Math.max(0, i - 1)); setAnswer(''); setShowHint(false) }}
+          onClick={() => goTo(Math.max(0, currentIndex - 1))}
           disabled={currentIndex === 0}
         >
           Previous
@@ -190,7 +239,7 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => { setCurrentIndex((i) => Math.min(problems.length - 1, i + 1)); setAnswer(''); setShowHint(false) }}
+          onClick={() => goTo(Math.min(problems.length - 1, currentIndex + 1))}
           disabled={currentIndex === problems.length - 1}
         >
           Next
