@@ -72,6 +72,10 @@ backend change that unblocks the mobile app is **Bearer-token auth** — today
   time series; `MasteryTrend` area chart shows it (current % + delta since
   start) on the student progress page and the parent child-detail page.
   Existing users' trends populate as new sessions/practice happen.
+- **Chat upgrade** ✅: student AI chat now persists per-user to localStorage
+  (survives refresh), offers starter-prompt chips on an empty chat (a couple
+  showcase inline graphs), and has a "New chat" control. Accessibility: labeled
+  input, aria-hidden avatar/icon.
 
 ## Visualizations
 
