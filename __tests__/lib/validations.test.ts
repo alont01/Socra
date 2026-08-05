@@ -38,9 +38,14 @@ describe('validation schemas', () => {
       expect(result.success).toBe(true)
     })
 
-    it('accepts TUTOR role', () => {
-      const result = signupSchema.safeParse({ ...valid, role: 'TUTOR' })
+    it('accepts PARENT role', () => {
+      const result = signupSchema.safeParse({ ...valid, role: 'PARENT' })
       expect(result.success).toBe(true)
+    })
+
+    it('rejects TUTOR role at public signup (tutors are invite-only)', () => {
+      const result = signupSchema.safeParse({ ...valid, role: 'TUTOR' })
+      expect(result.success).toBe(false)
     })
 
     it('rejects invalid role', () => {

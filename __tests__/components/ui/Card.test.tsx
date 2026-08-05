@@ -12,22 +12,22 @@ describe('Card', () => {
     const { container } = render(<Card>Base</Card>)
     const card = container.firstChild as HTMLElement
     expect(card.className).toContain('bg-white')
-    expect(card.className).toContain('border-orange-100')
-    expect(card.className).toContain('rounded-2xl')
+    expect(card.className).toContain('ring-stone-900/5')
+    expect(card.className).toContain('rounded-3xl')
   })
 
   it('applies hover styles when hover=true', () => {
     const { container } = render(<Card hover>Hoverable</Card>)
     const card = container.firstChild as HTMLElement
-    expect(card.className).toContain('hover:shadow-md')
-    expect(card.className).toContain('hover:border-orange-200')
+    expect(card.className).toContain('hover:shadow-elevated')
+    expect(card.className).toContain('hover:ring-orange-200/70')
     expect(card.className).toContain('cursor-pointer')
   })
 
   it('does not apply hover styles when hover is false by default', () => {
     const { container } = render(<Card>Not hoverable</Card>)
     const card = container.firstChild as HTMLElement
-    expect(card.className).not.toContain('hover:shadow-md')
+    expect(card.className).not.toContain('hover:shadow-elevated')
     expect(card.className).not.toContain('cursor-pointer')
   })
 

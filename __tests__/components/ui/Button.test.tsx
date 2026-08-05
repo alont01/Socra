@@ -11,7 +11,8 @@ describe('Button', () => {
   it('applies primary variant styles by default', () => {
     render(<Button>Primary</Button>)
     const button = screen.getByRole('button')
-    expect(button.className).toContain('bg-orange-500')
+    expect(button.className).toContain('from-orange-500')
+    expect(button.className).toContain('text-white')
   })
 
   it('applies secondary variant styles', () => {
@@ -25,7 +26,7 @@ describe('Button', () => {
     render(<Button variant="ghost">Ghost</Button>)
     const button = screen.getByRole('button')
     expect(button.className).toContain('bg-transparent')
-    expect(button.className).toContain('text-stone-700')
+    expect(button.className).toContain('text-stone-600')
   })
 
   it('applies danger variant styles', () => {

@@ -29,14 +29,14 @@ describe('Input', () => {
   it('applies error styling to input when error prop provided', () => {
     render(<Input error="Invalid input" />)
     const input = screen.getByRole('textbox')
-    expect(input.className).toContain('border-red-400')
+    expect(input.className).toContain('ring-red-400')
     expect(input.className).toContain('focus:ring-red-400')
   })
 
   it('does not apply error styling when no error', () => {
     render(<Input placeholder="normal input" />)
     const input = screen.getByRole('textbox')
-    expect(input.className).not.toContain('border-red-400')
+    expect(input.className).not.toContain('ring-red-400')
   })
 
   it('calls onChange handler when value changes', () => {
