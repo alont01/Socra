@@ -1,0 +1,31 @@
+name: Production smoke
+
+# Runs the live-environment smoke test (scripts/smoke.mjs) against the deployed
+# app: on a schedule (catch a broken deploy or downtime), and on demand via the
+# Actions tab. The script only makes HTTP requests — no build or DB access — so
+# it needs no secrets and no dependency install.
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # every 6 hours
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Base URL to smoke test
+        required: false
+        default: https://www.socratutoring.com
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Smoke test the live environment
+        run: node scripts/smoke.mjs
+        env:
+          SMOKE_URL: ${{ github.event.inputs.url || 'https://www.socratutoring.com' }}
