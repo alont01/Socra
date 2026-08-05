@@ -15,6 +15,20 @@ export const anthropic = new Anthropic()
  * `operation` is a short label (e.g. "analysis", "practice_set") recorded as
  * the event name `ai.<operation>`.
  */
+/**
+ * Safely pull the text out of a model response.
+ *
+ * The naive `response.content[0].text` pattern throws when the content array
+ * is empty and silently returns nothing if the first block isn't text (e.g. a
+ * leading tool-use or thinking block). This finds the first text block and
+ * returns '' when there is none, so callers degrade to their parse-failure
+ * path instead of crashing the pipeline.
+ */
+export function firstText(response: Anthropic.Message): string {
+  const block = response.content.find((b) => b.type === 'text')
+  return block && block.type === 'text' ? block.text : ''
+}
+
 export async function trackedMessage(
   operation: string,
   params: Anthropic.Messages.MessageCreateParamsNonStreaming,

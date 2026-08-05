@@ -1,4 +1,4 @@
-import { trackedMessage } from './client'
+import { trackedMessage, firstText } from './client'
 import { config } from '@/lib/config'
 
 export async function extractHandwrittenNotes(imageBase64: string): Promise<string> {
@@ -30,6 +30,5 @@ Output only the transcribed content, nothing else.`,
     ],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  return text.trim()
+  return firstText(response).trim()
 }

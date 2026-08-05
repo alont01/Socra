@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { trackedMessage } from './client'
+import { trackedMessage, firstText } from './client'
 import { extractJson } from './parse-json'
 import type { SessionAnalysisResult } from './types'
 import { config } from '@/lib/config'
@@ -69,7 +69,7 @@ Only output the JSON, nothing else.`
     ],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = firstText(response)
 
   const result = extractJson<Partial<SessionAnalysisResult>>(text)
   if (!result) {

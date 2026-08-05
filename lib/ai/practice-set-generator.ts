@@ -1,4 +1,4 @@
-import { trackedMessage } from './client'
+import { trackedMessage, firstText } from './client'
 import { extractJson } from './parse-json'
 import type { PracticeProblem } from './types'
 import { VISUAL_PROMPT_JSON } from './visual-prompt'
@@ -55,7 +55,7 @@ Only output the JSON array, nothing else.`,
     ],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = firstText(response)
 
   const parsed = extractJson<Array<PracticeProblem & { answer?: string }>>(text)
   if (!Array.isArray(parsed)) {

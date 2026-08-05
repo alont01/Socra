@@ -95,7 +95,7 @@ export async function processSessionPostCompletion(sessionId: string) {
 
 // Enough signal to analyze? A whiteboard drawing alone counts; otherwise we
 // need a reasonable amount of transcript/notes text (not just a stray word).
-function hasMeaningfulContent(
+export function hasMeaningfulContent(
   transcript: string,
   tutorNotes: string,
   capturedNotes: string,
