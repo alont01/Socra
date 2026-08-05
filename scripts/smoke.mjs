@@ -9,16 +9,20 @@
 //   node scripts/smoke.mjs                         # defaults to production
 //   SMOKE_URL=https://staging.example.com npm run smoke
 //   node scripts/smoke.mjs http://localhost:3000
+//   node scripts/smoke.mjs --wait                  # poll /api/health until
+//                                                  # healthy first (post-deploy)
 //
 // Exits 0 if every check passes, 1 otherwise.
 
-const BASE = (process.argv[2] || process.env.SMOKE_URL || 'https://www.socratutoring.com').replace(/\/$/, '')
-const TIMEOUT_MS = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
+const args = process.argv.slice(2)
+const flags = args.filter((a) => a.startsWith('--'))
+const positional = args.filter((a) => !a.startsWith('--'))
 
-const checks = []
-function check(name, fn) {
-  checks.push({ name, fn })
-}
+const BASE = (positional[0] || process.env.SMOKE_URL || 'https://www.socratutoring.com').replace(/\/$/, '')
+const TIMEOUT_MS = Number(process.env.SMOKE_TIMEOUT_MS || 20000)
+const WAIT = flags.includes('--wait') || process.env.SMOKE_WAIT === '1'
+const WAIT_TIMEOUT_MS = Number(process.env.SMOKE_WAIT_TIMEOUT_MS || 180000)
+const WAIT_INTERVAL_MS = Number(process.env.SMOKE_WAIT_INTERVAL_MS || 5000)
 
 async function fetchWithTimeout(path, init = {}) {
   const controller = new AbortController()
@@ -28,6 +32,36 @@ async function fetchWithTimeout(path, init = {}) {
   } finally {
     clearTimeout(timer)
   }
+}
+
+// Poll the health probe until the deployment reports healthy. Useful right
+// after a deploy, when the host may briefly 502 while the new build boots.
+async function waitForHealthy() {
+  const deadline = Date.now() + WAIT_TIMEOUT_MS
+  process.stdout.write(`  Waiting for ${BASE} to be healthy `)
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetchWithTimeout('/api/health')
+      if (res.status === 200) {
+        const body = await res.json()
+        if (body.status === 'ok') {
+          process.stdout.write(' \x1b[32mup\x1b[0m\n')
+          return true
+        }
+      }
+    } catch {
+      // not up yet — keep polling
+    }
+    process.stdout.write('.')
+    await new Promise((r) => setTimeout(r, WAIT_INTERVAL_MS))
+  }
+  process.stdout.write(' \x1b[31mtimed out\x1b[0m\n')
+  return false
+}
+
+const checks = []
+function check(name, fn) {
+  checks.push({ name, fn })
 }
 
 check('health probe returns 200 + status ok + db up', async () => {
@@ -55,6 +89,16 @@ check('auth page loads', async () => {
 
 const run = async () => {
   console.log(`\n  Smoke test → ${BASE}\n`)
+
+  if (WAIT) {
+    const healthy = await waitForHealthy()
+    if (!healthy) {
+      console.log(`\n  \x1b[31mDeployment never became healthy — aborting.\x1b[0m\n`)
+      process.exit(1)
+    }
+    console.log('')
+  }
+
   let failed = 0
   for (const { name, fn } of checks) {
     try {

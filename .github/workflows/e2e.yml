@@ -32,6 +32,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      # A push to master triggers a redeploy that briefly 502s while the new
+      # build boots. Wait for the target to report healthy before driving a
+      # browser at it, so E2E doesn't flake on the deploy window.
+      - name: Wait for the deployment to be healthy
+        run: node scripts/smoke.mjs --wait
+        env:
+          SMOKE_URL: ${{ github.event.inputs.url || 'https://www.socratutoring.com' }}
+
       - name: Run E2E against the live environment
         run: npx playwright test
         env:
