@@ -10,6 +10,7 @@ import { TranscriptViewer } from '@/components/session/TranscriptViewer'
 import { TutorFeedbackCard } from '@/components/session/TutorFeedbackCard'
 import { HomeworkManager } from '@/components/practice/HomeworkManager'
 import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 import Link from 'next/link'
 import type { AnalysisData, TranscriptData } from '@/types'
 
@@ -125,8 +126,21 @@ export default function ReviewPage({
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#FFFBF5] flex items-center justify-center">
-        <LoadingDots />
+      <div className="min-h-screen bg-[#FFFBF5]">
+        <Navbar />
+        <main className="max-w-6xl mx-auto px-4 py-8">
+          <Skeleton className="h-8 w-48 mb-6 rounded-lg" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <Skeleton className="h-48 rounded-3xl" />
+              <Skeleton className="h-40 rounded-3xl" />
+            </div>
+            <div className="space-y-6">
+              <Skeleton className="h-48 rounded-3xl" />
+              <Skeleton className="h-40 rounded-3xl" />
+            </div>
+          </div>
+        </main>
       </div>
     )
   }
@@ -166,8 +180,15 @@ export default function ReviewPage({
         </div>
 
         {status === 'loading' && (
-          <div className="flex justify-center py-12">
-            <LoadingDots />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <Skeleton className="h-48 rounded-3xl" />
+              <Skeleton className="h-40 rounded-3xl" />
+            </div>
+            <div className="space-y-6">
+              <Skeleton className="h-48 rounded-3xl" />
+              <Skeleton className="h-40 rounded-3xl" />
+            </div>
           </div>
         )}
 

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/Navbar'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 type Tab = 'audit' | 'events'
 
@@ -203,7 +203,11 @@ export default function AdminLogsPage() {
             {/* Table */}
             <div className="rounded-3xl ring-1 ring-stone-900/5 bg-white shadow-soft overflow-hidden">
               {state === 'loading' ? (
-                <div className="flex justify-center py-16"><LoadingDots /></div>
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <Skeleton key={i} className="h-9 rounded-lg" />
+                  ))}
+                </div>
               ) : state === 'error' ? (
                 <div className="py-16 text-center text-stone-500">Failed to load logs.</div>
               ) : rows.length === 0 ? (

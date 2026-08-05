@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/Navbar'
 import { Button } from '@/components/ui/Button'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/hooks/useToast'
 
 interface Invite {
@@ -131,7 +131,11 @@ export default function AdminTutorsPage() {
             <section className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft overflow-hidden">
               <h2 className="font-semibold text-stone-900 px-6 pt-6 pb-3">Recent invites</h2>
               {state === 'loading' ? (
-                <div className="flex justify-center py-12"><LoadingDots /></div>
+                <div className="px-6 pb-6 space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-9 rounded-lg" />
+                  ))}
+                </div>
               ) : !invites || invites.length === 0 ? (
                 <p className="px-6 pb-8 text-sm text-stone-400 text-center">No invites yet.</p>
               ) : (

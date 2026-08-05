@@ -13,7 +13,7 @@ import { Whiteboard } from '@/components/session/Whiteboard'
 import { useWhiteboardSync } from '@/hooks/useWhiteboardSync'
 import { useLivePracticeSync } from '@/hooks/useLivePracticeSync'
 import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { Navbar } from '@/components/Navbar'
 import { useToast } from '@/hooks/useToast'
 import type { DailyCall } from '@daily-co/daily-js'
@@ -286,8 +286,15 @@ export default function SessionPage({
 
   if (authLoading || sessionLoading) {
     return (
-      <div className="min-h-screen bg-[#FFFBF5] flex items-center justify-center">
-        <LoadingDots />
+      <div className="min-h-screen bg-[#FFFBF5]">
+        <Navbar />
+        <main className="max-w-6xl mx-auto px-4 py-16">
+          <div className="mx-auto max-w-md space-y-4">
+            <Skeleton className="h-8 w-2/3 mx-auto rounded-lg" />
+            <Skeleton className="h-64 rounded-3xl" />
+            <Skeleton className="h-11 w-40 mx-auto rounded-xl" />
+          </div>
+        </main>
       </div>
     )
   }

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Navbar } from '@/components/Navbar'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { LoadingDots } from '@/components/ui/LoadingDots'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface Metrics {
   windowMinutes: number
@@ -125,7 +125,15 @@ export default function AdminDashboardPage() {
         </div>
 
         {status === 'loading' && (
-          <div className="flex justify-center py-12"><LoadingDots /></div>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 rounded-2xl" />
+              ))}
+            </div>
+            <Skeleton className="h-52 rounded-2xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+          </div>
         )}
 
         {status === 'forbidden' && (
