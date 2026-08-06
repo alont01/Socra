@@ -71,22 +71,30 @@ export function consultationTeamEmailHtml(lead: ConsultationLead): string {
   `)
 }
 
-/** Auto-reply confirming to the parent that we received their request. */
-export function consultationParentEmailHtml(name?: string | null): string {
+/**
+ * Auto-reply confirming to the parent that we received their request.
+ * `bookingUrl` (the Cal.com/Calendly link) is used for the button so the parent
+ * can book straight from the email; when it's not configured we ask them to
+ * reply, rather than linking back to a page with no scheduler.
+ */
+export function consultationParentEmailHtml(name?: string | null, bookingUrl?: string | null): string {
   const greeting = name && name.trim() ? `Hi ${name.trim()},` : 'Hi there,'
+  const link = bookingUrl && bookingUrl.trim() ? bookingUrl.trim() : ''
+  const body = link
+    ? `We got your request for a free consultation with Socra. Pick a time that works for you and
+       we'll take it from there:`
+    : `We got your request for a free consultation with Socra. A member of our team will be in touch
+       very shortly to find a time that works for you.`
+  const button = link
+    ? `<a href="${link}" style="display: inline-block; background: #f97316; color: #fff; font-weight: 600; text-decoration: none; padding: 12px 22px; border-radius: 11px; font-size: 15px;">
+         Pick your session time
+       </a>`
+    : ''
   return shell(`
     <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Thanks for reaching out!</h1>
-    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">
-      ${greeting}
-    </p>
-    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">
-      We got your request for a free consultation with Socra. A member of our team will be in
-      touch shortly to find a time that works — or, if you haven't already, you can pick a slot
-      right away on our scheduling page.
-    </p>
-    <a href="https://socratutoring.com/get-started" style="display: inline-block; background: #f97316; color: #fff; font-weight: 600; text-decoration: none; padding: 12px 22px; border-radius: 11px; font-size: 15px;">
-      Book your free session
-    </a>
+    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">${greeting}</p>
+    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">${body}</p>
+    ${button}
     <p style="color: #78716c; font-size: 13px; margin-top: 24px; line-height: 1.5;">
       Questions? Just reply to this email or call (518) 645-2165.
     </p>

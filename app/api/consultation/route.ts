@@ -11,6 +11,7 @@ const logger = createLogger('consultation')
 // Where inbound lead notifications go. Defaults to the team inbox; override
 // with TEAM_EMAIL in the environment.
 const TEAM_EMAIL = process.env.TEAM_EMAIL || 'hello@socratutoring.com'
+const BOOKING_URL = () => process.env.BOOKING_URL || process.env.NEXT_PUBLIC_BOOKING_URL || ''
 
 // Public endpoint — no auth. A prospective parent submits the /get-started
 // form; we persist the lead, notify the team, and confirm to the parent.
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
       sendEmail({
         to: email,
         subject: 'We got your request — Socra',
-        html: consultationParentEmailHtml(name),
+        html: consultationParentEmailHtml(name, BOOKING_URL()),
       }),
     ])
 
