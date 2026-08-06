@@ -113,6 +113,17 @@ export const imageBase64Schema = z.object({
   imageBase64: z.string().min(1),
 })
 
+// ── Public consultation lead (parent-facing /get-started page) ──
+
+export const consultationSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  name: z.string().trim().max(120).optional().or(z.literal('')),
+  phone: z.string().trim().max(40).optional().or(z.literal('')),
+  studentGrade: z.string().trim().max(60).optional().or(z.literal('')),
+  message: z.string().trim().max(2000).optional().or(z.literal('')),
+  source: z.string().trim().max(60).optional().or(z.literal('')),
+})
+
 // ── Utility for parsing and returning errors ──
 
 export function parseBody<T>(schema: z.ZodSchema<T>, data: unknown): { data: T } | { error: string } {

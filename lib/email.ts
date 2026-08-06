@@ -38,6 +38,61 @@ const shell = (body: string) => `
   </div>
 `
 
+interface ConsultationLead {
+  email: string
+  name?: string | null
+  phone?: string | null
+  studentGrade?: string | null
+  message?: string | null
+  source?: string | null
+}
+
+const row = (label: string, value?: string | null) =>
+  value && value.trim()
+    ? `<tr><td style="padding: 4px 12px 4px 0; color: #78716c; font-size: 13px; vertical-align: top;">${label}</td><td style="padding: 4px 0; color: #1c1917; font-size: 14px;">${value}</td></tr>`
+    : ''
+
+/** Internal notification to the team when a parent requests a consultation. */
+export function consultationTeamEmailHtml(lead: ConsultationLead): string {
+  return shell(`
+    <h1 style="font-size: 20px; font-weight: 700; margin-bottom: 6px;">New consultation request</h1>
+    <p style="color: #57534e; margin-bottom: 20px; line-height: 1.6; font-size: 14px;">
+      A parent just reached out from the website. Follow up soon to book their free first session.
+    </p>
+    <table style="border-collapse: collapse; width: 100%; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 12px; padding: 8px;">
+      ${row('Email', lead.email)}
+      ${row('Name', lead.name)}
+      ${row('Phone', lead.phone)}
+      ${row('Student grade', lead.studentGrade)}
+      ${row('Message', lead.message)}
+      ${row('Source', lead.source)}
+    </table>
+    <p style="color: #a8a29e; font-size: 12px; margin-top: 20px;">Sent automatically by Socra.</p>
+  `)
+}
+
+/** Auto-reply confirming to the parent that we received their request. */
+export function consultationParentEmailHtml(name?: string | null): string {
+  const greeting = name && name.trim() ? `Hi ${name.trim()},` : 'Hi there,'
+  return shell(`
+    <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Thanks for reaching out!</h1>
+    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">
+      ${greeting}
+    </p>
+    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">
+      We got your request for a free consultation with Socra. A member of our team will be in
+      touch shortly to find a time that works — or, if you haven't already, you can pick a slot
+      right away on our scheduling page.
+    </p>
+    <a href="https://socratutoring.com/get-started" style="display: inline-block; background: #f97316; color: #fff; font-weight: 600; text-decoration: none; padding: 12px 22px; border-radius: 11px; font-size: 15px;">
+      Book your free session
+    </a>
+    <p style="color: #78716c; font-size: 13px; margin-top: 24px; line-height: 1.5;">
+      Questions? Just reply to this email or call (518) 645-2165.
+    </p>
+  `)
+}
+
 export function verificationEmailHtml(code: string): string {
   return shell(`
     <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Verify your email</h1>

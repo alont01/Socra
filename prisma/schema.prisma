@@ -288,3 +288,22 @@ model TutorInvite {
 
   @@index([status])
 }
+
+// A prospective-parent lead captured on the public /get-started page. Not tied
+// to a User account — these are inbound consultation requests the team follows
+// up on (and/or that get booked via the embedded scheduler).
+model ConsultationRequest {
+  id           String   @id @default(cuid())
+  email        String
+  name         String?
+  phone        String?
+  studentGrade String?
+  message      String?
+  source       String   @default("website") // e.g. website | flyer | landing
+  status       String   @default("new")      // new | contacted | scheduled | closed
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}

@@ -101,9 +101,9 @@ export default function LandingPage() {
             </p>
 
             <div className="flex items-center justify-center lg:justify-start gap-3 flex-wrap animate-fade-in-up [animation-delay:180ms]">
-              <Link href="/auth">
+              <Link href="/get-started">
                 <Button size="lg" className="text-base px-8">
-                  Get Started Free
+                  Book a Free Session
                 </Button>
               </Link>
               <Link href="/auth">
@@ -267,9 +267,9 @@ export default function LandingPage() {
             <p className="text-orange-50/90 mb-8 text-lg max-w-xl mx-auto">
               Join tutors and students building real math understanding with Socra.
             </p>
-            <Link href="/auth">
+            <Link href="/get-started">
               <button className="bg-white text-orange-600 font-semibold px-8 py-3.5 rounded-xl shadow-lg shadow-orange-900/10 transition-all duration-200 ease-out hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98]">
-                Get Started Free
+                Book a Free Session
               </button>
             </Link>
           </div>
