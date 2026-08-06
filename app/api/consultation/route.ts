@@ -11,7 +11,7 @@ const logger = createLogger('consultation')
 
 // Where inbound lead notifications go. Defaults to the team inbox; override
 // with TEAM_EMAIL in the environment.
-const TEAM_EMAIL = process.env.TEAM_EMAIL || 'hello@socratutoring.com'
+const TEAM_EMAIL = process.env.TEAM_EMAIL || 'team@socratutoring.com'
 
 // Public endpoint — no auth. A prospective parent submits the /get-started
 // form; we persist the lead, notify the team, and confirm to the parent.

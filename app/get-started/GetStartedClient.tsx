@@ -137,7 +137,7 @@ export default function GetStartedClient({ bookingUrl }: { bookingUrl: string })
                   &ldquo;Struggling with math? We&rsquo;ll make it click.&rdquo;
                 </p>
                 <p className="text-xs text-orange-100/80 mt-3">
-                  Questions? Call (518) 645-2165 or email hello@socratutoring.com
+                  Questions? Call (518) 645-2165 or email team@socratutoring.com
                 </p>
               </div>
             </aside>
