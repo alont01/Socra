@@ -2,9 +2,27 @@ import { z } from 'zod'
 
 // ── Auth ──
 
+// The identifier is an email OR a username (parent-created student accounts log
+// in with a username). Kept under the `email` key for client compatibility.
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().min(1, 'Email or username is required'),
   password: z.string().min(1, 'Password is required'),
+})
+
+// Parent creates a child's student account. No student email required — the
+// parent sets a username + password the child uses to log in.
+export const addChildSchema = z.object({
+  name: z.string().trim().min(1, 'Child name is required').max(80),
+  gradeLevel: z.string().trim().max(40).optional().or(z.literal('')),
+  goals: z.string().trim().max(500).optional().or(z.literal('')),
+  username: z
+    .string()
+    .trim()
+    .regex(
+      /^[a-zA-Z][a-zA-Z0-9._-]{2,23}$/,
+      'Username must be 3–24 characters, start with a letter, and use only letters, numbers, . _ -',
+    ),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
 })
 
 // Public signup is limited to STUDENT and PARENT. Tutor accounts are created

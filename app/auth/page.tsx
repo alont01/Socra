@@ -195,9 +195,11 @@ function AuthForm() {
         )}
 
         <Input
-          label="Email"
-          type="email"
-          placeholder="you@example.com"
+          label={tab === 'login' ? 'Email or username' : 'Email'}
+          type={tab === 'login' ? 'text' : 'email'}
+          placeholder={tab === 'login' ? 'you@example.com or username' : 'you@example.com'}
+          autoCapitalize={tab === 'login' ? 'none' : undefined}
+          autoCorrect={tab === 'login' ? 'off' : undefined}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required

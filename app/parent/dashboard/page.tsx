@@ -60,9 +60,9 @@ export default function ParentDashboardPage() {
               <h1 className="text-2xl font-bold tracking-tight">Hi {parentName}!</h1>
               <p className="text-orange-100 mt-1">Follow your child&apos;s math progress, session by session.</p>
             </div>
-            <Link href="/parent/join">
+            <Link href="/parent/children/new">
               <button className="shrink-0 bg-white text-orange-600 font-semibold px-5 py-2 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm">
-                Link a child +
+                Add a child +
               </button>
             </Link>
           </div>
@@ -85,13 +85,16 @@ export default function ParentDashboardPage() {
                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm11 10v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11" />
               </svg>
             </div>
-            <h2 className="font-semibold text-stone-900 mb-1">No children linked yet</h2>
-            <p className="text-stone-500 text-sm mb-5">Ask your child or their tutor for an invite code, then link their account.</p>
-            <Link href="/parent/join">
+            <h2 className="font-semibold text-stone-900 mb-1">Add your first child</h2>
+            <p className="text-stone-500 text-sm mb-5">Set up your child&apos;s account to start tracking their progress. It takes a minute.</p>
+            <Link href="/parent/children/new">
               <button className="bg-orange-500 text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-orange-600 transition-colors text-sm">
-                Enter invite code
+                Add your child
               </button>
             </Link>
+            <p className="text-xs text-stone-400 mt-4">
+              Already have an invite code from a tutor? <Link href="/parent/join" className="text-orange-600 hover:text-orange-700">Enter it here</Link>.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
