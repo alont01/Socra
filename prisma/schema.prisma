@@ -120,6 +120,9 @@ model TutoringSession {
   tutorNotes    String    @default("")
   capturedNotes   String    @default("")
   whiteboardImage String    @default("")
+  // Rolling live-caption buffer captured during the call (tutor client). Used as
+  // a fallback for analysis when the async Daily VTT fetch comes back empty.
+  liveTranscript  String    @default("")
   masteryApplied  Boolean   @default(false) // guards against double-counting mastery on re-analysis
   createdAt       DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

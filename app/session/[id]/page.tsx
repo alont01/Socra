@@ -41,7 +41,7 @@ export default function SessionPage({
   const [callFrame, setCallFrame] = useState<DailyCall | null>(null)
   const [whiteboardActive, setWhiteboardActive] = useState(false)
   const [remoteCanvasState, setRemoteCanvasState] = useState<string | null>(null)
-  const whiteboardSnapshotRef = useRef<(() => string | null) | null>(null)
+  const whiteboardSnapshotRef = useRef<((opts?: { maxDim?: number }) => string | null) | null>(null)
   const whiteboardDrawRef = useRef<((svgs: string[]) => Promise<void>) | null>(null)
   const transcriptBufferRef = useRef<string[]>([])
   const [showVisualize, setShowVisualize] = useState(false)
@@ -151,9 +151,11 @@ export default function SessionPage({
   // the tutor's client, which is the one that triggers visualization.
   useEffect(() => {
     if (!callFrame || !isTutor) return
-    const onMsg = (ev: { text?: string; is_final?: boolean; participantId?: string }) => {
+    const onMsg = (ev: { text?: string; participantId?: string; rawResponse?: { is_final?: boolean } }) => {
       const text = typeof ev?.text === 'string' ? ev.text.trim() : ''
-      if (!text || ev?.is_final === false) return
+      // Daily has no top-level is_final; finality (when present) lives in
+      // rawResponse. Skip interim partials so the buffer holds settled speech.
+      if (!text || ev?.rawResponse?.is_final === false) return
       let speaker = 'Student'
       try {
         const local = callFrame.participants()?.local
@@ -173,7 +175,8 @@ export default function SessionPage({
     () => ({
       transcript: transcriptBufferRef.current.join('\n'),
       notes: '',
-      whiteboardImage: whiteboardSnapshotRef.current?.() ?? null,
+      // Downscaled, and null when the board is blank (skip a pointless image).
+      whiteboardImage: whiteboardSnapshotRef.current?.({ maxDim: 1024 }) ?? null,
     }),
     [],
   )
@@ -301,6 +304,19 @@ export default function SessionPage({
             body: JSON.stringify({ imageBase64: base64 }),
           })
         }
+      }
+
+      // Persist the live-caption buffer as a transcript fallback (before /end,
+      // so the async analysis pipeline sees it). Best-effort.
+      const liveTranscript = transcriptBufferRef.current.join('\n')
+      if (liveTranscript) {
+        try {
+          await fetch(`/api/tutoring-sessions/${id}/live-transcript`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcript: liveTranscript }),
+          })
+        } catch { /* non-critical */ }
       }
 
       const res = await fetch(`/api/tutoring-sessions/${id}/end`, { method: 'POST' })

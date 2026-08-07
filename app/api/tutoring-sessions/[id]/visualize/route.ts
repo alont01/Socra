@@ -27,7 +27,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const transcript = typeof body.transcript === 'string' ? body.transcript.slice(-4000) : ''
     const notes = typeof body.notes === 'string' ? body.notes.slice(-2000) : ''
     const hint = typeof body.hint === 'string' ? body.hint.slice(0, 400) : ''
-    const whiteboardImage = typeof body.whiteboardImage === 'string' ? body.whiteboardImage : ''
+    // Guard against an oversized image blowing up the AI payload — drop it if
+    // it's implausibly large (the client already downscales).
+    const rawImage = typeof body.whiteboardImage === 'string' ? body.whiteboardImage : ''
+    const whiteboardImage = rawImage.length <= 1_500_000 ? rawImage : ''
     // Modify loop: the tutor previews a draft and types a change to refine it.
     const instruction = typeof body.instruction === 'string' ? body.instruction.slice(0, 500) : ''
     const currentSpec = body.currentSpec && typeof body.currentSpec === 'object' ? body.currentSpec : null

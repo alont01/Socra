@@ -37,7 +37,10 @@ export async function processSessionPostCompletion(sessionId: string) {
   // whiteboard), don't ask the model to analyze "nothing" — it would
   // hallucinate. Save a clear, retryable state and stop.
   const hasWhiteboard = !!session.whiteboardImage
-  if (!hasMeaningfulContent(transcriptText, session.tutorNotes, session.capturedNotes, hasWhiteboard)) {
+  // The live-caption buffer is a better fallback than notes when the Daily VTT
+  // fetch comes back empty (it's the actual dialogue).
+  const bestTranscript = transcriptText || session.liveTranscript || ''
+  if (!hasMeaningfulContent(bestTranscript, session.tutorNotes, session.capturedNotes, hasWhiteboard)) {
     logger.warn('Insufficient content to analyze', { sessionId })
     await saveInsufficientAnalysis(sessionId)
     recordEvent({
@@ -51,9 +54,9 @@ export async function processSessionPostCompletion(sessionId: string) {
   }
 
   // Step 2: Analyze session
-  const contentToAnalyze = transcriptText || session.tutorNotes || session.capturedNotes || ''
+  const contentToAnalyze = transcriptText || session.liveTranscript || session.tutorNotes || session.capturedNotes || ''
   if (!transcriptText) {
-    logger.warn('No transcript available, falling back to notes', { sessionId, hasNotes: !!session.tutorNotes, hasCaptured: !!session.capturedNotes })
+    logger.warn('No VTT transcript; falling back', { sessionId, hasLive: !!session.liveTranscript, hasNotes: !!session.tutorNotes, hasCaptured: !!session.capturedNotes })
   }
 
   const analysis = await analyzeAndSave(sessionId, {

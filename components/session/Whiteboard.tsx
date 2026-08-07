@@ -9,7 +9,7 @@ interface WhiteboardProps {
   isTutor: boolean
   onCanvasStateChange?: (json: string) => void
   remoteCanvasState?: string | null
-  snapshotRef?: React.MutableRefObject<(() => string | null) | null>
+  snapshotRef?: React.MutableRefObject<((opts?: { maxDim?: number }) => string | null) | null>
   // Imperative hook for the AI "Visualize" feature: given a list of SVG strings,
   // render them onto the tutor's canvas as images (which then sync to the student).
   drawRef?: React.MutableRefObject<((svgs: string[]) => Promise<void>) | null>
@@ -75,11 +75,20 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
       fabricCanvasRef.current = canvas
       setCanvasReady(true)
 
-      // Expose snapshot function
+      // Expose snapshot function. Returns null when the board is blank (nothing
+      // drawn) so callers can skip a pointless image. `maxDim` downscales the
+      // export (the canvas is 3× tall) to keep payloads small for the AI.
       if (snapshotRef) {
-        snapshotRef.current = () => {
-          if (!fabricCanvasRef.current) return null
-          return fabricCanvasRef.current.toDataURL({ format: 'png', multiplier: 1 })
+        snapshotRef.current = (opts?: { maxDim?: number }) => {
+          const c = fabricCanvasRef.current
+          if (!c) return null
+          if (typeof c.getObjects === 'function' && c.getObjects().length === 0) return null
+          let multiplier = 1
+          if (opts?.maxDim) {
+            const longest = Math.max(c.getWidth?.() ?? 0, c.getHeight?.() ?? 0)
+            if (longest > opts.maxDim) multiplier = opts.maxDim / longest
+          }
+          return c.toDataURL({ format: 'png', multiplier })
         }
       }
 
@@ -92,7 +101,10 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
           const ImageCls = fb.FabricImage || fb.Image
           // Batch: suppress per-object sync, then fire one saveHistory at the end.
           isUpdatingRef.current = true
-          let top = 20
+          // Place near the tutor's current viewport (the canvas is 3× tall and
+          // scrolls) so the drawing appears where they're looking, not off-screen
+          // at the top over earlier work.
+          let top = (containerRef.current?.scrollTop ?? 0) + 20
           for (const svg of svgs) {
             const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
             try {
