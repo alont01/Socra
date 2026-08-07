@@ -10,6 +10,7 @@ import { StudentProblemPanel } from '@/components/session/StudentProblemPanel'
 import { JoinCallCard } from '@/components/session/JoinCallCard'
 import { CaptureNotesButton } from '@/components/session/CaptureNotesButton'
 import { Whiteboard } from '@/components/session/Whiteboard'
+import { VisualizePanel } from '@/components/session/VisualizePanel'
 import { useWhiteboardSync } from '@/hooks/useWhiteboardSync'
 import { useLivePracticeSync } from '@/hooks/useLivePracticeSync'
 import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
@@ -41,6 +42,9 @@ export default function SessionPage({
   const [whiteboardActive, setWhiteboardActive] = useState(false)
   const [remoteCanvasState, setRemoteCanvasState] = useState<string | null>(null)
   const whiteboardSnapshotRef = useRef<(() => string | null) | null>(null)
+  const whiteboardDrawRef = useRef<((svgs: string[]) => Promise<void>) | null>(null)
+  const transcriptBufferRef = useRef<string[]>([])
+  const [showVisualize, setShowVisualize] = useState(false)
   const [livePracticeProblems, setLivePracticeProblems] = useState<PracticeProblem[]>([])
   const [studentAnswers, setStudentAnswers] = useState<Map<string, StudentAnswerResult>>(new Map())
   const [studentProblems, setStudentProblems] = useState<PracticeProblem[]>([])
@@ -141,6 +145,42 @@ export default function SessionPage({
       try { callFrame.stopTranscription() } catch { /* frame already destroyed */ }
     }
   }, [callFrame, isTutor, toast])
+
+  // Keep a rolling buffer of the recent conversation (tutor side) so the AI
+  // "Visualize" feature can analyze what was just discussed. Captured only on
+  // the tutor's client, which is the one that triggers visualization.
+  useEffect(() => {
+    if (!callFrame || !isTutor) return
+    const onMsg = (ev: { text?: string; is_final?: boolean; participantId?: string }) => {
+      const text = typeof ev?.text === 'string' ? ev.text.trim() : ''
+      if (!text || ev?.is_final === false) return
+      let speaker = 'Student'
+      try {
+        const local = callFrame.participants()?.local
+        if (ev?.participantId && local && ev.participantId === local.session_id) speaker = 'Tutor'
+      } catch { /* participants unavailable */ }
+      const line = `${speaker}: ${text}`
+      const buf = transcriptBufferRef.current
+      if (buf[buf.length - 1] === line) return // dedupe repeats
+      buf.push(line)
+      if (buf.length > 40) buf.shift()
+    }
+    callFrame.on('transcription-message', onMsg)
+    return () => { try { callFrame.off('transcription-message', onMsg) } catch { /* frame gone */ } }
+  }, [callFrame, isTutor])
+
+  const getVisualizeContext = useCallback(
+    () => ({
+      transcript: transcriptBufferRef.current.join('\n'),
+      notes: '',
+      whiteboardImage: whiteboardSnapshotRef.current?.() ?? null,
+    }),
+    [],
+  )
+
+  const placeVisualization = useCallback(async (svgs: string[]) => {
+    await whiteboardDrawRef.current?.(svgs)
+  }, [])
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -351,13 +391,30 @@ export default function SessionPage({
 
         {/* Whiteboard — shown when active */}
         {whiteboardActive && (
-          <div className="flex-1">
+          <div className="flex-1 relative">
             <Whiteboard
               isTutor={isTutor}
               onCanvasStateChange={isTutor ? sendCanvasState : undefined}
               remoteCanvasState={!isTutor ? remoteCanvasState : undefined}
               snapshotRef={whiteboardSnapshotRef}
+              drawRef={isTutor ? whiteboardDrawRef : undefined}
             />
+            {isTutor && (
+              <button
+                onClick={() => setShowVisualize(true)}
+                className="absolute top-2 right-2 z-10 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 text-white text-sm font-medium px-3 py-1.5 shadow-brand hover:bg-orange-600 transition-colors"
+              >
+                <span aria-hidden>✦</span> Visualize
+              </button>
+            )}
+            {isTutor && showVisualize && (
+              <VisualizePanel
+                sessionId={id}
+                getContext={getVisualizeContext}
+                onPlace={placeVisualization}
+                onClose={() => setShowVisualize(false)}
+              />
+            )}
           </div>
         )}
 

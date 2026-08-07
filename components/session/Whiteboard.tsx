@@ -10,9 +10,12 @@ interface WhiteboardProps {
   onCanvasStateChange?: (json: string) => void
   remoteCanvasState?: string | null
   snapshotRef?: React.MutableRefObject<(() => string | null) | null>
+  // Imperative hook for the AI "Visualize" feature: given a list of SVG strings,
+  // render them onto the tutor's canvas as images (which then sync to the student).
+  drawRef?: React.MutableRefObject<((svgs: string[]) => Promise<void>) | null>
 }
 
-export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, snapshotRef }: WhiteboardProps) {
+export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, snapshotRef, drawRef }: WhiteboardProps) {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const fabricCanvasRef = useRef<any>(null)
@@ -80,6 +83,33 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
         }
       }
 
+      // Expose the AI draw function (tutor only — it mutates the live canvas).
+      if (drawRef && isTutor) {
+        drawRef.current = async (svgs: string[]) => {
+          const c = fabricCanvasRef.current
+          if (!c) return
+          const fb: any = await import('fabric')
+          const ImageCls = fb.FabricImage || fb.Image
+          // Batch: suppress per-object sync, then fire one saveHistory at the end.
+          isUpdatingRef.current = true
+          let top = 20
+          for (const svg of svgs) {
+            const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+            try {
+              const img = await ImageCls.fromURL(url)
+              img.set({ left: 20, top, selectable: true })
+              c.add(img)
+              top += (img.height || 240) + 16
+            } catch {
+              /* skip an item that fails to render */
+            }
+          }
+          c.requestRenderAll()
+          isUpdatingRef.current = false
+          saveHistory()
+        }
+      }
+
       // Save initial state
       if (isTutor) {
         initHistory(canvas)
@@ -106,6 +136,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
         fabricCanvasRef.current = null
       }
       if (snapshotRef) snapshotRef.current = null
+      if (drawRef) drawRef.current = null
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTutor])
