@@ -7,7 +7,7 @@ import { addChildSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
 import { runMatching } from '@/lib/matching'
-import { notifyTutorsOfOffers } from '@/lib/match-notify'
+import { notifyTutorsOfOffers, notifyParentOfMatch } from '@/lib/match-notify'
 
 // List the parent's linked children with a light progress summary.
 export async function GET() {
@@ -74,7 +74,6 @@ export async function POST(request: Request) {
     const password = parsed.data.password
     const desiredHoursPerWeek = parsed.data.desiredHoursPerWeek ?? 1
     const availability = JSON.stringify(parsed.data.availability ?? [])
-    const hasAvailability = (parsed.data.availability ?? []).length > 0
 
     // Friendly pre-check (a race is still caught by the unique constraint below).
     const taken = await prisma.user.findUnique({ where: { username }, select: { id: true } })
@@ -122,14 +121,22 @@ export async function POST(request: Request) {
       ...auditContext(request),
     })
 
-    // Kick off tutor matching (offers). Best-effort — never fail child creation
-    // over it. Requires availability to compute overlap.
+    // Kick off tutor matching. Best-effort — never fail child creation over it.
+    // Solo shops auto-pair directly (no availability needed); with multiple
+    // tutors, availability drives the offer flow.
     let matchStatus: string | undefined
-    if (child && hasAvailability) {
+    let matchedTutorName: string | undefined
+    if (child) {
       try {
         const result = await runMatching(child.id)
         matchStatus = result.status
-        if (result.status === 'offered') await notifyTutorsOfOffers(child.id)
+        if (result.status === 'offered') {
+          await notifyTutorsOfOffers(child.id)
+        } else if (result.status === 'auto_matched' && result.tutorId) {
+          const t = await prisma.tutorProfile.findUnique({ where: { id: result.tutorId }, select: { name: true } })
+          matchedTutorName = t?.name
+          await notifyParentOfMatch(child.id, t?.name || 'your tutor')
+        }
       } catch (e) {
         console.error('[parent children] matching failed', e)
       }
@@ -137,7 +144,12 @@ export async function POST(request: Request) {
 
     // Echo the credentials once so the parent can hand them to their child.
     return NextResponse.json(
-      { child: child ? { id: child.id, name: child.name } : null, credentials: { username, password }, matchStatus },
+      {
+        child: child ? { id: child.id, name: child.name } : null,
+        credentials: { username, password },
+        matchStatus,
+        matchedTutorName,
+      },
       { status: 201 },
     )
   } catch (err) {

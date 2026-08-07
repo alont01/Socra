@@ -3,8 +3,9 @@
  */
 jest.mock('@/lib/prisma', () => ({
   prisma: {
+    user: { findUnique: jest.fn() },
     studentProfile: { findUnique: jest.fn() },
-    tutorStudent: { findFirst: jest.fn() },
+    tutorStudent: { findFirst: jest.fn(), upsert: jest.fn() },
     tutorProfile: { findMany: jest.fn() },
     tutorMatchOffer: { updateMany: jest.fn(), count: jest.fn(), findMany: jest.fn(), upsert: jest.fn() },
     $transaction: jest.fn(),
@@ -16,8 +17,9 @@ import { prisma } from '@/lib/prisma'
 import { runMatching } from '@/lib/matching'
 
 const p = prisma as unknown as {
+  user: { findUnique: jest.Mock }
   studentProfile: { findUnique: jest.Mock }
-  tutorStudent: { findFirst: jest.Mock }
+  tutorStudent: { findFirst: jest.Mock; upsert: jest.Mock }
   tutorProfile: { findMany: jest.Mock }
   tutorMatchOffer: { updateMany: jest.Mock; count: jest.Mock; findMany: jest.Mock; upsert: jest.Mock }
   $transaction: jest.Mock
@@ -27,12 +29,15 @@ const MON = (start: string, end: string) => ({ day: 1, start, end })
 
 beforeEach(() => {
   jest.clearAllMocks()
+  delete process.env.DEFAULT_TUTOR_EMAIL
   p.tutorMatchOffer.updateMany.mockResolvedValue({ count: 0 })
   p.tutorMatchOffer.count.mockResolvedValue(0)
   p.tutorMatchOffer.findMany.mockResolvedValue([])
   p.tutorMatchOffer.upsert.mockImplementation((args) => args)
   p.$transaction.mockResolvedValue([])
   p.tutorStudent.findFirst.mockResolvedValue(null)
+  p.tutorStudent.upsert.mockResolvedValue({})
+  p.tutorProfile.findMany.mockResolvedValue([]) // default: no tutors
 })
 
 function student(availability: object[], desiredHoursPerWeek = 1) {
@@ -84,11 +89,50 @@ describe('runMatching', () => {
   })
 
   it('reports exhausted when every eligible tutor was already offered', async () => {
+    // Two tutors (so auto-pair doesn't trigger), both already offered.
     student([MON('15:00', '18:00')])
-    p.tutorMatchOffer.findMany.mockResolvedValue([{ tutorId: 'A', batch: 1 }])
+    p.tutorMatchOffer.findMany.mockResolvedValue([
+      { tutorId: 'A', batch: 1 },
+      { tutorId: 'B', batch: 1 },
+    ])
     p.tutorProfile.findMany.mockResolvedValue([
       { id: 'A', availability: JSON.stringify([MON('15:00', '18:00')]), maxHoursPerWeek: 10, students: [] },
+      { id: 'B', availability: JSON.stringify([MON('15:00', '18:00')]), maxHoursPerWeek: 10, students: [] },
     ])
     expect((await runMatching('stu1')).status).toBe('exhausted')
+  })
+
+  describe('solo auto-pair', () => {
+    it('pairs directly with the sole accepting tutor (no availability needed)', async () => {
+      student([]) // no availability at all
+      p.tutorProfile.findMany.mockResolvedValue([{ id: 'solo' }])
+      const result = await runMatching('stu1')
+      expect(result.status).toBe('auto_matched')
+      expect(result.tutorId).toBe('solo')
+      expect(p.tutorStudent.upsert).toHaveBeenCalledTimes(1)
+      expect(p.tutorStudent.upsert.mock.calls[0][0].create).toMatchObject({ tutorId: 'solo', studentId: 'stu1', status: 'active' })
+      // Should not fall through to the offer flow.
+      expect(p.tutorMatchOffer.upsert).not.toHaveBeenCalled()
+    })
+
+    it('uses DEFAULT_TUTOR_EMAIL as the primary even with multiple tutors', async () => {
+      process.env.DEFAULT_TUTOR_EMAIL = 'alon@socratutoring.com'
+      p.user.findUnique.mockResolvedValue({ tutorProfile: { id: 'primary' } })
+      student([MON('15:00', '18:00')])
+      const result = await runMatching('stu1')
+      expect(result.status).toBe('auto_matched')
+      expect(result.tutorId).toBe('primary')
+    })
+
+    it('does NOT auto-pair when two tutors are accepting (uses offers)', async () => {
+      student([MON('15:00', '18:00')], 1)
+      p.tutorProfile.findMany.mockResolvedValue([
+        { id: 'A', availability: JSON.stringify([MON('15:00', '18:00')]), maxHoursPerWeek: 10, students: [] },
+        { id: 'B', availability: JSON.stringify([MON('15:00', '18:00')]), maxHoursPerWeek: 10, students: [] },
+      ])
+      const result = await runMatching('stu1')
+      expect(result.status).toBe('offered')
+      expect(p.tutorStudent.upsert).not.toHaveBeenCalled()
+    })
   })
 })

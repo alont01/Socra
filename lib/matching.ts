@@ -18,6 +18,7 @@ export const OFFER_TTL_HOURS = 48
 export const SESSION_MIN = 60
 
 export type MatchStatus =
+  | 'auto_matched' // solo/primary tutor — paired directly, no offer needed
   | 'offered' // new offers created this run
   | 'pending' // still-live offers exist; nothing to do
   | 'already_matched' // student already has an active tutor
@@ -27,6 +28,27 @@ export type MatchStatus =
 export interface MatchResult {
   status: MatchStatus
   offersCreated?: number
+  tutorId?: string
+}
+
+/**
+ * The tutor to pair a new student with directly, skipping the offer flow. This
+ * is the solo-shop path: with one tutor there's no matching decision to make.
+ * Returns the tutor when DEFAULT_TUTOR_EMAIL resolves, or when exactly one tutor
+ * is accepting students; otherwise null (→ use the offer/matching flow).
+ */
+async function resolveAutoPairTutorId(): Promise<string | null> {
+  const email = process.env.DEFAULT_TUTOR_EMAIL?.toLowerCase().trim()
+  if (email) {
+    const u = await prisma.user.findUnique({ where: { email }, include: { tutorProfile: true } })
+    if (u?.tutorProfile) return u.tutorProfile.id
+  }
+  const tutors = await prisma.tutorProfile.findMany({
+    where: { acceptingStudents: true },
+    take: 2,
+    select: { id: true },
+  })
+  return tutors.length === 1 ? tutors[0].id : null
 }
 
 interface Candidate {
@@ -67,6 +89,25 @@ export async function runMatching(studentId: string): Promise<MatchResult> {
   // Still-live offers → keep waiting, don't pile on more.
   const livePending = await prisma.tutorMatchOffer.count({ where: { studentId, status: 'pending' } })
   if (livePending > 0) return { status: 'pending' }
+
+  // Solo shop: pair directly with the one/primary tutor — no offer, and no
+  // availability required (there's no alternative to choose between).
+  const autoTutorId = await resolveAutoPairTutorId()
+  if (autoTutorId) {
+    try {
+      await prisma.tutorStudent.upsert({
+        where: { tutorId_studentId: { tutorId: autoTutorId, studentId } },
+        create: { tutorId: autoTutorId, studentId, hoursPerWeek: student.desiredHoursPerWeek, status: 'active' },
+        update: { status: 'active', hoursPerWeek: student.desiredHoursPerWeek },
+      })
+    } catch (err: unknown) {
+      // Partial-unique (already matched concurrently) — treat as matched.
+      const code = err && typeof err === 'object' && 'code' in err ? (err as { code?: string }).code : undefined
+      if (code !== 'P2002') throw err
+    }
+    recordEvent({ category: 'match', name: 'match.auto', success: true, metadata: { studentId, tutorId: autoTutorId } })
+    return { status: 'auto_matched', tutorId: autoTutorId }
+  }
 
   const studentBlocks = parseBlocks(student.availability)
   if (studentBlocks.length === 0) return { status: 'no_eligible' }

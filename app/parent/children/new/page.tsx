@@ -29,7 +29,7 @@ export default function AddChildPage() {
   const [showPw, setShowPw] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState<null | { username: string; password: string; name: string; matchStatus?: string }>(null)
+  const [done, setDone] = useState<null | { username: string; password: string; name: string; matchStatus?: string; matchedTutorName?: string }>(null)
   const [copied, setCopied] = useState('')
 
   // Redirect non-parents.
@@ -75,7 +75,7 @@ export default function AddChildPage() {
         setError(data.error || 'Something went wrong. Please try again.')
         return
       }
-      setDone({ username: data.credentials.username, password: data.credentials.password, name: form.name.trim(), matchStatus: data.matchStatus })
+      setDone({ username: data.credentials.username, password: data.credentials.password, name: form.name.trim(), matchStatus: data.matchStatus, matchedTutorName: data.matchedTutorName })
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -181,7 +181,9 @@ export default function AddChildPage() {
 
               {done.matchStatus && (
                 <div className="mt-5 rounded-2xl bg-stone-50 ring-1 ring-stone-100 p-4 text-sm text-stone-600">
-                  {done.matchStatus === 'offered'
+                  {done.matchStatus === 'auto_matched'
+                    ? `✅ ${done.name} is matched with ${done.matchedTutorName || 'your tutor'} — you’re all set!`
+                    : done.matchStatus === 'offered'
                     ? '🔎 We’re reaching out to available tutors now — you’ll get an email as soon as one is matched.'
                     : done.matchStatus === 'already_matched'
                     ? '✅ Your child already has a tutor.'
