@@ -7,6 +7,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/Navbar'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { AvailabilityPicker } from '@/components/AvailabilityPicker'
+import type { AvailabilityBlock } from '@/lib/availability'
 
 const WORDS = ['tiger', 'comet', 'maple', 'river', 'pixel', 'mango', 'orbit', 'delta']
 function suggestPassword() {
@@ -22,10 +24,12 @@ export default function AddChildPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [form, setForm] = useState({ name: '', gradeLevel: '', goals: '', username: '', password: '' })
+  const [desiredHours, setDesiredHours] = useState('1')
+  const [availability, setAvailability] = useState<AvailabilityBlock[]>([])
   const [showPw, setShowPw] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState<null | { username: string; password: string; name: string }>(null)
+  const [done, setDone] = useState<null | { username: string; password: string; name: string; matchStatus?: string }>(null)
   const [copied, setCopied] = useState('')
 
   // Redirect non-parents.
@@ -64,14 +68,14 @@ export default function AddChildPage() {
       const res = await fetch('/api/parent/children', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, desiredHoursPerWeek: Number(desiredHours) || 1, availability }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error || 'Something went wrong. Please try again.')
         return
       }
-      setDone({ username: data.credentials.username, password: data.credentials.password, name: form.name.trim() })
+      setDone({ username: data.credentials.username, password: data.credentials.password, name: form.name.trim(), matchStatus: data.matchStatus })
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -105,6 +109,20 @@ export default function AddChildPage() {
                   value={form.goals} onChange={set('goals')}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white text-stone-900 placeholder-stone-400 ring-1 ring-inset ring-stone-200 focus:outline-none focus:ring-2 focus:ring-orange-400 transition-shadow duration-200 resize-y"
                 />
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-stone-100">
+                <p className="text-sm font-semibold text-stone-800 mb-1">When can they meet a tutor?</p>
+                <p className="text-xs text-stone-500 mb-4">We&rsquo;ll use this to match your child with an available tutor. You can change it later.</p>
+                <div className="mb-4">
+                  <label htmlFor="hours" className="block text-sm font-medium text-stone-700 mb-1">Hours per week</label>
+                  <input
+                    id="hours" type="number" min={1} max={20} value={desiredHours}
+                    onChange={(e) => setDesiredHours(e.target.value)}
+                    className="w-24 rounded-xl ring-1 ring-inset ring-stone-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+                <AvailabilityPicker value={availability} onChange={setAvailability} />
               </div>
 
               <div className="mt-6 pt-6 border-t border-stone-100">
@@ -160,6 +178,16 @@ export default function AddChildPage() {
                 ))}
               </div>
               <p className="text-xs text-stone-400 mt-4">Tip: write these down — for security we won&rsquo;t show the password again.</p>
+
+              {done.matchStatus && (
+                <div className="mt-5 rounded-2xl bg-stone-50 ring-1 ring-stone-100 p-4 text-sm text-stone-600">
+                  {done.matchStatus === 'offered'
+                    ? '🔎 We’re reaching out to available tutors now — you’ll get an email as soon as one is matched.'
+                    : done.matchStatus === 'already_matched'
+                    ? '✅ Your child already has a tutor.'
+                    : 'We couldn’t find an available tutor for those times just yet — our team will follow up to get them matched.'}
+                </div>
+              )}
 
               <div className="flex gap-3 justify-center mt-6">
                 <Button variant="ghost" onClick={() => { setDone(null); setForm({ name: '', gradeLevel: '', goals: '', username: '', password: '' }) }}>Add another child</Button>

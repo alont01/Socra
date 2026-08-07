@@ -61,11 +61,16 @@ model StudentProfile {
   goals          String   @default("")
   learningPlan   String   @default("")
   onboardingDone Boolean  @default(false)
+  // Matching: desired weekly hours + recurring availability (same JSON format
+  // as TutorProfile.availability).
+  desiredHoursPerWeek Int    @default(1)
+  availability        String @default("[]")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   parentId       String?
   parent         ParentProfile? @relation("ParentChildren", fields: [parentId], references: [id])
   tutors         TutorStudent[]     @relation("StudentRoster")
+  matchOffers    TutorMatchOffer[]  @relation("StudentOffers")
   tutoringSessions TutoringSession[] @relation("TutoringStudent")
   practiceSets     PracticeSet[]
   studentProgress  StudentProgress[]
@@ -90,10 +95,16 @@ model TutorProfile {
   name        String
   specialties String   @default("[]")
   bio         String   @default("")
+  // Matching setup: weekly capacity + recurring availability blocks
+  // (JSON: [{day:0-6,start:"HH:MM",end:"HH:MM"}], America/New_York wall-clock).
+  maxHoursPerWeek   Int?
+  availability      String   @default("[]")
+  acceptingStudents Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   students    TutorStudent[]      @relation("TutorRoster")
   tutoringSessions TutoringSession[] @relation("TutoringTutor")
+  matchOffers TutorMatchOffer[]   @relation("TutorOffers")
 }
 
 model TutorStudent {
@@ -102,9 +113,37 @@ model TutorStudent {
   tutor     TutorProfile   @relation("TutorRoster", fields: [tutorId], references: [id], onDelete: Cascade)
   studentId String
   student   StudentProfile @relation("StudentRoster", fields: [studentId], references: [id], onDelete: Cascade)
+  // Committed weekly load (for tutor capacity accounting) + lifecycle. A DB-level
+  // partial unique index (see migration) enforces at most one active tutor per
+  // student, which is what makes offer-accept atomic (first-wins).
+  hoursPerWeek Int         @default(1)
+  status       String      @default("active") // active | ended
   createdAt DateTime       @default(now())
 
   @@unique([tutorId, studentId])
+  @@index([studentId, status])
+}
+
+// A parallel, time-boxed offer to a tutor to take on a student. The matching
+// engine creates a batch of these (top candidates); the first tutor to accept
+// wins and the siblings are withdrawn.
+model TutorMatchOffer {
+  id           String   @id @default(cuid())
+  studentId    String
+  student      StudentProfile @relation("StudentOffers", fields: [studentId], references: [id], onDelete: Cascade)
+  tutorId      String
+  tutor        TutorProfile   @relation("TutorOffers", fields: [tutorId], references: [id], onDelete: Cascade)
+  status       String   @default("pending") // pending | accepted | declined | expired | withdrawn
+  score        Float    @default(0)
+  overlapSlots String   @default("[]") // JSON of proposed weekly slots
+  batch        Int      @default(1)
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  respondedAt  DateTime?
+
+  @@unique([studentId, tutorId])
+  @@index([tutorId, status])
+  @@index([studentId, status])
 }
 
 model TutoringSession {

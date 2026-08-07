@@ -6,19 +6,8 @@ import { hashPassword } from '@/lib/password'
 import { addChildSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
-
-// The tutor a parent-created student is auto-assigned to (so live sessions work
-// without an extra step). Prefer DEFAULT_TUTOR_EMAIL; otherwise, in a solo shop
-// with exactly one tutor, use that one. Returns null if it can't decide.
-async function findDefaultTutorId(): Promise<string | null> {
-  const email = process.env.DEFAULT_TUTOR_EMAIL?.toLowerCase().trim()
-  if (email) {
-    const u = await prisma.user.findUnique({ where: { email }, include: { tutorProfile: true } })
-    if (u?.tutorProfile) return u.tutorProfile.id
-  }
-  const tutors = await prisma.tutorProfile.findMany({ take: 2, select: { id: true } })
-  return tutors.length === 1 ? tutors[0].id : null
-}
+import { runMatching } from '@/lib/matching'
+import { notifyTutorsOfOffers } from '@/lib/match-notify'
 
 // List the parent's linked children with a light progress summary.
 export async function GET() {
@@ -64,7 +53,7 @@ export async function GET() {
 
 // Parent creates a child's student account. The parent sets a username +
 // password the child logs in with — no student email needed. The child is
-// linked to this parent and (if resolvable) auto-assigned to a tutor.
+// linked to this parent; if availability is provided, tutor matching kicks off.
 export async function POST(request: Request) {
   try {
     const auth = await requireParent()
@@ -83,6 +72,9 @@ export async function POST(request: Request) {
     const gradeLevel = (parsed.data.gradeLevel || '').trim()
     const goals = (parsed.data.goals || '').trim()
     const password = parsed.data.password
+    const desiredHoursPerWeek = parsed.data.desiredHoursPerWeek ?? 1
+    const availability = JSON.stringify(parsed.data.availability ?? [])
+    const hasAvailability = (parsed.data.availability ?? []).length > 0
 
     // Friendly pre-check (a race is still caught by the unique constraint below).
     const taken = await prisma.user.findUnique({ where: { username }, select: { id: true } })
@@ -106,7 +98,10 @@ export async function POST(request: Request) {
           role: 'STUDENT',
           emailVerified: true, // no email to verify
           studentProfile: {
-            create: { name, gradeLevel, goals, parentId: auth.parent.id, onboardingDone: true },
+            create: {
+              name, gradeLevel, goals, parentId: auth.parent.id, onboardingDone: true,
+              desiredHoursPerWeek, availability,
+            },
           },
         },
         include: { studentProfile: true },
@@ -119,22 +114,6 @@ export async function POST(request: Request) {
       throw err
     }
 
-    // Best-effort tutor assignment — never fail child creation over it.
-    if (child) {
-      try {
-        const tutorId = await findDefaultTutorId()
-        if (tutorId) {
-          await prisma.tutorStudent.upsert({
-            where: { tutorId_studentId: { tutorId, studentId: child.id } },
-            create: { tutorId, studentId: child.id },
-            update: {},
-          })
-        }
-      } catch (e) {
-        console.error('[parent children] tutor auto-link failed', e)
-      }
-    }
-
     recordAudit({
       action: 'parent.child.create',
       actor: { id: auth.payload.userId, email: auth.payload.email, role: auth.payload.role },
@@ -143,9 +122,22 @@ export async function POST(request: Request) {
       ...auditContext(request),
     })
 
+    // Kick off tutor matching (offers). Best-effort — never fail child creation
+    // over it. Requires availability to compute overlap.
+    let matchStatus: string | undefined
+    if (child && hasAvailability) {
+      try {
+        const result = await runMatching(child.id)
+        matchStatus = result.status
+        if (result.status === 'offered') await notifyTutorsOfOffers(child.id)
+      } catch (e) {
+        console.error('[parent children] matching failed', e)
+      }
+    }
+
     // Echo the credentials once so the parent can hand them to their child.
     return NextResponse.json(
-      { child: child ? { id: child.id, name: child.name } : null, credentials: { username, password } },
+      { child: child ? { id: child.id, name: child.name } : null, credentials: { username, password }, matchStatus },
       { status: 201 },
     )
   } catch (err) {

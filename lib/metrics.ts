@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('metrics')
 
-export type EventCategory = 'ai' | 'transcript' | 'session' | 'http' | 'error' | 'lead'
+export type EventCategory = 'ai' | 'transcript' | 'session' | 'http' | 'error' | 'lead' | 'match'
 export type EventLevel = 'info' | 'warn' | 'error'
 
 export interface RecordEventInput {
