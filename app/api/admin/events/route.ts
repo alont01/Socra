@@ -2,7 +2,18 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { safeJsonParse } from '@/lib/json'
+import { pruneOldEvents } from '@/lib/metrics'
 import type { Prisma } from '@prisma/client'
+
+// Retention: prune events older than ?days (default 90). Admin-only; safe to
+// wire to a scheduled job.
+export async function DELETE(request: Request) {
+  const auth = await requireAdmin()
+  if (!auth.ok) return auth.response
+  const days = Math.max(1, Number(new URL(request.url).searchParams.get('days')) || 90)
+  const removed = await pruneOldEvents(days)
+  return NextResponse.json({ removed, days })
+}
 
 // Browsable view over persisted SystemEvent telemetry (AI calls, pipeline,
 // errors) for the admin log viewer.
@@ -56,8 +67,12 @@ export async function GET(request: Request) {
         success: e.success,
         durationMs: e.durationMs,
         model: e.model,
+        inputTokens: e.inputTokens,
+        outputTokens: e.outputTokens,
         createdAt: e.createdAt,
         meta: safeJsonParse<Record<string, unknown>>(e.metadata, {}),
+        requestPreview: e.requestPreview,
+        responsePreview: e.responsePreview,
       })),
       total,
       page,

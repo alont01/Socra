@@ -227,6 +227,9 @@ model SystemEvent {
   inputTokens  Int?
   outputTokens Int?
   metadata     String   @default("{}") // JSON blob of extra context
+  // Truncated request/response previews (AI calls) for debugging, ~2KB each.
+  requestPreview  String?
+  responsePreview String?
   createdAt    DateTime @default(now())
 
   @@index([category, createdAt])

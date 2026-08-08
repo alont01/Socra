@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logger'
+import { trackedCall } from '@/lib/metrics'
 
 const logger = createLogger('email')
 
@@ -20,7 +21,9 @@ export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<
   try {
     const { Resend } = await import('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
-    await resend.emails.send({ from: 'noreply@socratutoring.com', to, subject, html })
+    await trackedCall({ category: 'email', name: 'email.send', metadata: { to, subject } }, () =>
+      resend.emails.send({ from: 'noreply@socratutoring.com', to, subject, html }),
+    )
     return true
   } catch (err) {
     logger.error('Failed to send email', err, { to, subject })

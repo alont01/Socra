@@ -31,8 +31,12 @@ interface EventRow {
   success: boolean | null
   durationMs: number | null
   model: string | null
+  inputTokens: number | null
+  outputTokens: number | null
   createdAt: string
   meta: Record<string, unknown>
+  requestPreview: string | null
+  responsePreview: string | null
 }
 
 const WINDOWS = [
@@ -112,7 +116,7 @@ export default function AdminLogsPage() {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const eventCategories = ['ai', 'transcript', 'session', 'http', 'error']
+  const eventCategories = ['ai', 'daily', 'email', 'transcript', 'session', 'lead', 'http', 'error']
 
   return (
     <div className="min-h-screen bg-[#FFFBF5]">
