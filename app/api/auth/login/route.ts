@@ -19,31 +19,34 @@ export async function POST(request: Request) {
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
-    const { email: rawEmail, password } = parsed.data
-    const email = rawEmail.toLowerCase().trim()
+    const { email: rawIdentifier, password } = parsed.data
+    // Identifier is an email OR a username (parent-created student accounts).
+    const identifier = rawIdentifier.toLowerCase().trim()
+    const isEmail = identifier.includes('@')
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: isEmail ? { email: identifier } : { username: identifier },
       include: { studentProfile: true, parentProfile: true, tutorProfile: true },
     })
 
     if (!user || !user.passwordHash) {
-      recordAudit({ action: 'auth.login', status: 'failure', actor: { email }, ...ctx, metadata: { reason: 'no_account' } })
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+      recordAudit({ action: 'auth.login', status: 'failure', actor: { email: identifier }, ...ctx, metadata: { reason: 'no_account' } })
+      return NextResponse.json({ error: 'Invalid email/username or password' }, { status: 401 })
     }
 
     const valid = await comparePassword(password, user.passwordHash)
     if (!valid) {
-      recordAudit({ action: 'auth.login', status: 'failure', actor: { id: user.id, email, role: user.role }, ...ctx, metadata: { reason: 'bad_password' } })
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+      recordAudit({ action: 'auth.login', status: 'failure', actor: { id: user.id, email: user.email, role: user.role }, ...ctx, metadata: { reason: 'bad_password' } })
+      return NextResponse.json({ error: 'Invalid email/username or password' }, { status: 401 })
     }
 
     // Unverified email/password accounts must verify before logging in. Re-issue
-    // a fresh code and route the client to the verification step.
+    // a fresh code and route the client to the verification step. (Parent-created
+    // student accounts are created emailVerified, so they never hit this.)
     if (!user.emailVerified) {
-      await issueVerificationCode(user.id, email)
-      recordAudit({ action: 'auth.login', status: 'failure', actor: { id: user.id, email, role: user.role }, ...ctx, metadata: { reason: 'unverified' } })
-      return NextResponse.json({ needsVerification: true, email }, { status: 403 })
+      await issueVerificationCode(user.id, user.email)
+      recordAudit({ action: 'auth.login', status: 'failure', actor: { id: user.id, email: user.email, role: user.role }, ...ctx, metadata: { reason: 'unverified' } })
+      return NextResponse.json({ needsVerification: true, email: user.email }, { status: 403 })
     }
 
     const token = await signToken({ userId: user.id, email: user.email, role: user.role })

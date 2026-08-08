@@ -104,6 +104,39 @@ export function consultationParentEmailHtml(name?: string | null, bookingUrl?: s
   `)
 }
 
+/** Notify a tutor that a new student offer is waiting (first to accept wins). */
+export function tutorOfferEmailHtml(studentName: string, gradeLevel: string, slotLines: string[]): string {
+  const grade = gradeLevel ? ` (Grade ${gradeLevel})` : ''
+  const slots = slotLines.length
+    ? `<p style="color:#57534e;margin:0 0 8px;line-height:1.6;">You both have these times free:</p>
+       <ul style="color:#1c1917;margin:0 0 16px;padding-left:18px;line-height:1.7;">${slotLines.map((s) => `<li>${s}</li>`).join('')}</ul>`
+    : ''
+  return shell(`
+    <h1 style="font-size:20px;font-weight:700;margin-bottom:8px;">New student match</h1>
+    <p style="color:#57534e;margin-bottom:14px;line-height:1.6;">
+      You're a great fit for <b>${studentName}</b>${grade}. This offer is open to a few tutors — the first to accept gets the student.
+    </p>
+    ${slots}
+    <a href="https://socratutoring.com/dashboard" style="display:inline-block;background:#f97316;color:#fff;font-weight:600;text-decoration:none;padding:12px 22px;border-radius:11px;font-size:15px;">
+      Review the offer
+    </a>
+    <p style="color:#a8a29e;font-size:12px;margin-top:20px;">This offer expires in 48 hours.</p>
+  `)
+}
+
+/** Tell the parent their child has been matched with a tutor. */
+export function matchConfirmedParentEmailHtml(childName: string, tutorName: string): string {
+  return shell(`
+    <h1 style="font-size:22px;font-weight:700;margin-bottom:12px;">${childName} has a tutor! 🎉</h1>
+    <p style="color:#57534e;margin-bottom:16px;line-height:1.6;">
+      Great news — <b>${tutorName}</b> will be working with ${childName}. You'll be able to see sessions and progress on your dashboard.
+    </p>
+    <a href="https://socratutoring.com/parent/dashboard" style="display:inline-block;background:#f97316;color:#fff;font-weight:600;text-decoration:none;padding:12px 22px;border-radius:11px;font-size:15px;">
+      Open your dashboard
+    </a>
+  `)
+}
+
 export function verificationEmailHtml(code: string): string {
   return shell(`
     <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Verify your email</h1>

@@ -12,6 +12,7 @@ export type EventCategory =
   | 'lead'
   | 'daily'
   | 'email'
+  | 'match'
 export type EventLevel = 'info' | 'warn' | 'error'
 
 // Cap on stored request/response previews so a big prompt can't bloat the row.

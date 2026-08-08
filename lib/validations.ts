@@ -2,9 +2,49 @@ import { z } from 'zod'
 
 // ── Auth ──
 
+// The identifier is an email OR a username (parent-created student accounts log
+// in with a username). Kept under the `email` key for client compatibility.
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().min(1, 'Email or username is required'),
   password: z.string().min(1, 'Password is required'),
+})
+
+// A weekly availability block: day 0–6, "HH:MM" start/end.
+export const availabilityBlockSchema = z.object({
+  day: z.number().int().min(0).max(6),
+  start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time'),
+  end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time'),
+})
+export const availabilitySchema = z.array(availabilityBlockSchema).max(60)
+
+// Parent creates a child's student account. No student email required — the
+// parent sets a username + password the child uses to log in. Availability +
+// desired hours feed the tutor-matching engine.
+export const addChildSchema = z.object({
+  name: z.string().trim().min(1, 'Child name is required').max(80),
+  gradeLevel: z.string().trim().max(40).optional().or(z.literal('')),
+  goals: z.string().trim().max(500).optional().or(z.literal('')),
+  username: z
+    .string()
+    .trim()
+    .regex(
+      /^[a-zA-Z][a-zA-Z0-9._-]{2,23}$/,
+      'Username must be 3–24 characters, start with a letter, and use only letters, numbers, . _ -',
+    ),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(128),
+  desiredHoursPerWeek: z.number().int().min(1).max(20).optional(),
+  availability: availabilitySchema.optional(),
+})
+
+// Tutor sets up matching: weekly capacity + availability + accepting toggle.
+export const matchingSetupSchema = z.object({
+  maxHoursPerWeek: z.number().int().min(0).max(80).nullable().optional(),
+  availability: availabilitySchema.optional(),
+  acceptingStudents: z.boolean().optional(),
+})
+
+export const offerRespondSchema = z.object({
+  action: z.enum(['accept', 'decline']),
 })
 
 // Public signup is limited to STUDENT and PARENT. Tutor accounts are created

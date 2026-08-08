@@ -1,6 +1,7 @@
 import {
   loginSchema,
   signupSchema,
+  addChildSchema,
   chatSchema,
   createSessionSchema,
   practiceAttemptSchema,
@@ -14,8 +15,13 @@ describe('validation schemas', () => {
       expect(result.success).toBe(true)
     })
 
-    it('rejects invalid email', () => {
-      const result = loginSchema.safeParse({ email: 'not-an-email', password: 'password123' })
+    it('accepts a username as the identifier (parent-created student accounts)', () => {
+      const result = loginSchema.safeParse({ email: 'maya42', password: 'password123' })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects an empty identifier', () => {
+      const result = loginSchema.safeParse({ email: '', password: 'password123' })
       expect(result.success).toBe(false)
     })
 
@@ -27,6 +33,35 @@ describe('validation schemas', () => {
     it('rejects empty object', () => {
       const result = loginSchema.safeParse({})
       expect(result.success).toBe(false)
+    })
+  })
+
+  describe('addChildSchema', () => {
+    const valid = { name: 'Maya', gradeLevel: '9th', goals: '', username: 'maya42', password: 'secret6' }
+
+    it('accepts a valid child', () => {
+      expect(addChildSchema.safeParse(valid).success).toBe(true)
+    })
+
+    it('requires a name', () => {
+      expect(addChildSchema.safeParse({ ...valid, name: '' }).success).toBe(false)
+    })
+
+    it('rejects a username under 3 chars', () => {
+      expect(addChildSchema.safeParse({ ...valid, username: 'ab' }).success).toBe(false)
+    })
+
+    it('rejects a username that does not start with a letter', () => {
+      expect(addChildSchema.safeParse({ ...valid, username: '1maya' }).success).toBe(false)
+    })
+
+    it('rejects a username with spaces/@', () => {
+      expect(addChildSchema.safeParse({ ...valid, username: 'ma ya' }).success).toBe(false)
+      expect(addChildSchema.safeParse({ ...valid, username: 'a@b' }).success).toBe(false)
+    })
+
+    it('rejects a password under 6 chars', () => {
+      expect(addChildSchema.safeParse({ ...valid, password: '12345' }).success).toBe(false)
     })
   })
 

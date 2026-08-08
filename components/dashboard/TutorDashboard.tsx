@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { StudentRoster } from './StudentRoster'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
+import { TutorOffers } from './TutorOffers'
 import { LoadingDots } from '@/components/ui/LoadingDots'
+import Link from 'next/link'
 
 interface Student {
   id: string
@@ -108,16 +110,24 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
               ))}
             </dl>
           </div>
-          <Button
-            variant="secondary"
-            className="bg-white text-orange-600 hover:bg-orange-50 shadow-lg shadow-orange-900/10"
-            onClick={() => setShowNewSession((v) => !v)}
-            aria-expanded={showNewSession}
-          >
-            New session +
-          </Button>
+          <div className="flex flex-col items-end gap-2">
+            <Button
+              variant="secondary"
+              className="bg-white text-orange-600 hover:bg-orange-50 shadow-lg shadow-orange-900/10"
+              onClick={() => setShowNewSession((v) => !v)}
+              aria-expanded={showNewSession}
+            >
+              New session +
+            </Button>
+            <Link href="/tutor/availability" className="text-xs text-orange-50/90 hover:text-white underline underline-offset-2">
+              Set availability &amp; capacity
+            </Link>
+          </div>
         </div>
       </section>
+
+      {/* Pending student-match offers */}
+      <TutorOffers />
 
       {/* New Session form */}
       {showNewSession && (
