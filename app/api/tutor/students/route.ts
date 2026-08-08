@@ -79,9 +79,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Student already in your roster' }, { status: 409 })
     }
 
-    await prisma.tutorStudent.create({
-      data: { tutorId: auth.tutor.id, studentId: studentUser.studentProfile.id },
+    // A student can have at most one ACTIVE tutor (DB-enforced). Check for one
+    // under a *different* tutor up front so we can give a clear message,
+    // rather than letting the unique-constraint violation fall through.
+    const activeElsewhere = await prisma.tutorStudent.findFirst({
+      where: { studentId: studentUser.studentProfile.id, status: 'active' },
     })
+    if (activeElsewhere) {
+      return NextResponse.json(
+        { error: 'This student already has an active tutor and can\'t be assigned to another one.' },
+        { status: 409 },
+      )
+    }
+
+    try {
+      await prisma.tutorStudent.create({
+        data: { tutorId: auth.tutor.id, studentId: studentUser.studentProfile.id },
+      })
+    } catch (err: unknown) {
+      // Defense in depth: a concurrent request could win the race between the
+      // check above and this insert.
+      const code = err && typeof err === 'object' && 'code' in err ? (err as { code?: string }).code : undefined
+      if (code === 'P2002') {
+        return NextResponse.json(
+          { error: 'This student already has an active tutor and can\'t be assigned to another one.' },
+          { status: 409 },
+        )
+      }
+      throw err
+    }
 
     return NextResponse.json({
       student: {
