@@ -61,7 +61,10 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
 
   return (
     <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5">
-      <h3 className="font-semibold text-stone-900 mb-4">My Students</h3>
+      <h3 className="font-semibold text-stone-900 mb-1">My Students</h3>
+      <p className="text-xs text-stone-400 mb-4">
+        New students usually arrive when a parent signs up — they&apos;re matched to you automatically. You can also add a student who already has their own Socra account below.
+      </p>
 
       <form onSubmit={addStudent} className="flex gap-2 mb-4">
         <Input
@@ -84,7 +87,7 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
 
       {students.length === 0 ? (
         <p className="text-sm text-stone-400 text-center py-4">
-          No students yet. Add one by email above.
+          No students yet. They&apos;ll appear here once a parent signs up and is matched with you.
         </p>
       ) : (
         <div className="space-y-2">

@@ -31,7 +31,7 @@ interface TutorDashboardProps {
 }
 
 const steps = [
-  { n: '1', title: 'Build your roster', desc: 'Add students by email, then invite their parents so families can follow along.' },
+  { n: '1', title: 'Students find you', desc: 'Parents sign up and add their child — you’re matched automatically (or accept a match request, once you’re not the only tutor). Set your availability to fine-tune matching.' },
   { n: '2', title: 'Run a session', desc: 'Start a video session and teach. Notes and transcript are captured for you.' },
   { n: '3', title: 'Let AI do the rest', desc: 'End the session and Socra writes the recap and generates targeted practice.' },
 ]
