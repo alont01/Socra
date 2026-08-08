@@ -3,8 +3,23 @@ import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('metrics')
 
-export type EventCategory = 'ai' | 'transcript' | 'session' | 'http' | 'error' | 'lead'
+export type EventCategory =
+  | 'ai'
+  | 'transcript'
+  | 'session'
+  | 'http'
+  | 'error'
+  | 'lead'
+  | 'daily'
+  | 'email'
 export type EventLevel = 'info' | 'warn' | 'error'
+
+// Cap on stored request/response previews so a big prompt can't bloat the row.
+const PREVIEW_MAX = 2000
+function truncate(s: string | undefined): string | undefined {
+  if (s == null) return undefined
+  return s.length > PREVIEW_MAX ? s.slice(0, PREVIEW_MAX) + `…[+${s.length - PREVIEW_MAX} chars]` : s
+}
 
 export interface RecordEventInput {
   category: EventCategory
@@ -16,6 +31,8 @@ export interface RecordEventInput {
   inputTokens?: number
   outputTokens?: number
   metadata?: Record<string, unknown>
+  requestPreview?: string
+  responsePreview?: string
 }
 
 /**
@@ -38,11 +55,51 @@ export function recordEvent(input: RecordEventInput): void {
         inputTokens: input.inputTokens,
         outputTokens: input.outputTokens,
         metadata: input.metadata ? JSON.stringify(input.metadata) : '{}',
+        requestPreview: truncate(input.requestPreview),
+        responsePreview: truncate(input.responsePreview),
       },
     })
     .catch((err) => {
       logger.error('Failed to record metric event', err, { name: input.name })
     })
+}
+
+/**
+ * Wrap an async call to a dependent service so every invocation is timed and
+ * recorded as a SystemEvent (success or failure), without changing behavior —
+ * the result passes through and errors still throw. Use this for Daily.co,
+ * Resend, and any other external integration.
+ */
+export async function trackedCall<T>(
+  meta: { category: EventCategory; name: string; metadata?: Record<string, unknown> },
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now()
+  try {
+    const result = await fn()
+    recordEvent({ category: meta.category, name: meta.name, success: true, durationMs: Date.now() - start, metadata: meta.metadata })
+    return result
+  } catch (err) {
+    recordEvent({
+      category: meta.category,
+      name: meta.name,
+      level: 'error',
+      success: false,
+      durationMs: Date.now() - start,
+      metadata: { ...meta.metadata, error: err instanceof Error ? err.message : String(err) },
+    })
+    throw err
+  }
+}
+
+/**
+ * Delete SystemEvent rows older than `days`. Returns the count removed. Call
+ * from a scheduled job / admin action to keep the table bounded.
+ */
+export async function pruneOldEvents(days = 90): Promise<number> {
+  const cutoff = new Date(Date.now() - days * 24 * 3600_000)
+  const res = await prisma.systemEvent.deleteMany({ where: { createdAt: { lt: cutoff } } })
+  return res.count
 }
 
 // Per-model token pricing in USD per 1M tokens. Used to estimate spend on the

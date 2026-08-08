@@ -34,6 +34,7 @@ export async function trackedMessage(
   params: Anthropic.Messages.MessageCreateParamsNonStreaming,
 ): Promise<Anthropic.Message> {
   const start = Date.now()
+  const requestPreview = promptText(params)
   try {
     const response = await anthropic.messages.create(params)
     recordEvent({
@@ -44,6 +45,8 @@ export async function trackedMessage(
       model: params.model,
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
+      requestPreview,
+      responsePreview: firstText(response),
     })
     return response
   } catch (err) {
@@ -55,7 +58,21 @@ export async function trackedMessage(
       durationMs: Date.now() - start,
       model: params.model,
       metadata: { error: err instanceof Error ? err.message : String(err) },
+      requestPreview,
     })
     throw err
   }
+}
+
+// Flatten the text of a request's messages for a debuggable preview (images and
+// other non-text blocks are noted, not dumped).
+function promptText(params: Anthropic.Messages.MessageCreateParamsNonStreaming): string {
+  return params.messages
+    .map((m) => {
+      const c = m.content
+      if (typeof c === 'string') return `[${m.role}] ${c}`
+      const parts = c.map((b) => (b.type === 'text' ? b.text : `[${b.type}]`))
+      return `[${m.role}] ${parts.join(' ')}`
+    })
+    .join('\n')
 }

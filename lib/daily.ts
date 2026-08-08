@@ -1,22 +1,27 @@
 import { config as appConfig } from '@/lib/config'
+import { trackedCall } from '@/lib/metrics'
 
 const DAILY_API_KEY = process.env.DAILY_API_KEY || ''
 const DAILY_API_URL = 'https://api.daily.co/v1'
 
 async function dailyFetch(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${DAILY_API_URL}${path}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${DAILY_API_KEY}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+  const method = (options.method || 'GET').toUpperCase()
+  const resource = path.replace(/^\//, '').split('/')[0] || 'root'
+  return trackedCall({ category: 'daily', name: `daily.${resource}`, metadata: { method, path } }, async () => {
+    const res = await fetch(`${DAILY_API_URL}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${DAILY_API_KEY}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`Daily API error ${res.status}: ${text}`)
+    }
+    return res.json()
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Daily API error ${res.status}: ${text}`)
-  }
-  return res.json()
 }
 
 export async function createRoom(sessionId: string) {
