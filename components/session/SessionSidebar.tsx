@@ -2,8 +2,10 @@
 
 import { useState, useCallback } from 'react'
 import { LivePracticePanel } from './LivePracticePanel'
+import { AssessmentPanel } from './AssessmentPanel'
 import type { PracticeProblem } from '@/lib/ai/types'
 import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
+import type { DailyCall } from '@daily-co/daily-js'
 
 interface SessionSidebarProps {
   sessionId: string
@@ -14,6 +16,8 @@ interface SessionSidebarProps {
   onSendToStudent: (problems: PracticeProblem[]) => void
   onClearProblems: () => void
   onOverride: (problemId: string, problemTopic: string) => void
+  callFrame: DailyCall | null
+  sessionTopic: string
 }
 
 export function SessionSidebar({
@@ -25,8 +29,10 @@ export function SessionSidebar({
   onSendToStudent,
   onClearProblems,
   onOverride,
+  callFrame,
+  sessionTopic,
 }: SessionSidebarProps) {
-  const [tab, setTab] = useState<'notes' | 'practice'>('notes')
+  const [tab, setTab] = useState<'notes' | 'practice' | 'assessment'>('notes')
   const [notes, setNotes] = useState(initialNotes)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -73,6 +79,16 @@ export function SessionSidebar({
         >
           Practice
         </button>
+        <button
+          onClick={() => setTab('assessment')}
+          className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all ${
+            tab === 'assessment'
+              ? 'bg-white text-stone-900 shadow-sm'
+              : 'text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          Assessment
+        </button>
       </div>
 
       {/* Tab content */}
@@ -92,7 +108,7 @@ export function SessionSidebar({
             className="flex-1 w-full resize-none text-sm text-stone-700 placeholder:text-stone-300 focus:outline-none"
           />
         </div>
-      ) : (
+      ) : tab === 'practice' ? (
         <div className="flex-1 min-h-0 overflow-y-auto">
           <LivePracticePanel
             sessionId={sessionId}
@@ -103,6 +119,10 @@ export function SessionSidebar({
             onClear={onClearProblems}
             onOverride={onOverride}
           />
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <AssessmentPanel sessionId={sessionId} callFrame={callFrame} defaultTopic={sessionTopic} />
         </div>
       )}
     </div>

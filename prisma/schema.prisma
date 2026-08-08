@@ -171,10 +171,58 @@ model TutoringSession {
   transcript    Transcript?
   analysis      SessionAnalysis?
   practiceSets  PracticeSet[]
+  assessment    Assessment?
 
   @@index([tutorId])
   @@index([studentId])
   @@index([status])
+}
+
+// Adaptive diagnostic assessment: one problem at a time, difficulty ladder
+// (1-10), up to 10 problems with early-stop on convergence. Grading is hybrid
+// — auto-graded to drive real-time progression, with a tutor override/"worked
+// together" mark recorded for the holistic result (see AssessmentItem).
+model Assessment {
+  id                String   @id @default(cuid())
+  tutoringSessionId String   @unique
+  tutoringSession   TutoringSession @relation(fields: [tutoringSessionId], references: [id], onDelete: Cascade)
+  studentId         String
+  topic             String
+  status            String   @default("in_progress") // in_progress | completed
+  currentLevel      Int      @default(5) // 1-10 ladder position
+  itemCount         Int      @default(0)
+  startedAt         DateTime @default(now())
+  completedAt       DateTime?
+  // Holistic result, populated on completion.
+  estimatedLevel    Int?
+  summary           String   @default("")
+  strengths         String   @default("[]") // JSON string[]
+  gaps              String   @default("[]") // JSON string[]
+  items             AssessmentItem[]
+
+  @@index([studentId])
+  @@index([status])
+}
+
+model AssessmentItem {
+  id            String     @id @default(cuid())
+  assessmentId  String
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  index         Int        // 1-based order within the assessment
+  level         Int        // difficulty (1-10) this problem was generated at
+  topic         String     // specific sub-topic
+  question      String
+  hint          String     @default("")
+  answer        String     // reference answer — never sent to the student client
+  studentAnswer String?
+  autoCorrect   Boolean?   // result of automatic grading (answersMatch)
+  tutorResult   String?    // 'correct' | 'incorrect' | 'worked_together' — tutor override
+  finalCorrect  Boolean?   // resolved result recorded for the holistic summary
+  createdAt     DateTime   @default(now())
+  answeredAt    DateTime?
+
+  @@unique([assessmentId, index])
+  @@index([assessmentId])
 }
 
 model Transcript {

@@ -1,6 +1,38 @@
 // ── Shared frontend types ──
 // These are used across multiple page/component files.
 
+export interface AssessmentItemData {
+  id: string
+  index: number
+  level: number
+  topic: string
+  question: string
+  hint: string
+  answer?: string // present only in the tutor's view
+  studentAnswer: string | null
+  autoCorrect: boolean | null
+  tutorResult: 'correct' | 'incorrect' | 'worked_together' | null
+  outcome: 'correct' | 'incorrect' | 'worked_together' | null
+  answered: boolean
+}
+
+export interface AssessmentData {
+  id: string
+  topic: string
+  status: 'in_progress' | 'completed'
+  currentLevel: number
+  itemCount: number
+  maxItems: number
+  items: AssessmentItemData[]
+  currentItem: AssessmentItemData | null
+  result: {
+    estimatedLevel: number | null
+    summary: string
+    strengths: string[]
+    gaps: string[]
+  } | null
+}
+
 export interface TutoringSessionData {
   id: string
   topic: string

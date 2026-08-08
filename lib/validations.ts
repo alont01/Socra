@@ -147,6 +147,22 @@ export const livePracticeAnswerSchema = z.object({
   answerToken: z.string().min(1),
 })
 
+// ── Adaptive assessment ──
+
+export const assessmentStartSchema = z.object({
+  topic: z.string().trim().max(120).optional(),
+})
+
+export const assessmentAnswerSchema = z.object({
+  itemId: z.string().min(1),
+  answer: z.string().min(1),
+})
+
+export const assessmentOverrideSchema = z.object({
+  itemId: z.string().min(1),
+  tutorResult: z.enum(['correct', 'incorrect', 'worked_together']),
+})
+
 // ── Whiteboard / Notes ──
 
 export const imageBase64Schema = z.object({

@@ -33,6 +33,21 @@ export const config = {
     livePracticeCount: 3,
     onboardingModel: 'claude-opus-4-8' as const,
     onboardingMaxTokens: 2048,
+    assessmentModel: 'claude-sonnet-4-6' as const,
+    assessmentMaxTokens: 1024, // one problem at a time
+    assessmentSummaryMaxTokens: 1536,
+  },
+
+  // Adaptive assessment
+  assessment: {
+    minLevel: 1,
+    maxLevel: 10,
+    startLevel: 5, // used when no prior mastery data exists for the topic
+    maxItems: 10,
+    // Stop early once the last N levels are within this range of each other
+    // (e.g. 6,7,6 → range 1 → converged) instead of always running to maxItems.
+    convergenceWindow: 3,
+    convergenceRange: 1,
   },
 
   // Auth

@@ -13,6 +13,17 @@ function normalize(s: string): string {
     .trim()
 }
 
+// Split a normalized answer into its numeric/expression part and a trailing
+// unit label, e.g. "34 cm" -> { value: "34", unit: "cm" }, "5%" -> { value:
+// "5", unit: "%" }, "1/2" -> { value: "1/2", unit: "" }. Used so a student
+// answer that omits (or includes) a unit the reference answer states doesn't
+// get marked wrong over that alone.
+function splitUnit(s: string): { value: string; unit: string } {
+  const m = s.match(/^(.*?)\s*(°|%|[a-z]+)$/i)
+  if (!m) return { value: s, unit: '' }
+  return { value: m[1].trim(), unit: m[2].toLowerCase() }
+}
+
 /**
  * Grade a student's answer against the expected answer.
  *
@@ -28,16 +39,25 @@ export function answersMatch(studentAnswer: string, correctAnswer: string): bool
   if (!a) return false
   if (a === b) return true
 
-  // Numeric / expression equivalence. Both must parse and evaluate to finite
+  // Numeric / expression equivalence, ignoring a trailing unit label when one
+  // side omits it or both state the same one — e.g. "34" matches "34 cm",
+  // "0.5in" matches "1/2 in". Two *different* stated units (e.g. "5 kg" vs
+  // "5 lb") are NOT treated as equivalent — only value equality is checked,
+  // not unit conversion. Both value parts must parse and evaluate to finite
   // numbers with no free variables.
-  const fa = compileExpr(a)
-  const fb = compileExpr(b)
-  if (fa && fb) {
-    const va = fa({})
-    const vb = fb({})
-    if (Number.isFinite(va) && Number.isFinite(vb)) {
-      const tol = 1e-6 * Math.max(1, Math.abs(vb))
-      if (Math.abs(va - vb) <= tol) return true
+  const pa = splitUnit(a)
+  const pb = splitUnit(b)
+  const unitsCompatible = !pa.unit || !pb.unit || pa.unit === pb.unit
+  if (unitsCompatible && pa.value && pb.value) {
+    const fa = compileExpr(pa.value)
+    const fb = compileExpr(pb.value)
+    if (fa && fb) {
+      const va = fa({})
+      const vb = fb({})
+      if (Number.isFinite(va) && Number.isFinite(vb)) {
+        const tol = 1e-6 * Math.max(1, Math.abs(vb))
+        if (Math.abs(va - vb) <= tol) return true
+      }
     }
   }
 

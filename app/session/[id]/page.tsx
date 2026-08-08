@@ -7,6 +7,7 @@ import { VideoCall } from '@/components/session/VideoCall'
 import { CallHeader } from '@/components/session/CallHeader'
 import { SessionSidebar } from '@/components/session/SessionSidebar'
 import { StudentProblemPanel } from '@/components/session/StudentProblemPanel'
+import { AssessmentStudentPanel } from '@/components/session/AssessmentStudentPanel'
 import { JoinCallCard } from '@/components/session/JoinCallCard'
 import { CaptureNotesButton } from '@/components/session/CaptureNotesButton'
 import { Whiteboard } from '@/components/session/Whiteboard'
@@ -61,6 +62,7 @@ export default function SessionPage({
   })
 
   const [studentOverrides, setStudentOverrides] = useState<Set<string>>(new Set())
+  const [assessmentActive, setAssessmentActive] = useState(false)
 
   const { sendProblems, sendAnswer, sendClear, sendOverride } = useLivePracticeSync({
     callFrame,
@@ -446,19 +448,31 @@ export default function SessionPage({
               onSendToStudent={handleSendToStudent}
               onClearProblems={handleClearProblems}
               onOverride={handleOverride}
+              callFrame={callFrame}
+              sessionTopic={session.topic}
             />
           </div>
         )}
-        {!isTutor && studentProblems.length > 0 && !studentDismissed && (
-          <div className="w-80 shrink-0">
-            <StudentProblemPanel
-              sessionId={id}
-              problems={studentProblems}
-              overrides={studentOverrides}
-              onAnswerSubmitted={handleStudentAnswer}
-              onDismiss={() => setStudentDismissed(true)}
-            />
-          </div>
+        {!isTutor && (
+          <>
+            {/* Mounted even when hidden so its own load()/sync keep running and
+                can flip assessmentActive back on — only its rendered width is
+                conditional. */}
+            <div className={assessmentActive ? 'w-80 shrink-0' : 'hidden'}>
+              <AssessmentStudentPanel sessionId={id} callFrame={callFrame} onActiveChange={setAssessmentActive} />
+            </div>
+            {studentProblems.length > 0 && !studentDismissed && (
+              <div className="w-80 shrink-0">
+                <StudentProblemPanel
+                  sessionId={id}
+                  problems={studentProblems}
+                  overrides={studentOverrides}
+                  onAnswerSubmitted={handleStudentAnswer}
+                  onDismiss={() => setStudentDismissed(true)}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

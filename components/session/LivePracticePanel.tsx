@@ -31,7 +31,6 @@ export function LivePracticePanel({
   onOverride,
 }: LivePracticePanelProps) {
   const [generating, setGenerating] = useState(false)
-  const [mode, setMode] = useState<'practice' | 'assessment'>('practice')
   const [sent, setSent] = useState(false)
   const [mastery, setMastery] = useState<MasteryEntry[]>([])
   const [editedAnswers, setEditedAnswers] = useState<Record<string, string>>({})
@@ -45,7 +44,7 @@ export function LivePracticePanel({
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/live-practice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, tutorNotes: '' }),
+        body: JSON.stringify({ mode: 'practice', tutorNotes: '' }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -144,27 +143,11 @@ export function LivePracticePanel({
         </div>
       )}
 
-      {/* Mode selector + generate */}
+      {/* Generate */}
       <div className="mb-3">
-        <div className="flex bg-stone-100 rounded-lg p-0.5 mb-3">
-          {(['practice', 'assessment'] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all ${
-                mode === m
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-500 hover:text-stone-700'
-              }`}
-            >
-              {m === 'practice' ? 'Practice' : 'Assess Level'}
-            </button>
-          ))}
-        </div>
-
-        {hasNoMastery && mode === 'practice' && (
+        {hasNoMastery && (
           <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-3">
-            No mastery data yet. Try &quot;Assess Level&quot; first to gauge the student&apos;s current level.
+            No mastery data yet. Try the <span className="font-medium">Assessment</span> tab first to gauge the student&apos;s current level.
           </p>
         )}
 
@@ -174,7 +157,7 @@ export function LivePracticePanel({
           size="sm"
           className="w-full"
         >
-          {mode === 'assessment' ? 'Generate Assessment' : 'Generate Practice'}
+          Generate Practice
         </Button>
       </div>
 
