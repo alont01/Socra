@@ -43,6 +43,8 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
   const [sessions, setSessions] = useState<TutoringSession[]>([])
   const [loading, setLoading] = useState(true)
   const [practiceSets, setPracticeSets] = useState<{ completedCount: number; problemCount: number }[]>([])
+  // undefined = still loading; null = confirmed no tutor assigned yet.
+  const [tutor, setTutor] = useState<{ id: string; name: string } | null | undefined>(undefined)
 
   useEffect(() => {
     fetch('/api/tutoring-sessions')
@@ -59,10 +61,32 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    fetch('/api/student/tutor')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setTutor(data.tutor))
+      .catch(() => setTutor(null))
+  }, [])
+
   const activeSessions = sessions.filter((s) => s.status === 'active')
   const pendingPractice = practiceSets.filter((s) => s.completedCount < s.problemCount).length
   const completedPractice = practiceSets.filter((s) => s.problemCount > 0 && s.completedCount >= s.problemCount).length
-  const upcomingCount = sessions.filter((s) => s.status === 'scheduled' || s.status === 'active').length
+  const upcomingSessions = sessions.filter((s) => s.status === 'scheduled' || s.status === 'active')
+  const upcomingCount = upcomingSessions.length
+  // Soonest upcoming session (scheduled sorts by date; an active call with no
+  // date, or one with a date, both count — active always takes priority since
+  // it's happening right now).
+  const nextSession =
+    activeSessions[0] ||
+    [...upcomingSessions]
+      .filter((s) => s.scheduledAt)
+      .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())[0] ||
+    null
+
+  const formatWhen = (dateStr: string | null) => {
+    if (!dateStr) return null
+    return new Date(dateStr).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  }
 
   const stats = [
     { label: 'Practice to do', value: pendingPractice },
@@ -103,6 +127,58 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
             </Link>
           )}
         </div>
+      </section>
+
+      {/* Status: tutor + next session — always visible so there's no confusion */}
+      <section aria-labelledby="status-heading">
+        <h2 id="status-heading" className="sr-only">Your tutor and next session</h2>
+        {tutor === undefined ? (
+          <Skeleton className="h-20 rounded-3xl" />
+        ) : tutor === null ? (
+          <div className="flex items-center gap-4 bg-amber-50 ring-1 ring-amber-200/70 rounded-3xl p-5">
+            <span aria-hidden className="grid place-items-center h-11 w-11 rounded-2xl bg-amber-100 text-amber-600 shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
+              </svg>
+            </span>
+            <div>
+              <h3 className="font-semibold text-stone-900 text-sm">We&apos;re finding your tutor</h3>
+              <p className="text-sm text-stone-500 mt-0.5">You&apos;re not matched with a tutor yet — we&apos;ll let you know as soon as you are. No action needed.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4 bg-white ring-1 ring-stone-900/5 shadow-soft rounded-3xl p-5 flex-wrap">
+            <span aria-hidden className="grid place-items-center h-11 w-11 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white font-bold shadow-brand shrink-0">
+              {tutor.name.charAt(0).toUpperCase()}
+            </span>
+            <div className="flex-1 min-w-[180px]">
+              <p className="text-xs text-stone-400">Your tutor</p>
+              <h3 className="font-semibold text-stone-900 text-sm">{tutor.name}</h3>
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <p className="text-xs text-stone-400">Next session</p>
+              {nextSession ? (
+                <p className="text-sm font-medium text-stone-700">
+                  {nextSession.status === 'active' ? (
+                    <span className="text-green-700">Live now — {nextSession.topic || 'session'}</span>
+                  ) : (
+                    <>{nextSession.topic || 'Session'} · {formatWhen(nextSession.scheduledAt) || 'time TBD'}</>
+                  )}
+                </p>
+              ) : (
+                <p className="text-sm text-stone-500">Nothing scheduled yet</p>
+              )}
+            </div>
+            {nextSession && (
+              <Link
+                href={`/session/${nextSession.id}`}
+                className="text-sm font-semibold text-orange-600 hover:text-orange-700 shrink-0"
+              >
+                {nextSession.status === 'active' ? 'Join now →' : 'View →'}
+              </Link>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Quick actions */}
