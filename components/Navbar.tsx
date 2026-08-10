@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/Button'
 import { useRouter } from 'next/navigation'
@@ -8,12 +9,16 @@ import { useRouter } from 'next/navigation'
 export function Navbar() {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const [signingOut, setSigningOut] = useState(false)
 
   const handleLogout = async () => {
     // logout() clears client state synchronously (instant UI) and awaits the
     // cookie-clear. We must wait for the cookie to actually clear before going
     // to /auth — middleware redirects any request with a valid token cookie
     // away from /auth to /dashboard, so navigating too early bounces us back.
+    // That wait is a real (if brief) network round-trip, so show a loading
+    // state on the button — otherwise the click looks like it did nothing.
+    setSigningOut(true)
     await logout()
     router.replace('/auth')
   }
@@ -53,7 +58,7 @@ export function Navbar() {
               <Link href="/settings">
                 <Button variant="ghost" size="sm">Settings</Button>
               </Link>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <Button variant="ghost" size="sm" onClick={handleLogout} loading={signingOut}>
                 Sign Out
               </Button>
             </>
