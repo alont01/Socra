@@ -233,6 +233,9 @@ export default function SettingsPage() {
                 <Field label="Bio">
                   <textarea className={inputCls} rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell students about yourself" />
                 </Field>
+                <p className="text-sm text-stone-500">
+                  Set your weekly hours and free times so new students can be matched to you — <Link href="/tutor/availability" className="text-orange-600 hover:text-orange-700 font-medium">manage availability →</Link>
+                </p>
               </>
             )}
           </div>
@@ -277,7 +280,9 @@ export default function SettingsPage() {
                 types are managed by Socra and can&apos;t be changed here.
               </p>
               {data.role === 'PARENT' && (
-                <p className="text-sm text-stone-500 mt-2">Link children from your dashboard using a tutor&apos;s invite.</p>
+                <p className="text-sm text-stone-500 mt-2">
+                  Add a child from your dashboard — or, if a tutor sent you an invite code, <Link href="/parent/join" className="text-orange-600 hover:text-orange-700 font-medium">link with it here</Link>.
+                </p>
               )}
             </>
           )}

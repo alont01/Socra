@@ -16,6 +16,12 @@ interface SessionItem {
   endedAt: string | null
   analysis: { summary: string; conceptsCovered: string[]; strengths: string[]; gaps: string[] } | null
 }
+interface UpcomingSessionItem {
+  id: string
+  topic: string
+  status: string
+  scheduledAt: string | null
+}
 
 export default function ParentChildPage() {
   const { user, loading } = useAuth()
@@ -27,6 +33,8 @@ export default function ParentChildPage() {
   const [progress, setProgress] = useState<ProgressItem[] | null>(null)
   const [trend, setTrend] = useState<TrendPoint[]>([])
   const [sessions, setSessions] = useState<SessionItem[] | null>(null)
+  const [tutor, setTutor] = useState<{ id: string; name: string } | null>(null)
+  const [upcoming, setUpcoming] = useState<UpcomingSessionItem[]>([])
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
@@ -48,12 +56,18 @@ export default function ParentChildPage() {
         setProgress(p.progress || [])
         setTrend(p.trend || [])
         setSessions(s.sessions || [])
+        setTutor(s.tutor || null)
+        setUpcoming(s.upcomingSessions || [])
       })
       .catch(() => setNotFound(true))
   }, [loading, user, childId])
 
   const dateFmt = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+
+  // Next-session display needs the time, not just the date.
+  const whenFmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''
 
   return (
     <div className="min-h-screen bg-[#FFFBF5]">
@@ -78,6 +92,48 @@ export default function ParentChildPage() {
             <h1 className="text-2xl font-bold tracking-tight text-stone-900 mt-3 mb-6">
               {childName}&apos;s progress
             </h1>
+
+            {/* Status: tutor + next session — always visible so it's clear
+                whether a tutor is assigned yet and when the next session is. */}
+            <section className="mb-8">
+              {tutor === null ? (
+                <div className="flex items-center gap-4 bg-amber-50 ring-1 ring-amber-200/70 rounded-3xl p-5">
+                  <span aria-hidden className="grid place-items-center h-11 w-11 rounded-2xl bg-amber-100 text-amber-600 shrink-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
+                    </svg>
+                  </span>
+                  <div>
+                    <h2 className="font-semibold text-stone-900 text-sm">We&apos;re finding {childName}&apos;s tutor</h2>
+                    <p className="text-sm text-stone-500 mt-0.5">Not matched with a tutor yet — we&apos;ll email you as soon as they are. No action needed.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4 bg-white ring-1 ring-stone-900/5 shadow-soft rounded-3xl p-5 flex-wrap">
+                  <span aria-hidden className="grid place-items-center h-11 w-11 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white font-bold shadow-brand shrink-0">
+                    {tutor.name.charAt(0).toUpperCase()}
+                  </span>
+                  <div className="flex-1 min-w-[180px]">
+                    <p className="text-xs text-stone-400">Tutor</p>
+                    <h2 className="font-semibold text-stone-900 text-sm">{tutor.name}</h2>
+                  </div>
+                  <div className="flex-1 min-w-[180px]">
+                    <p className="text-xs text-stone-400">Next session</p>
+                    {upcoming[0] ? (
+                      <p className="text-sm font-medium text-stone-700">
+                        {upcoming[0].status === 'active' ? (
+                          <span className="text-green-700">Live now — {upcoming[0].topic || 'session'}</span>
+                        ) : (
+                          <>{upcoming[0].topic || 'Session'} · {upcoming[0].scheduledAt ? whenFmt(upcoming[0].scheduledAt) : 'time TBD'}</>
+                        )}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-stone-500">Nothing scheduled yet</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
 
             {/* Trend over time */}
             <section className="mb-8">

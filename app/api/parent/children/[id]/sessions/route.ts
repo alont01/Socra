@@ -18,24 +18,38 @@ export async function GET(
     })
     if (!child) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const sessions = await prisma.tutoringSession.findMany({
-      where: { studentId: child.id, status: 'completed' },
-      orderBy: { endedAt: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        topic: true,
-        endedAt: true,
-        analysis: {
-          select: {
-            summary: true,
-            conceptsCovered: true,
-            studentStrengths: true,
-            studentGaps: true,
+    const [tutorRoster, upcoming, sessions] = await Promise.all([
+      // Who's currently assigned — surfaced separately so the page can show a
+      // clear "still finding your tutor" state when this is null.
+      prisma.tutorStudent.findFirst({
+        where: { studentId: child.id, status: 'active' },
+        include: { tutor: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.tutoringSession.findMany({
+        where: { studentId: child.id, status: { in: ['scheduled', 'active'] } },
+        orderBy: { scheduledAt: 'asc' },
+        select: { id: true, topic: true, status: true, scheduledAt: true },
+      }),
+      prisma.tutoringSession.findMany({
+        where: { studentId: child.id, status: 'completed' },
+        orderBy: { endedAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          topic: true,
+          endedAt: true,
+          analysis: {
+            select: {
+              summary: true,
+              conceptsCovered: true,
+              studentStrengths: true,
+              studentGaps: true,
+            },
           },
         },
-      },
-    })
+      }),
+    ])
 
     // Sanitize: parents see the summary, concepts, strengths and gaps — but NOT
     // tutorFeedback, which is coaching written for the tutor.
@@ -53,7 +67,12 @@ export async function GET(
         : null,
     }))
 
-    return NextResponse.json({ child, sessions: items })
+    return NextResponse.json({
+      child,
+      tutor: tutorRoster ? { id: tutorRoster.tutor.id, name: tutorRoster.tutor.name } : null,
+      upcomingSessions: upcoming,
+      sessions: items,
+    })
   } catch (err) {
     console.error('[parent sessions]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

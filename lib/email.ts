@@ -137,6 +137,33 @@ export function matchConfirmedParentEmailHtml(childName: string, tutorName: stri
   `)
 }
 
+/** A session was scheduled — sent to the parent (if linked) and/or the student. */
+export function sessionScheduledEmailHtml(input: {
+  recipientName?: string | null
+  studentName: string
+  tutorName: string
+  topic: string
+  whenText: string // pre-formatted date/time, or "Time to be confirmed"
+  isParent: boolean
+}): string {
+  const greeting = input.recipientName?.trim() ? `Hi ${input.recipientName.trim()},` : 'Hi there,'
+  const who = input.isParent ? `${input.studentName}'s` : 'Your'
+  return shell(`
+    <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Session scheduled 📅</h1>
+    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">${greeting}</p>
+    <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">
+      ${who} next session with <b>${input.tutorName}</b> is set:
+    </p>
+    <table style="border-collapse: collapse; width: 100%; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 12px;">
+      <tr><td style="padding: 12px 16px; color: #78716c; font-size: 13px;">Topic</td><td style="padding: 12px 16px; color: #1c1917; font-size: 14px; font-weight: 600;">${input.topic || 'Math session'}</td></tr>
+      <tr><td style="padding: 12px 16px; color: #78716c; font-size: 13px; border-top: 1px solid #ffedd5;">When</td><td style="padding: 12px 16px; color: #1c1917; font-size: 14px; font-weight: 600; border-top: 1px solid #ffedd5;">${input.whenText}</td></tr>
+    </table>
+    <p style="color: #78716c; font-size: 13px; margin-top: 20px; line-height: 1.5;">
+      You'll find it on your Socra dashboard when it's time to join.
+    </p>
+  `)
+}
+
 export function verificationEmailHtml(code: string): string {
   return shell(`
     <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Verify your email</h1>

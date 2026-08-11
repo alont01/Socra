@@ -27,13 +27,19 @@ export default function PracticePage() {
     if (!loading && !user) router.push('/auth')
   }, [user, loading, router])
 
-  useEffect(() => {
-    if (!user) return
+  const load = () => {
+    setFetching(true)
+    setError(false)
     fetch('/api/student/practice')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => setSets(data.practiceSets || []))
       .catch(() => setError(true))
       .finally(() => setFetching(false))
+  }
+
+  useEffect(() => {
+    if (!user) return
+    load()
   }, [user])
 
   return (
@@ -52,7 +58,7 @@ export default function PracticePage() {
           <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
             <p className="text-stone-500 mb-3">Couldn&apos;t load your homework.</p>
             <button
-              onClick={() => { setError(false); setFetching(true); location.reload() }}
+              onClick={load}
               className="text-sm font-medium text-orange-600 hover:text-orange-700"
             >
               Try again

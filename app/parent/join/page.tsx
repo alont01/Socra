@@ -93,7 +93,11 @@ function JoinForm() {
           Link child
         </Button>
       </form>
-      <p className="text-center mt-4">
+      <p className="text-center mt-4 text-sm text-stone-400">
+        Don&apos;t have a code?{' '}
+        <Link href="/parent/children/new" className="text-orange-600 hover:text-orange-700 font-medium">Add your child directly</Link> instead.
+      </p>
+      <p className="text-center mt-2">
         <Link href="/parent/dashboard" className="text-sm text-stone-400 hover:text-stone-600">Back to dashboard</Link>
       </p>
     </div>

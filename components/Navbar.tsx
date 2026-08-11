@@ -25,6 +25,7 @@ export function Navbar() {
 
   const isStudent = user?.role === 'STUDENT'
   const isParent = user?.role === 'PARENT'
+  const isTutor = user?.role === 'TUTOR'
 
   return (
     <nav className="sticky top-0 z-50 bg-[#FFFBF5]/70 backdrop-blur-xl border-b border-stone-900/5">
@@ -54,6 +55,11 @@ export function Navbar() {
                     <Button variant="ghost" size="sm">Chat</Button>
                   </Link>
                 </>
+              )}
+              {isTutor && (
+                <Link href="/tutor/availability">
+                  <Button variant="ghost" size="sm">Availability</Button>
+                </Link>
               )}
               <Link href="/settings">
                 <Button variant="ghost" size="sm">Settings</Button>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth, requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { notifySessionScheduled } from '@/lib/session-notify'
 
 export async function GET(request: Request) {
   try {
@@ -102,6 +103,12 @@ export async function POST(request: Request) {
         student: { select: { id: true, name: true } },
       },
     })
+
+    // A student + a real scheduled time both exist — worth an email. (A
+    // no-date "open" session, or one starting immediately, isn't.)
+    if (session.studentId && session.scheduledAt) {
+      await notifySessionScheduled(session.id)
+    }
 
     return NextResponse.json({ session })
   } catch (err) {

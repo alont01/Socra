@@ -20,20 +20,28 @@ export default function ProgressPage() {
   const [progress, setProgress] = useState<ProgressItem[]>([])
   const [trend, setTrend] = useState<TrendPoint[]>([])
   const [fetching, setFetching] = useState(true)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.push('/auth')
   }, [user, loading, router])
 
-  useEffect(() => {
-    if (!user) return
+  const load = () => {
+    setFetching(true)
+    setError(false)
     fetch('/api/student/progress')
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
         setProgress(data.progress || [])
         setTrend(data.trend || [])
       })
+      .catch(() => setError(true))
       .finally(() => setFetching(false))
+  }
+
+  useEffect(() => {
+    if (!user) return
+    load()
   }, [user])
 
   return (
@@ -50,6 +58,13 @@ export default function ProgressPage() {
               <Skeleton className="h-24 rounded-3xl" />
               <Skeleton className="h-24 rounded-3xl" />
             </div>
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
+            <p className="text-stone-500 mb-3">Couldn&apos;t load your progress.</p>
+            <button onClick={load} className="text-sm font-medium text-orange-600 hover:text-orange-700">
+              Try again
+            </button>
           </div>
         ) : (
           <div className="space-y-6">
