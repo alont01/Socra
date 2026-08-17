@@ -192,6 +192,7 @@ export default function SettingsPage() {
               <Link href="/admin" className="text-sm text-orange-600 hover:text-orange-700 font-medium">System Health →</Link>
               <Link href="/admin/logs" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Logs →</Link>
               <Link href="/admin/tutors" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Tutors →</Link>
+              <Link href="/admin/billing" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Billing →</Link>
             </div>
           )}
         </section>

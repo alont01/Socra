@@ -50,6 +50,13 @@ export const config = {
     convergenceRange: 1,
   },
 
+  // Monthly billing — flat hourly rate applied to every family. Override with
+  // HOURLY_RATE_USD (env) without a code change if pricing changes.
+  billing: {
+    hourlyRateUsd: Number(process.env.HOURLY_RATE_USD) || 75,
+    currency: 'usd',
+  },
+
   // Auth
   auth: {
     jwtExpirySeconds: 60 * 60 * 24 * 7, // 7 days

@@ -37,3 +37,10 @@ services:
       # Admin system-health dashboard allowlist (comma-separated emails)
       - key: ADMIN_EMAILS
         sync: false
+      # Monthly billing (/admin/billing) — without it, hours still track but
+      # invoices can't be sent
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      # Flat hourly rate charged to every family (whole dollars, defaults to 75)
+      - key: HOURLY_RATE_USD
+        sync: false

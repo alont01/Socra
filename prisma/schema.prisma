@@ -84,8 +84,37 @@ model ParentProfile {
   user           User             @relation("UserParent", fields: [userId], references: [id], onDelete: Cascade)
   name           String
   onboardingDone Boolean          @default(false)
+  // Set lazily on the first invoice sent to this family.
+  stripeCustomerId String?        @unique
   children       StudentProfile[] @relation("ParentChildren")
+  invoices       Invoice[]
   createdAt      DateTime         @default(now())
+}
+
+// A monthly bill sent to a parent: hours actually delivered across all their
+// children that period, at the flat hourly rate, invoiced via Stripe. Kept
+// locally (not just relying on Stripe as the record) so the admin billing view
+// can answer "has this family been billed this month" without a Stripe round
+// trip, and so there's an audit trail independent of Stripe.
+model Invoice {
+  id              String        @id @default(cuid())
+  parentId        String
+  parent          ParentProfile @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  periodStart     DateTime
+  periodEnd       DateTime
+  hours           Float
+  rateUsd         Float
+  amountCents     Int
+  stripeInvoiceId String?       @unique
+  stripeInvoiceUrl String?
+  status          String        @default("pending") // pending | sent | paid | failed
+  sentAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  // One invoice per family per billing period.
+  @@unique([parentId, periodStart, periodEnd])
+  @@index([parentId])
+  @@index([status])
 }
 
 model TutorProfile {
