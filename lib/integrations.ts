@@ -112,6 +112,17 @@ const DEFINITIONS: IntegrationDefinition[] = [
       const res = await fetchWithTimeout('https://api.resend.com/domains', {
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY ?? ''}` },
       })
+      if (res.status === 401) {
+        // A key scoped to "Sending access" only — Resend's least-privilege
+        // option — correctly 401s on /domains; that is the *desired*
+        // configuration, not a broken credential. Confirmed live: a key
+        // returning this exact error still sent real mail successfully.
+        // Only body inspection can tell the two apart, since both are a 401.
+        const body = await res.clone().json().catch(() => null) as { name?: string } | null
+        if (body?.name === 'restricted_api_key') {
+          return { status: 'ok', detail: 'Send-only key (expected) — domain scope not requested' }
+        }
+      }
       return classify(res, 'Key accepted')
     },
   },

@@ -111,6 +111,39 @@ describe('checkIntegrations', () => {
     expect(stripe.detail).toMatch(/live mode/)
   })
 
+  it('treats a Resend send-only restricted key as healthy, not unauthorized', async () => {
+    // A key scoped to "Sending access" correctly 401s on /domains — that's the
+    // desired least-privilege configuration, not a broken credential. Found
+    // live: a key rejected this way was still sending real mail successfully.
+    global.fetch = jest.fn(async (url: unknown) => {
+      if (!String(url).includes('resend')) return { ok: true, status: 200 }
+      return {
+        ok: false,
+        status: 401,
+        clone() { return this },
+        json: async () => ({ statusCode: 401, name: 'restricted_api_key', message: 'This API key is restricted to only send emails' }),
+      }
+    }) as unknown as typeof fetch
+
+    const resend = byKey(await checkIntegrations(), 'resend')
+    expect(resend.status).toBe('ok')
+    expect(resend.detail).toMatch(/send-only/i)
+  })
+
+  it('still flags a genuinely invalid Resend key as unauthorized', async () => {
+    global.fetch = jest.fn(async (url: unknown) => {
+      if (!String(url).includes('resend')) return { ok: true, status: 200 }
+      return {
+        ok: false,
+        status: 401,
+        clone() { return this },
+        json: async () => ({ statusCode: 401, name: 'invalid_api_key', message: 'API key is invalid' }),
+      }
+    }) as unknown as typeof fetch
+
+    expect(byKey(await checkIntegrations(), 'resend').status).toBe('unauthorized')
+  })
+
   it('never includes credential material in the reported detail', async () => {
     process.env.DAILY_API_KEY = 'super-secret-daily-key'
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 403 }) as unknown as typeof fetch

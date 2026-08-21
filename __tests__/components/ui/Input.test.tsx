@@ -13,6 +13,28 @@ describe('Input', () => {
     expect(screen.getByText('Email address')).toBeInTheDocument()
   })
 
+  it('programmatically associates the label with its input', () => {
+    // Previously the <label> matched the input only by adjacent text, with no
+    // htmlFor/id — assistive tech and getByLabelText() couldn't connect them.
+    render(<Input label="Email address" />)
+    expect(screen.getByLabelText('Email address')).toBeInTheDocument()
+  })
+
+  it('keeps each instance uniquely associated when several inputs share a label prop', () => {
+    render(
+      <>
+        <Input label="Password" />
+        <Input label="Confirm Password" />
+      </>
+    )
+    expect(screen.getByLabelText('Password')).not.toBe(screen.getByLabelText('Confirm Password'))
+  })
+
+  it('honors an explicit id instead of generating one', () => {
+    render(<Input label="Email address" id="custom-email-id" />)
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('id', 'custom-email-id')
+  })
+
   it('does not render label element when label prop is not provided', () => {
     render(<Input placeholder="no label" />)
     expect(screen.queryByRole('label')).not.toBeInTheDocument()
