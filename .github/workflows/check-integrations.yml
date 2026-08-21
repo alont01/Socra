@@ -1,0 +1,66 @@
+name: Check integrations
+
+# Probes every external dependency (Anthropic, Daily, Resend, Stripe, Postgres)
+# and emails the team when one changes state. These credentials don't expire —
+# what actually happens is a key gets rolled, an env var never makes it onto the
+# host, or a provider starts rejecting us. This catches all three.
+#
+# The endpoint alerts on transitions only, so this running hourly does not mean
+# hourly mail during an outage.
+#
+# Requires two repository secrets:
+#   CRON_SECRET  — must match the CRON_SECRET env var on Render
+#   APP_URL      — base URL of the deployment (optional; defaults to production)
+
+on:
+  schedule:
+    - cron: '40 * * * *' # hourly, at :40 (offset from the session sweeper at :20)
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Base URL to check
+        required: false
+        default: https://www.socratutoring.com
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe integrations
+        env:
+          BASE_URL: ${{ github.event.inputs.url || secrets.APP_URL || 'https://www.socratutoring.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "CRON_SECRET repository secret is not set — the endpoint will reject this call."
+            exit 1
+          fi
+
+          response=$(mktemp)
+          status=$(curl -sS -o "$response" -w '%{http_code}' \
+            -X POST "${BASE_URL}/api/cron/check-integrations" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 120)
+
+          echo "HTTP $status"
+          cat "$response"
+          echo
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Integration check endpoint failed (HTTP $status)."
+            exit 1
+          fi
+
+          # A required dependency being down is worth a red run in the Actions
+          # tab as well as the email — it's the durable record that something
+          # was broken at this hour.
+          overall=$(grep -o '"overall":"[a-z]*"' "$response" | head -1 | cut -d'"' -f4)
+          if [ "$overall" = "down" ]; then
+            echo "::error::A required integration is down."
+            exit 1
+          fi
+          if [ "$overall" = "degraded" ]; then
+            echo "::warning::An optional integration is unhealthy."
+          fi

@@ -354,6 +354,27 @@ model MasteryHistory {
 
 // Operational telemetry for the admin system-health dashboard.
 // Written fire-and-forget from lib/metrics.ts; one row per tracked event.
+// Last observed state of one external integration (see lib/integrations.ts).
+//
+// Exists purely so alerting can fire on a *transition* rather than on every
+// check. An hourly probe that emails while a provider is down would send 24
+// identical mails a day and be filtered within a week — which is how a broken
+// integration goes unnoticed.
+model IntegrationCheck {
+  key        String   @id // stable id from lib/integrations.ts
+  status     String // ok | unauthorized | unreachable | not_configured
+  detail     String   @default("")
+  checkedAt  DateTime
+  // Last time this integration was healthy — how long an outage has run.
+  lastOkAt   DateTime?
+  // Set when a transition alert was sent, so a delivery failure can be retried
+  // rather than silently swallowed by the state update.
+  alertedAt  DateTime?
+  updatedAt  DateTime @updatedAt
+
+  @@index([status])
+}
+
 model SystemEvent {
   id           String   @id @default(cuid())
   category     String   // ai | transcript | session | http | error

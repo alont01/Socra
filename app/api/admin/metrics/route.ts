@@ -28,6 +28,8 @@ export const GET = route('admin/metrics', async (request: Request) => {
     transcriptSuccess,
     transcriptFailed,
     recentErrors,
+    latestAiCall,
+    rateLimitedCount,
   ] = await Promise.all([
     prisma.systemEvent.aggregate({
       where: aiWhere,
@@ -61,10 +63,35 @@ export const GET = route('admin/metrics', async (request: Request) => {
       take: 20,
       select: { id: true, name: true, category: true, createdAt: true, metadata: true },
     }),
+    // Most recent AI call, for the rate-limit headroom Anthropic returns on
+    // response headers. There is no endpoint to poll for remaining quota, so
+    // the newest call we happened to make is the freshest reading available.
+    prisma.systemEvent.findFirst({
+      where: aiWhere,
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true, createdAt: true },
+    }),
+    // 429s in the window — the ground truth that a ceiling was actually hit.
+    prisma.systemEvent.count({
+      where: { ...aiWhere, success: false, metadata: { contains: '"status":429' } },
+    }),
   ])
 
   const totalCalls = overall._count._all
   const errorsByOp = new Map(byOpErrors.map((r) => [r.name, r._count._all]))
+
+  // Headroom is only meaningful alongside its limit and its age — a
+  // "900 remaining" from six hours ago says nothing about right now.
+  const latestMeta = latestAiCall ? safeJsonParse<Record<string, unknown>>(latestAiCall.metadata, {}) : {}
+  const numeric = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const quota = {
+    observedAt: latestAiCall?.createdAt ?? null,
+    requestsRemaining: numeric(latestMeta.requestsRemaining),
+    requestsLimit: numeric(latestMeta.requestsLimit),
+    inputTokensRemaining: numeric(latestMeta.inputTokensRemaining),
+    outputTokensRemaining: numeric(latestMeta.outputTokensRemaining),
+    rateLimitedCount,
+  }
 
   const estCostUsd = tokensByModel.reduce(
     (sum, r) => sum + estimateCost(r.model, r._sum.inputTokens ?? 0, r._sum.outputTokens ?? 0),
@@ -97,6 +124,7 @@ export const GET = route('admin/metrics', async (request: Request) => {
         estCostUsd: estimateCost(r.model, r._sum.inputTokens ?? 0, r._sum.outputTokens ?? 0),
       })),
     },
+    quota,
     pipeline: {
       sessionsProcessed,
       transcript: { success: transcriptSuccess, failed: transcriptFailed },

@@ -23,11 +23,36 @@ interface Metrics {
     byOperation: { name: string; count: number; errors: number; avgLatencyMs: number }[]
     byModel: { model: string; inputTokens: number; outputTokens: number; estCostUsd: number }[]
   }
+  quota: {
+    observedAt: string | null
+    requestsRemaining: number | null
+    requestsLimit: number | null
+    inputTokensRemaining: number | null
+    outputTokensRemaining: number | null
+    rateLimitedCount: number
+  }
   pipeline: {
     sessionsProcessed: number
     transcript: { success: number; failed: number }
   }
   recentErrors: { id: string; name: string; category: string; createdAt: string; message: string | null }[]
+}
+
+interface Integration {
+  key: string
+  label: string
+  status: 'ok' | 'unauthorized' | 'unreachable' | 'not_configured'
+  detail: string
+  impact: string
+  required: boolean
+  durationMs: number
+  lastOkAt: string | null
+}
+
+interface IntegrationsPayload {
+  checkedAt: string
+  overall: 'ok' | 'degraded' | 'down'
+  integrations: Integration[]
 }
 
 const WINDOWS = [
@@ -37,6 +62,99 @@ const WINDOWS = [
 ]
 
 const REFRESH_MS = 5000
+// Each refresh hits four third-party APIs, so poll far less often than metrics.
+const INTEGRATIONS_REFRESH_MS = 120_000
+
+const INTEGRATION_STATUS: Record<Integration['status'], { label: string; className: string }> = {
+  ok: { label: 'OK', className: 'bg-green-100 text-green-700' },
+  unauthorized: { label: 'Key rejected', className: 'bg-red-100 text-red-700' },
+  unreachable: { label: 'Unreachable', className: 'bg-amber-100 text-amber-800' },
+  not_configured: { label: 'Not set', className: 'bg-stone-100 text-stone-600' },
+}
+
+/** How long an integration has been unhealthy — the number you want during an outage. */
+function downFor(lastOkAt: string | null): string | null {
+  if (!lastOkAt) return null
+  const ms = Date.now() - new Date(lastOkAt).getTime()
+  if (ms < 60_000) return 'just now'
+  const mins = Math.floor(ms / 60_000)
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
+}
+
+function IntegrationsPanel({ data, onRecheck, rechecking }: {
+  data: IntegrationsPayload | null
+  onRecheck: () => void
+  rechecking: boolean
+}) {
+  if (!data) return <Skeleton className="h-40 rounded-2xl" />
+
+  const broken = data.integrations.filter((i) => i.status !== 'ok')
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+        <h2 className="text-sm font-semibold text-stone-900">External integrations</h2>
+        <div className="flex items-center gap-3">
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+            data.overall === 'ok' ? 'bg-green-100 text-green-700'
+              : data.overall === 'down' ? 'bg-red-100 text-red-700'
+              : 'bg-amber-100 text-amber-800'
+          }`}>
+            {data.overall === 'ok' ? 'All healthy' : data.overall === 'down' ? 'Required dependency down' : 'Degraded'}
+          </span>
+          <button
+            onClick={onRecheck}
+            disabled={rechecking}
+            className="text-xs font-medium text-orange-600 hover:text-orange-700 disabled:opacity-50"
+          >
+            {rechecking ? 'Checking…' : 'Re-check'}
+          </button>
+        </div>
+      </div>
+      <p className="text-xs text-stone-500 mb-3">
+        Probed live just now. These keys don&apos;t expire — this catches a key that was rolled, never set, or is
+        rejected by the provider.
+      </p>
+
+      <div className="divide-y divide-stone-100">
+        {data.integrations.map((i) => {
+          const style = INTEGRATION_STATUS[i.status]
+          const outage = i.status !== 'ok' ? downFor(i.lastOkAt) : null
+          return (
+            <div key={i.key} className="py-2.5 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-stone-900">
+                  {i.label}
+                  {i.required && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400">required</span>}
+                </div>
+                <div className="text-xs text-stone-500 mt-0.5 break-words">{i.detail}</div>
+                {i.status !== 'ok' && (
+                  <div className="text-xs text-amber-700 mt-1">{i.impact}</div>
+                )}
+              </div>
+              <div className="text-right shrink-0">
+                <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${style.className}`}>
+                  {style.label}
+                </span>
+                <div className="text-[11px] text-stone-400 mt-1 tabular-nums">
+                  {outage ? `down ${outage}` : `${i.durationMs} ms`}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {broken.length > 0 && (
+        <p className="mt-3 text-xs text-stone-500">
+          The team is emailed when any of these changes state — not on every check.
+        </p>
+      )}
+    </Card>
+  )
+}
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -58,6 +176,8 @@ export default function AdminDashboardPage() {
   const [windowMinutes, setWindowMinutes] = useState(1440)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [status, setStatus] = useState<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
+  const [integrations, setIntegrations] = useState<IntegrationsPayload | null>(null)
+  const [rechecking, setRechecking] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.push('/auth')
@@ -81,12 +201,33 @@ export default function AdminDashboardPage() {
     }
   }, [windowMinutes])
 
+  // Integrations are probed against live third-party APIs, so they refresh on a
+  // much slower cadence than the metrics poll — and on demand via Re-check.
+  const loadIntegrations = useCallback(async () => {
+    setRechecking(true)
+    try {
+      const res = await fetch('/api/admin/integrations')
+      if (res.ok) setIntegrations(await res.json())
+    } catch {
+      // Leave the previous snapshot in place; the metrics panel reports outages.
+    } finally {
+      setRechecking(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!user) return
     load()
     const interval = setInterval(load, REFRESH_MS)
     return () => clearInterval(interval)
   }, [user, load])
+
+  useEffect(() => {
+    if (!user) return
+    loadIntegrations()
+    const interval = setInterval(loadIntegrations, INTEGRATIONS_REFRESH_MS)
+    return () => clearInterval(interval)
+  }, [user, loadIntegrations])
 
   const successPct = metrics?.ai.successRate != null ? `${(metrics.ai.successRate * 100).toFixed(1)}%` : '—'
   const transcriptTotal = metrics ? metrics.pipeline.transcript.success + metrics.pipeline.transcript.failed : 0
@@ -164,11 +305,32 @@ export default function AdminDashboardPage() {
               />
               <StatCard label="Sessions processed" value={fmt(metrics.pipeline.sessionsProcessed)} />
               <StatCard
+                label="Claude quota left"
+                value={
+                  metrics.quota.requestsRemaining != null
+                    ? metrics.quota.requestsLimit != null
+                      ? `${fmt(metrics.quota.requestsRemaining)}/${fmt(metrics.quota.requestsLimit)}`
+                      : fmt(metrics.quota.requestsRemaining)
+                    : '—'
+                }
+                sub={
+                  metrics.quota.rateLimitedCount > 0
+                    ? `${metrics.quota.rateLimitedCount} rate limited`
+                    : metrics.quota.observedAt
+                      ? `requests, as of ${new Date(metrics.quota.observedAt).toLocaleTimeString()}`
+                      : 'no calls yet'
+                }
+              />
+              <StatCard
                 label="Transcript fetches"
                 value={transcriptTotal > 0 ? `${metrics.pipeline.transcript.success}/${transcriptTotal}` : '—'}
                 sub={`${metrics.pipeline.transcript.failed} failed`}
               />
             </div>
+
+            {/* Live credential health — sits above the AI breakdown because a
+                dead dependency explains every number below it. */}
+            <IntegrationsPanel data={integrations} onRecheck={loadIntegrations} rechecking={rechecking} />
 
             {/* Per-operation breakdown */}
             <Card className="p-5">

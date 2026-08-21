@@ -48,7 +48,11 @@ services:
       # "paid" and payment tracking silently stops working
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
-      # Shared secret for scheduled jobs (stale-session sweeper). Must match the
-      # CRON_SECRET repository secret in GitHub Actions.
+      # Shared secret for scheduled jobs (stale-session sweeper, integration
+      # health check). Must match the CRON_SECRET repository secret in GitHub
+      # Actions.
       - key: CRON_SECRET
+        sync: false
+      # Inbox for consultation leads and integration-failure alerts
+      - key: TEAM_EMAIL
         sync: false

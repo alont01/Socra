@@ -107,6 +107,20 @@ Monthly, hours-based, invoiced through Stripe. Money-safety rules — none of th
 
 **Payment status** is webhook-driven (`/api/stripe/webhook`): signature verified against `STRIPE_WEBHOOK_SECRET` before anything else, duplicate events ignored by `stripeEventId`, and events older than `statusUpdatedAt` discarded so out-of-order delivery can't un-pay an invoice. Missing secret returns 503 so Stripe retries rather than dropping the event. `/api/admin/billing/sync` is the pull-based backstop for events missed during a deploy.
 
+### Integration health
+
+Every external credential is declared once in `lib/integrations.ts` with a cheap, read-only probe. **These keys do not expire** — Anthropic, Daily, Resend, and Stripe issue no expiry dates — so the check is not an expiry tracker. It answers four states: `not_configured` (never set on the host), `unauthorized` (rolled, revoked, or wrong mode), `unreachable` (provider down), `ok`.
+
+- `/admin` probes live and shows status + how long anything has been down; `/api/admin/integrations` is the endpoint.
+- `.github/workflows/check-integrations.yml` runs hourly → `/api/cron/check-integrations` (bearer `CRON_SECRET`), which emails `TEAM_EMAIL` **only on a state transition** — an hourly probe that mailed on every failing run would be filtered within a week.
+- `instrumentation.ts` names every missing required secret at boot. It logs loudly and keeps serving: a missing billing key degrades one feature, and refusing to boot would take live sessions down with it.
+- The monitor degrades rather than failing when the database is unreachable — it monitors the database, so it has to survive its outage and still send the alert.
+- Adding a dependency means adding one entry to `DEFINITIONS`; the dashboard, cron, alerting, and boot audit all pick it up.
+
+**Quota is observed, not polled.** There is no Anthropic endpoint for remaining quota; the numbers arrive as `anthropic-ratelimit-*` response headers. `trackedMessage` uses `.withResponse()` to capture them (plus `retry-after` and status on a 429) into `SystemEvent.metadata`, which is what feeds the headroom tile on `/admin`.
+
+**`sendEmail` returns `false` on a rejected send.** Resend resolves with `{ data, error }` and does not throw on API errors, so its result must be inspected — check the boolean before assuming a message was delivered.
+
 ### Logging
 
 `createLogger(module)` from `lib/logger.ts` is the only logging API — no bare `console.*` in `app/` or `lib/`.

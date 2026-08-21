@@ -21,9 +21,25 @@ export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<
   try {
     const { Resend } = await import('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
-    await trackedCall({ category: 'email', name: 'email.send', metadata: { to, subject } }, () =>
-      resend.emails.send({ from: 'noreply@socratutoring.com', to, subject, html }),
-    )
+    await trackedCall({ category: 'email', name: 'email.send', metadata: { to, subject } }, async () => {
+      // Resend resolves with `{ data, error }` and does NOT throw on an API
+      // error — a rejected send (bad key, quota exhausted, blocked recipient)
+      // looks exactly like a successful one unless `error` is inspected.
+      // Throwing here is deliberate: it is what makes trackedCall record the
+      // failure instead of filing it under successful sends.
+      const { data, error } = await resend.emails.send({
+        from: 'noreply@socratutoring.com',
+        to,
+        subject,
+        html,
+      })
+      if (error) {
+        throw Object.assign(new Error(error.message || 'Resend rejected the message'), {
+          name: error.name ?? 'ResendError',
+        })
+      }
+      return data
+    })
     return true
   } catch (err) {
     logger.error('Failed to send email', err, { to, subject })
@@ -160,6 +176,63 @@ export function sessionScheduledEmailHtml(input: {
     </table>
     <p style="color: #78716c; font-size: 13px; margin-top: 20px; line-height: 1.5;">
       You'll find it on your Socra dashboard when it's time to join.
+    </p>
+  `)
+}
+
+interface IntegrationAlertRow {
+  label: string
+  status: string
+  detail: string
+  impact: string
+  required: boolean
+  from: string | null
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  ok: '#15803d',
+  unauthorized: '#b91c1c',
+  unreachable: '#b45309',
+  not_configured: '#78716c',
+}
+
+/**
+ * Alert the team that an external dependency changed state. Sent only on a
+ * transition (see lib/integration-monitor.ts), so receiving one always means
+ * something actually just changed.
+ */
+export function integrationAlertEmailHtml(rows: IntegrationAlertRow[], recovered: boolean): string {
+  const intro = recovered
+    ? 'These integrations are working again. No action needed.'
+    : 'These external dependencies just changed state. Anything below marked <b>required</b> is currently breaking part of the product.'
+
+  const cards = rows
+    .map((r) => {
+      const color = STATUS_COLOR[r.status] ?? '#78716c'
+      const transition = r.from ? `${r.from} → ${r.status}` : r.status
+      return `
+      <div style="border:1px solid #ffedd5;border-radius:12px;padding:14px 16px;margin-bottom:10px;background:#fffdf9;">
+        <div style="font-size:15px;font-weight:700;color:#1c1917;">
+          ${r.label}${r.required ? ' <span style="font-size:11px;font-weight:600;color:#b91c1c;">· required</span>' : ''}
+        </div>
+        <div style="font-size:13px;font-weight:600;color:${color};margin-top:4px;">${transition}</div>
+        <div style="font-size:13px;color:#57534e;margin-top:6px;line-height:1.5;">${r.detail}</div>
+        ${r.status !== 'ok' ? `<div style="font-size:12px;color:#78716c;margin-top:6px;line-height:1.5;">${r.impact}</div>` : ''}
+      </div>`
+    })
+    .join('')
+
+  return shell(`
+    <h1 style="font-size:20px;font-weight:700;margin-bottom:8px;">
+      ${recovered ? 'Integrations recovered ✅' : 'Integration problem ⚠️'}
+    </h1>
+    <p style="color:#57534e;margin-bottom:16px;line-height:1.6;font-size:14px;">${intro}</p>
+    ${cards}
+    <a href="https://socratutoring.com/admin" style="display:inline-block;background:#f97316;color:#fff;font-weight:600;text-decoration:none;padding:12px 22px;border-radius:11px;font-size:15px;margin-top:8px;">
+      Open the admin dashboard
+    </a>
+    <p style="color:#a8a29e;font-size:12px;margin-top:20px;line-height:1.5;">
+      Sent once per change of state, not once per check — you will not get this hourly while something is down.
     </p>
   `)
 }
