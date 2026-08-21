@@ -1,5 +1,8 @@
 import { config as appConfig } from '@/lib/config'
 import { trackedCall } from '@/lib/metrics'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('daily')
 
 const DAILY_API_KEY = process.env.DAILY_API_KEY || ''
 const DAILY_API_URL = 'https://api.daily.co/v1'
@@ -131,18 +134,18 @@ export async function fetchTranscriptWithRetry(
 
     if (result === null) {
       // API error (free plan or unavailable) — no point retrying
-      console.log(`[daily] Transcription not available for ${roomName} — using notes fallback`)
+      logger.warn('Transcription not available — falling back to notes', { roomName, attempt: i + 1 })
       return null
     }
 
     if (typeof result === 'string' && result !== 'not-ready') {
-      console.log(`[daily] Transcript retrieved for ${roomName} (${result.length} chars)`)
+      logger.info('Transcript retrieved', { roomName, chars: result.length, attempt: i + 1 })
       return result
     }
 
     // 'not-ready' — transcript is processing, keep waiting
     await new Promise((resolve) => setTimeout(resolve, appConfig.daily.transcriptRetryIntervalMs))
   }
-  console.log(`[daily] Transcript not ready after ${maxRetries} attempts for ${roomName}`)
+  logger.warn('Transcript still not ready; giving up', { roomName, maxRetries })
   return null
 }

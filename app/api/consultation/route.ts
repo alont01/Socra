@@ -3,11 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { consultationSchema, parseBody } from '@/lib/validations'
 import { rateLimit } from '@/lib/rate-limit'
 import { sendEmail, consultationTeamEmailHtml, consultationParentEmailHtml } from '@/lib/email'
-import { createLogger } from '@/lib/logger'
 import { recordEvent } from '@/lib/metrics'
 import { bookingUrl } from '@/lib/booking'
-
-const logger = createLogger('consultation')
+import { ApiError, route } from '@/lib/api-handler'
 
 // Where inbound lead notifications go. Defaults to the team inbox; override
 // with TEAM_EMAIL in the environment.
@@ -15,7 +13,7 @@ const TEAM_EMAIL = process.env.TEAM_EMAIL || 'team@socratutoring.com'
 
 // Public endpoint — no auth. A prospective parent submits the /get-started
 // form; we persist the lead, notify the team, and confirm to the parent.
-export async function POST(request: Request) {
+export const POST = route('consultation', async (request: Request) => {
   try {
     const ip = request.headers.get('x-forwarded-for') || 'unknown'
     const rl = rateLimit(`consultation:${ip}`, { maxRequests: 5, windowMs: 60_000 })
@@ -70,7 +68,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true }, { status: 201 })
   } catch (err) {
-    logger.error('Failed to record consultation request', err)
+    // A dropped lead is lost revenue — record it against the lead funnel, not
+    // just the generic HTTP error stream, then let the wrapper render the 500.
     recordEvent({
       category: 'lead',
       name: 'consultation.request',
@@ -78,6 +77,6 @@ export async function POST(request: Request) {
       success: false,
       metadata: { error: err instanceof Error ? err.message : String(err) },
     })
-    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
+    throw new ApiError(500, 'Something went wrong. Please try again.', { cause: err })
   }
-}
+})

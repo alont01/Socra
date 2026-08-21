@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import { requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { type OverlapSlot } from '@/lib/availability'
+import { route } from '@/lib/api-handler'
 
 // Pending student-match offers for this tutor (expired ones filtered out live).
-export async function GET() {
+export const GET = route('tutor/offers', async () => {
   const auth = await requireTutor()
   if (!auth.ok) return auth.response
 
@@ -44,4 +45,4 @@ export async function GET() {
   })
 
   return NextResponse.json({ offers: shaped })
-}
+})

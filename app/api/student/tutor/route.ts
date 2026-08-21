@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { route } from '@/lib/api-handler'
 
 // Tells the student whether they have an assigned tutor yet — so the
 // dashboard can show a clear "still finding your tutor" state instead of
 // silently showing nothing (matching may take a moment: solo auto-pair is
 // instant, but multi-tutor offers can take longer to be accepted).
-export async function GET() {
+export const GET = route('student/tutor', async () => {
   const auth = await requireStudent()
   if (!auth.ok) return auth.response
 
@@ -17,4 +18,4 @@ export async function GET() {
   })
 
   return NextResponse.json({ tutor: roster ? { id: roster.tutor.id, name: roster.tutor.name } : null })
-}
+})

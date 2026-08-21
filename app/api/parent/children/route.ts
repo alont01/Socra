@@ -8,54 +8,54 @@ import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
 import { runMatching } from '@/lib/matching'
 import { notifyTutorsOfOffers, notifyParentOfMatch } from '@/lib/match-notify'
+import { route } from '@/lib/api-handler'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('parent/children')
 
 // List the parent's linked children with a light progress summary.
-export async function GET() {
-  try {
-    const auth = await requireParent()
-    if (!auth.ok) return auth.response
+export const GET = route('parent/children', async () => {
+  const auth = await requireParent()
+  if (!auth.ok) return auth.response
 
-    const children = await prisma.studentProfile.findMany({
-      where: { parentId: auth.parent.id },
-      select: { id: true, name: true, gradeLevel: true, goals: true },
-      orderBy: { name: 'asc' },
-    })
+  const children = await prisma.studentProfile.findMany({
+    where: { parentId: auth.parent.id },
+    select: { id: true, name: true, gradeLevel: true, goals: true },
+    orderBy: { name: 'asc' },
+  })
 
-    const summaries = await Promise.all(
-      children.map(async (c) => {
-        const [mastery, lastSession] = await Promise.all([
-          prisma.studentProgress.aggregate({
-            where: { studentId: c.id },
-            _avg: { mastery: true },
-            _count: { _all: true },
-          }),
-          prisma.tutoringSession.findFirst({
-            where: { studentId: c.id, status: 'completed' },
-            orderBy: { endedAt: 'desc' },
-            select: { topic: true, endedAt: true },
-          }),
-        ])
-        return {
-          ...c,
-          avgMastery: mastery._avg.mastery,
-          topicsTracked: mastery._count._all,
-          lastSession: lastSession ? { topic: lastSession.topic, endedAt: lastSession.endedAt } : null,
-        }
-      }),
-    )
+  const summaries = await Promise.all(
+    children.map(async (c) => {
+      const [mastery, lastSession] = await Promise.all([
+        prisma.studentProgress.aggregate({
+          where: { studentId: c.id },
+          _avg: { mastery: true },
+          _count: { _all: true },
+        }),
+        prisma.tutoringSession.findFirst({
+          where: { studentId: c.id, status: 'completed' },
+          orderBy: { endedAt: 'desc' },
+          select: { topic: true, endedAt: true },
+        }),
+      ])
+      return {
+        ...c,
+        avgMastery: mastery._avg.mastery,
+        topicsTracked: mastery._count._all,
+        lastSession: lastSession ? { topic: lastSession.topic, endedAt: lastSession.endedAt } : null,
+      }
+    }),
+  )
 
-    return NextResponse.json({ children: summaries })
-  } catch (err) {
-    console.error('[parent children]', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+  return NextResponse.json({ children: summaries })
+})
 
 // Parent creates a child's student account. The parent sets a username +
 // password the child logs in with — no student email needed. The child is
 // linked to this parent; if availability is provided, tutor matching kicks off.
-export async function POST(request: Request) {
-  try {
+export const POST = route(
+  'parent/children',
+  async (request: Request) => {
     const auth = await requireParent()
     if (!auth.ok) return auth.response
 
@@ -137,8 +137,10 @@ export async function POST(request: Request) {
           matchedTutorName = t?.name
           await notifyParentOfMatch(child.id, t?.name || 'your tutor')
         }
-      } catch (e) {
-        console.error('[parent children] matching failed', e)
+      } catch (err) {
+        // Best-effort: the child account already exists, so a matching hiccup
+        // must not fail the request the parent is waiting on.
+        logger.error('Matching after child creation failed', err, { childId: child?.id })
       }
     }
 
@@ -152,8 +154,6 @@ export async function POST(request: Request) {
       },
       { status: 201 },
     )
-  } catch (err) {
-    console.error('[parent children POST]', err)
-    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
-  }
-}
+  },
+  { errorMessage: 'Something went wrong. Please try again.' },
+)

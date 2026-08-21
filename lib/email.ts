@@ -164,6 +164,23 @@ export function sessionScheduledEmailHtml(input: {
   `)
 }
 
+/** Password-reset link. `resetLink` is single-use and expires — see the route. */
+export function passwordResetEmailHtml(resetLink: string, expiryMinutes: number): string {
+  return shell(`
+    <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Reset your password</h1>
+    <p style="color: #57534e; margin-bottom: 24px; line-height: 1.6;">
+      We received a request to reset the password for your account. Click the button below to choose a new
+      password. This link expires in ${expiryMinutes} minutes.
+    </p>
+    <a href="${resetLink}" style="display: inline-block; padding: 12px 28px; background: #f97316; color: #fff; font-weight: 600; border-radius: 12px; text-decoration: none;">
+      Reset Password
+    </a>
+    <p style="color: #78716c; font-size: 13px; margin-top: 24px; line-height: 1.5;">
+      If you didn't request a password reset, you can safely ignore this email.
+    </p>
+  `)
+}
+
 export function verificationEmailHtml(code: string): string {
   return shell(`
     <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Verify your email</h1>

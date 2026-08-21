@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { reportClientError } from '@/lib/report-client-error'
 
 export default function Error({
   error,
@@ -12,6 +13,7 @@ export default function Error({
 }) {
   useEffect(() => {
     console.error(error)
+    reportClientError(error, { source: 'app-error' })
   }, [error])
 
   return (

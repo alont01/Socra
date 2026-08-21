@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { matchingSetupSchema, parseBody } from '@/lib/validations'
 import { parseBlocks } from '@/lib/availability'
 import { remainingCapacity } from '@/lib/matching'
+import { route } from '@/lib/api-handler'
 
 // Tutor reads their matching setup + current load.
-export async function GET() {
+export const GET = route('tutor/matching-setup', async () => {
   const auth = await requireTutor()
   if (!auth.ok) return auth.response
 
@@ -26,10 +27,10 @@ export async function GET() {
     activeStudents: activeCount,
     remainingHours: remaining,
   })
-}
+})
 
 // Tutor updates capacity / availability / accepting toggle.
-export async function PATCH(request: Request) {
+export const PATCH = route('tutor/matching-setup', async (request: Request) => {
   const auth = await requireTutor()
   if (!auth.ok) return auth.response
 
@@ -45,4 +46,4 @@ export async function PATCH(request: Request) {
 
   await prisma.tutorProfile.update({ where: { id: auth.tutor.id }, data })
   return NextResponse.json({ ok: true })
-}
+})

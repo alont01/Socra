@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { route } from '@/lib/api-handler'
 
 // Persist the tutor's rolling live-caption buffer so post-session analysis has
 // a fallback if Daily's VTT fetch comes back empty. Called by the tutor's
 // client just before ending the session.
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
+export const POST = route(
+  'tutoring-sessions/[id]/live-transcript',
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params
     const auth = await requireAuth()
     if (!auth.ok) return auth.response
@@ -25,7 +27,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await prisma.tutoringSession.update({ where: { id }, data: { liveTranscript: transcript } })
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Failed to save transcript' }, { status: 500 })
-  }
-}
+  },
+  { errorMessage: 'Failed to save transcript' },
+)

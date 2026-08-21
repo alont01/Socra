@@ -9,17 +9,16 @@ import { nextLevel, shouldStop, resolveOutcome, finalCorrectFromOutcome } from '
 import { completeAssessment } from '@/lib/assessment-complete'
 import { shapeAssessment } from '@/lib/assessment-shape'
 import { createLogger } from '@/lib/logger'
+import { route } from '@/lib/api-handler'
 
 const logger = createLogger('assessment-answer')
 
 // POST — student submits an answer for the current (unanswered) item. Grades
 // it, advances the difficulty ladder, and either generates the next item or
 // completes the assessment (max items reached, or the level has converged).
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string; assessmentId: string }> },
-) {
-  try {
+export const POST = route(
+  'tutoring-sessions/[id]/assessment/[assessmentId]/answer',
+  async (request: Request, { params }: { params: Promise<{ id: string; assessmentId: string }> }) => {
     const { id, assessmentId } = await params
     const auth = await requireStudent()
     if (!auth.ok) return auth.response
@@ -125,8 +124,6 @@ export async function POST(
       assessment: shapeAssessment(fresh, false),
       justAnswered: { correct: autoCorrect, ...(autoCorrect ? {} : { correctAnswer: item.answer }) },
     })
-  } catch (err) {
-    logger.error('Failed to submit assessment answer', err)
-    return NextResponse.json({ error: 'Something went wrong grading that answer. Please try again.' }, { status: 500 })
-  }
-}
+  },
+  { errorMessage: 'Something went wrong grading that answer. Please try again.' },
+)

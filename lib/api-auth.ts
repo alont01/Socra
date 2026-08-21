@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { verifyToken, type JWTPayload } from './auth'
 import { prisma } from './prisma'
 import { isAdmin } from './admin'
+import { setRequestActor } from './request-context'
 import type { TutorProfile, StudentProfile, ParentProfile } from '@prisma/client'
 
 // ── Discriminated union results ──
@@ -33,6 +34,11 @@ export async function requireAuth(): Promise<AuthSuccess | AuthFailure> {
   if (!payload) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
+
+  // Every route authenticates through here, so this is the one place that needs
+  // to know who the caller is for the rest of the request's log lines to carry
+  // it. See lib/request-context.ts.
+  setRequestActor({ userId: payload.userId, role: payload.role })
 
   return { ok: true, payload }
 }

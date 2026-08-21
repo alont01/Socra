@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { route } from '@/lib/api-handler'
+import { AUTH_COOKIE, clearAuthCookie } from '@/lib/auth-cookie'
 import { verifyToken } from '@/lib/auth'
 import { recordAudit, auditContext } from '@/lib/audit'
 
-export async function POST(request: Request) {
+export const POST = route('auth/logout', async (request: Request) => {
   // Best-effort actor: read the token before we clear it.
-  const token = (await cookies()).get('token')?.value
+  const token = (await cookies()).get(AUTH_COOKIE)?.value
   const payload = token ? await verifyToken(token) : null
   recordAudit({
     action: 'auth.logout',
@@ -14,8 +16,6 @@ export async function POST(request: Request) {
   })
 
   const response = NextResponse.json({ success: true })
-  response.cookies.delete('token')
-  response.cookies.delete('next-auth.session-token')
-  response.cookies.delete('__Secure-next-auth.session-token')
+  clearAuthCookie(response)
   return response
-}
+})

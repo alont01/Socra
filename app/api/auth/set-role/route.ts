@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
+import { route } from '@/lib/api-handler'
+import { setAuthCookie } from '@/lib/auth-cookie'
 import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/auth'
 import { setRoleSchema, parseBody } from '@/lib/validations'
 
-export async function POST(request: Request) {
+export const POST = route('auth/set-role', async (request: Request) => {
   const session = await auth()
 
   if (!session?.user?.id) {
@@ -53,13 +55,7 @@ export async function POST(request: Request) {
   const token = await signToken({ userId: user.id, email: user.email, role })
 
   const response = NextResponse.json({ success: true })
-  response.cookies.set('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  })
+  setAuthCookie(response, token)
 
   return response
-}
+})

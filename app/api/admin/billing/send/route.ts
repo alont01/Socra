@@ -6,6 +6,7 @@ import { parseBody } from '@/lib/validations'
 import { getMonthlyBilling, monthBounds } from '@/lib/billing'
 import { sendMonthlyInvoice, BillingNotConfiguredError } from '@/lib/stripe-invoicing'
 import { recordAudit, auditContext } from '@/lib/audit'
+import { ApiError, route } from '@/lib/api-handler'
 
 const sendSchema = z.object({
   parentId: z.string().min(1),
@@ -15,8 +16,9 @@ const sendSchema = z.object({
 // POST — send one family's invoice for the given month. Recomputes the
 // billing amount server-side from real session data rather than trusting
 // anything from the client — this triggers a real charge-request to a parent.
-export async function POST(request: Request) {
-  try {
+export const POST = route(
+  'admin/billing/send',
+  async (request: Request) => {
     const auth = await requireAdmin()
     if (!auth.ok) return auth.response
 
@@ -40,7 +42,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No billable hours found for this family in this period.' }, { status: 400 })
     }
 
-    const result = await sendMonthlyInvoice(row, start, end)
+    let result
+    try {
+      result = await sendMonthlyInvoice(row, start, end)
+    } catch (err) {
+      // A missing Stripe key is an operator configuration problem with a clear
+      // fix, not an unexpected failure — say so instead of returning a 500.
+      if (err instanceof BillingNotConfiguredError) {
+        throw new ApiError(400, "Stripe isn't configured yet — add STRIPE_SECRET_KEY to send invoices.", { cause: err })
+      }
+      throw err
+    }
 
     recordAudit({
       action: 'billing.invoice.send',
@@ -52,11 +64,6 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json({ invoiceId: result.id, hostedUrl: result.hostedUrl })
-  } catch (err) {
-    if (err instanceof BillingNotConfiguredError) {
-      return NextResponse.json({ error: 'Stripe isn\'t configured yet — add STRIPE_SECRET_KEY to send invoices.' }, { status: 400 })
-    }
-    console.error('[admin billing send]', err)
-    return NextResponse.json({ error: 'Could not send the invoice. Please try again.' }, { status: 500 })
-  }
-}
+  },
+  { errorMessage: 'Could not send the invoice. Please try again.' },
+)

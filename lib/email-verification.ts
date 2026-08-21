@@ -1,6 +1,9 @@
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { sendEmail, verificationEmailHtml } from '@/lib/email'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('email-verification')
 
 const CODE_TTL_MS = 15 * 60 * 1000 // 15 minutes
 export const MAX_VERIFY_ATTEMPTS = 6
@@ -33,7 +36,13 @@ export async function issueVerificationCode(userId: string, email: string): Prom
     html: verificationEmailHtml(code),
   })
   if (!sent) {
-    // Local dev / no provider — surface the code in logs so signup is testable.
-    console.log(`[email-verification] Code for ${email} (no email sent): ${code}`)
+    if (process.env.NODE_ENV === 'production') {
+      // The user is now stuck at the verification step with no way through.
+      // The code itself must never reach a production log.
+      logger.error('Verification email could not be sent; user cannot complete signup', undefined, { userId })
+    } else {
+      // Local dev / no provider — surface the code so signup stays testable.
+      logger.warn(`Verification code for ${email} (no email sent): ${code}`)
+    }
   }
 }

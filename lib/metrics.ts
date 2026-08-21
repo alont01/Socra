@@ -61,7 +61,14 @@ export function recordEvent(input: RecordEventInput): void {
       },
     })
     .catch((err) => {
-      logger.error('Failed to record metric event', err, { name: input.name })
+      // Warn, not error, and no stack: a telemetry write fails almost only when
+      // the database is already unreachable, and the request that triggered it
+      // has logged that failure with a full stack. Repeating it here doubles
+      // every log line during exactly the outage you need to read through.
+      logger.warn('Failed to record metric event', {
+        name: input.name,
+        errorMessage: err instanceof Error ? err.message : String(err),
+      })
     })
 }
 

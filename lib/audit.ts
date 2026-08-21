@@ -55,6 +55,12 @@ export function recordAudit(input: RecordAuditInput): void {
       },
     })
     .catch((err) => {
-      logger.error('Failed to record audit entry', err, { action: input.action })
+      // A lost audit entry is more serious than a lost metric — keep it at
+      // error level — but omit the stack: during a database outage the
+      // triggering request has already logged one.
+      logger.error('Failed to record audit entry', undefined, {
+        action: input.action,
+        errorMessage: err instanceof Error ? err.message : String(err),
+      })
     })
 }

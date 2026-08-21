@@ -6,6 +6,10 @@ import { runMatching } from '@/lib/matching'
 import { notifyTutorsOfOffers, notifyParentOfMatch } from '@/lib/match-notify'
 import { recordAudit, auditContext } from '@/lib/audit'
 import { recordEvent } from '@/lib/metrics'
+import { ApiError, route } from '@/lib/api-handler'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('tutor/offers/[id]/respond')
 
 // Tutor accepts or declines a match offer.
 //
@@ -13,7 +17,7 @@ import { recordEvent } from '@/lib/metrics'
 // active pairing. A DB partial-unique index ("one active tutor per student")
 // makes the pairing insert the true arbiter — a concurrent second accept fails
 // there and is reported as "already taken".
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const POST = route('tutor/offers/[id]/respond', async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
   const auth = await requireTutor()
   if (!auth.ok) return auth.response
   const { id } = await params
@@ -47,8 +51,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     try {
       const result = await runMatching(offer.studentId)
       if (result.status === 'offered') await notifyTutorsOfOffers(offer.studentId)
-    } catch (e) {
-      console.error('[offer respond] re-match after decline failed', e)
+    } catch (err) {
+      // Best-effort: the decline itself succeeded, so surface a log rather than
+      // failing the tutor's request.
+      logger.error('Re-match after decline failed', err, { studentId: offer.studentId })
     }
     return NextResponse.json({ ok: true, result: 'declined' })
   }
@@ -91,8 +97,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await prisma.tutorMatchOffer.updateMany({ where: { id, status: 'accepted' }, data: { status: 'withdrawn' } }).catch(() => {})
       return NextResponse.json({ error: 'This student was just matched with another tutor.' }, { status: 409 })
     }
-    console.error('[offer respond] accept failed', err)
-    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
+    throw new ApiError(500, 'Something went wrong. Please try again.', { cause: err })
   }
 
   recordAudit({ action: 'match.accept', actor: { id: auth.payload.userId, email: auth.payload.email, role: auth.payload.role }, targetType: 'student', targetId: offer.studentId, ...ctx })
@@ -101,9 +106,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Notify the parent (best-effort).
   try {
     await notifyParentOfMatch(offer.studentId, auth.tutor.name)
-  } catch (e) {
-    console.error('[offer respond] parent notify failed', e)
+  } catch (err) {
+    logger.error('Parent match notification failed', err, { studentId: offer.studentId })
   }
 
   return NextResponse.json({ ok: true, result: 'accepted', student: desired?.name })
-}
+})

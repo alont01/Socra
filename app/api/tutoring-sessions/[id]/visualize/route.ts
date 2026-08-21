@@ -8,14 +8,16 @@ import { extractJson } from '@/lib/ai/parse-json'
 import { normalizeDrawSpec } from '@/lib/whiteboard-draw'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
+import { route } from '@/lib/api-handler'
 
 const logger = createLogger('visualize')
 
 // Tutor-triggered mid-session visualization. Reads the recent conversation +
 // notes + current whiteboard, and returns a "draw spec" the client renders onto
 // the shared whiteboard to help with what the student is stuck on.
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
+export const POST = route(
+  'tutoring-sessions/[id]/visualize',
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params
     const auth = await requireTutor()
     if (!auth.ok) return auth.response
@@ -94,8 +96,6 @@ Rules:
     }
 
     return NextResponse.json({ spec })
-  } catch (err) {
-    logger.error('Visualize failed', err)
-    return NextResponse.json({ error: 'Something went wrong generating the visualization.' }, { status: 500 })
-  }
-}
+  },
+  { errorMessage: 'Something went wrong generating the visualization.' },
+)

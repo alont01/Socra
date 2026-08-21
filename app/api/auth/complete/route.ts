@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { signToken } from '@/lib/auth'
+import { route } from '@/lib/api-handler'
+import { setAuthCookie } from '@/lib/auth-cookie'
 
-export async function GET(request: Request) {
+export const GET = route('auth/complete', async (request: Request) => {
   const session = await auth()
 
   if (!session?.user?.id) {
@@ -38,13 +40,7 @@ export async function GET(request: Request) {
 
   const base = process.env.AUTH_URL || new URL(request.url).origin
   const response = NextResponse.redirect(new URL(destination, base))
-  response.cookies.set('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  })
+  setAuthCookie(response, token)
 
   return response
-}
+})

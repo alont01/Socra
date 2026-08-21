@@ -64,7 +64,43 @@ Two auth paths converge into one JWT cookie (`token`, 7-day expiry):
 
 ### API Route Pattern
 
-All API routes follow: read cookie → `verifyToken()` → check role/ownership → Prisma query → `NextResponse.json()`.
+Every route handler is wrapped in `route()` from `lib/api-handler.ts` and exported as a `const`, never as a bare `export async function`:
+
+```ts
+export const POST = route('tutor/students', async (request: Request) => {
+  const auth = await requireTutor()
+  if (!auth.ok) return auth.response
+  // ...
+  return NextResponse.json({ student })
+})
+```
+
+The wrapper owns the cross-cutting concerns, so handlers must **not** write their own top-level `try/catch`:
+
+- Assigns a request id (reuses an inbound `x-request-id`), echoes it on the response, and opens the async-local request context so every log line in the request carries it
+- Times the request; logs 5xx at error, slow requests at warn, 4xx at info, 2xx at debug
+- Converts throws into consistent responses: `ApiError` → its own status, `SyntaxError` (malformed body) → 400, Prisma `P2002`/`P2025`/`P2003` → 409/404/400, anything else → a generic 500 that never leaks the internal message
+- Records a `SystemEvent` for every 5xx
+- Rethrows Next's control-flow errors (`redirect()`, `notFound()`) untouched
+
+Conventions:
+
+- The first argument to `route()` is the route's path minus `app/api/`, e.g. `tutoring-sessions/[id]/end`
+- Throw `ApiError(status, message)` (or `badRequest`/`notFound`/`conflict`/…) from helper code that can't build a response; pass the underlying error as `{ cause }`
+- Pass `{ errorMessage }` as the third argument when a generic 500 would leave the user without a next step
+- Auth: `requireAuth` / `requireTutor` / `requireStudent` / `requireParent` / `requireAdmin` from `lib/api-auth.ts` (these also stamp the caller onto the request context — never re-implement `verifyToken` in a route)
+- Session cookie: only `setAuthCookie` / `clearAuthCookie` from `lib/auth-cookie.ts`
+
+### Logging
+
+`createLogger(module)` from `lib/logger.ts` is the only logging API — no bare `console.*` in `app/` or `lib/`.
+
+- JSON lines in production (queryable by `level`/`module`/`requestId`/`userId`), human-readable in dev; `LOG_LEVEL` overrides the default (`info` in production, `debug` locally)
+- Entries are automatically stamped with the active request id and authenticated user
+- Values under secret-shaped keys (`password`, `token`, `secret`, `apiKey`, `authorization`, `cookie`, `codeHash`) are redacted; long strings truncated
+- `logger.error(message, error, data)` takes the thrown value directly and extracts name/message/stack/code plus the `cause` chain
+- Never log a credential, verification code, or reset link outside development
+- Client-side crashes report to `/api/client-errors` via `reportClientError()` — browser errors reach the server log instead of only the user's console
 
 ### Component Organization
 

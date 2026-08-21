@@ -1,17 +1,26 @@
 import crypto from 'crypto'
 
-function getSecret(): string {
-  const secret = process.env.AUTH_SECRET
-  if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('AUTH_SECRET environment variable is required in production')
-    }
-    return 'dev-only-answer-token-secret'
-  }
-  return secret
-}
+let cachedKey: Buffer | undefined
 
-const KEY = crypto.createHash('sha256').update(getSecret()).digest()
+/**
+ * AES key derived from AUTH_SECRET.
+ *
+ * Derived lazily and memoized rather than at module load: `next build`
+ * evaluates route modules to collect page data, and a top-level throw here
+ * failed the *build* when AUTH_SECRET wasn't present in the build environment.
+ * Production still refuses to mint or read a token without a real secret.
+ */
+function getKey(): Buffer {
+  if (cachedKey) return cachedKey
+
+  const secret = process.env.AUTH_SECRET
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('AUTH_SECRET environment variable is required in production')
+  }
+
+  cachedKey = crypto.createHash('sha256').update(secret || 'dev-only-answer-token-secret').digest()
+  return cachedKey
+}
 
 /**
  * Encrypts the correct answer + topic into a tamper-proof token.
@@ -24,7 +33,7 @@ export function createAnswerToken(
   problemId: string,
 ): string {
   const iv = crypto.randomBytes(12)
-  const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv)
+  const cipher = crypto.createCipheriv('aes-256-gcm', getKey(), iv)
 
   const payload = JSON.stringify({ a: data.answer, t: data.topic, s: sessionId, p: problemId })
   const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()])
@@ -50,7 +59,7 @@ export function decryptAnswerToken(
     const tag = buf.subarray(12, 28)
     const encrypted = buf.subarray(28)
 
-    const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, iv)
+    const decipher = crypto.createDecipheriv('aes-256-gcm', getKey(), iv)
     decipher.setAuthTag(tag)
 
     const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])

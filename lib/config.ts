@@ -64,6 +64,13 @@ export const config = {
     bcryptSaltRounds: 12,
   },
 
+  // Observability
+  observability: {
+    // A request slower than this is logged at warn level. Set above the normal
+    // ceiling for AI-backed routes so ordinary model latency isn't flagged.
+    slowRequestMs: Number(process.env.SLOW_REQUEST_MS) || 3_000,
+  },
+
   // Whiteboard
   whiteboard: {
     syncDebounceMs: 150,

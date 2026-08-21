@@ -6,9 +6,7 @@ import { assessmentStartSchema, parseBody } from '@/lib/validations'
 import { generateAssessmentItem } from '@/lib/ai/assessment-generator'
 import { initialLevel } from '@/lib/assessment-engine'
 import { shapeAssessment } from '@/lib/assessment-shape'
-import { createLogger } from '@/lib/logger'
-
-const logger = createLogger('assessment')
+import { route } from '@/lib/api-handler'
 
 async function loadSessionAndRole(id: string, userId: string) {
   const session = await prisma.tutoringSession.findUnique({
@@ -25,32 +23,28 @@ async function loadSessionAndRole(id: string, userId: string) {
 
 // GET — current assessment state for this session (either party). Shaped
 // differently per role: the correct answer is only included for the tutor.
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params
-    const auth = await requireAuth()
-    if (!auth.ok) return auth.response
+export const GET = route('tutoring-sessions/[id]/assessment', async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
 
-    const { session, isTutor, isStudent } = await loadSessionAndRole(id, auth.payload.userId)
-    if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-    if (!isTutor && !isStudent) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  const { session, isTutor, isStudent } = await loadSessionAndRole(id, auth.payload.userId)
+  if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  if (!isTutor && !isStudent) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
 
-    const assessment = await prisma.assessment.findUnique({
-      where: { tutoringSessionId: id },
-      include: { items: { orderBy: { index: 'asc' } } },
-    })
-    if (!assessment) return NextResponse.json({ assessment: null })
+  const assessment = await prisma.assessment.findUnique({
+    where: { tutoringSessionId: id },
+    include: { items: { orderBy: { index: 'asc' } } },
+  })
+  if (!assessment) return NextResponse.json({ assessment: null })
 
-    return NextResponse.json({ assessment: shapeAssessment(assessment, isTutor) })
-  } catch (err) {
-    logger.error('GET failed', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+  return NextResponse.json({ assessment: shapeAssessment(assessment, isTutor) })
+})
 
 // POST — tutor starts a new adaptive assessment for this session.
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
+export const POST = route(
+  'tutoring-sessions/[id]/assessment',
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params
     const auth = await requireTutor()
     if (!auth.ok) return auth.response
@@ -113,8 +107,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
 
     return NextResponse.json({ assessment: shapeAssessment(created, true) }, { status: 201 })
-  } catch (err) {
-    logger.error('Failed to start assessment', err)
-    return NextResponse.json({ error: 'Could not start the assessment. Please try again.' }, { status: 500 })
-  }
-}
+  },
+  { errorMessage: 'Could not start the assessment. Please try again.' },
+)
