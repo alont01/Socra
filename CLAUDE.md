@@ -91,6 +91,22 @@ Conventions:
 - Auth: `requireAuth` / `requireTutor` / `requireStudent` / `requireParent` / `requireAdmin` from `lib/api-auth.ts` (these also stamp the caller onto the request context — never re-implement `verifyToken` in a route)
 - Session cookie: only `setAuthCookie` / `clearAuthCookie` from `lib/auth-cookie.ts`
 
+### Billing
+
+Monthly, hours-based, invoiced through Stripe. Money-safety rules — none of these are optional:
+
+**Hours** (`lib/billing.ts`): `billableHours = min(actual, scheduledMinutes + graceMinutes)`. `endedAt` is written only when a tutor clicks End, so raw wall-clock overstates any session left open. Short sessions bill their actual length — the cap only ever reduces. A missing/absurd `scheduledMinutes` falls back to the default rather than disabling the cap.
+
+**Abandoned sessions** (`lib/session-sweeper.ts`): an `active` session older than `config.session.staleAfterHours` is closed with `endedAt = startedAt + cap` and flagged `autoClosed`. `endedAt` is derived from the cap, never from "now", so *when* the sweeper runs can't change what a family pays. Batched at 25/run so a backlog doesn't fire every AI pipeline at once. Driven by `.github/workflows/sweep-sessions.yml` → `/api/cron/sweep-sessions` (bearer `CRON_SECRET`; Render's starter plan has no cron).
+
+**Sending** (`lib/billing-send.ts` → `lib/stripe-invoicing.ts`):
+- **Claim before Stripe.** The local `Invoice` row is inserted *first*; `@@unique([parentId, periodStart, periodEnd])` is the concurrency arbiter. Taking over an existing row is a conditional `updateMany` allowing only `failed` or a `pending` claim older than 10 minutes — two concurrent clicks cannot both charge.
+- **Draft before line items.** Items are attached to a specific invoice (`invoice: draft.id`) with `pending_invoice_items_behavior: 'exclude'`. An item created without an invoice belongs to the *customer* and gets swept onto their next invoice — that's the classic double-bill.
+- **Retries resume, never recreate.** The Stripe invoice id is persisted the moment the draft exists (`onInvoiceCreated`), so a retry days later resumes it. Live status is re-read before acting: already-paid/void invoices are never re-sent, and a draft that already has lines doesn't get a second set.
+- **Every status write is conditional on `pending`.** A parent can pay before the send finishes; an unconditional write would clobber `paid` back to `sent`.
+
+**Payment status** is webhook-driven (`/api/stripe/webhook`): signature verified against `STRIPE_WEBHOOK_SECRET` before anything else, duplicate events ignored by `stripeEventId`, and events older than `statusUpdatedAt` discarded so out-of-order delivery can't un-pay an invoice. Missing secret returns 503 so Stripe retries rather than dropping the event. `/api/admin/billing/sync` is the pull-based backstop for events missed during a deploy.
+
 ### Logging
 
 `createLogger(module)` from `lib/logger.ts` is the only logging API — no bare `console.*` in `app/` or `lib/`.

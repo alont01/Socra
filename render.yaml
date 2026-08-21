@@ -44,3 +44,11 @@ services:
       # Flat hourly rate charged to every family (whole dollars, defaults to 75)
       - key: HOURLY_RATE_USD
         sync: false
+      # Stripe webhook signing secret — without it, invoices never move to
+      # "paid" and payment tracking silently stops working
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # Shared secret for scheduled jobs (stale-session sweeper). Must match the
+      # CRON_SECRET repository secret in GitHub Actions.
+      - key: CRON_SECRET
+        sync: false

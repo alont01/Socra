@@ -113,6 +113,9 @@ export const createSessionSchema = z.object({
   studentId: z.string().min(1),
   topic: z.string().min(1, 'Topic is required'),
   scheduledAt: z.string().optional(),
+  // Intended length. Caps what the session can bill (lib/billing.ts), so the
+  // ceiling is deliberately generous but finite — Daily's room expires at 3h.
+  scheduledMinutes: z.number().int().min(15).max(240).optional(),
 })
 
 export const updateSessionSchema = z.object({

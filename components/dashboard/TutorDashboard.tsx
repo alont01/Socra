@@ -45,6 +45,9 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
   const [showNewSession, setShowNewSession] = useState(false)
   const [newTopic, setNewTopic] = useState('')
   const [newStudentId, setNewStudentId] = useState('')
+  // Caps what the session can bill, so a call left open doesn't charge for the
+  // whole afternoon. See lib/billing.ts.
+  const [newDuration, setNewDuration] = useState(60)
 
   useEffect(() => {
     Promise.all([
@@ -66,7 +69,11 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
       const res = await fetch('/api/tutoring-sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: newTopic || 'Math Session', studentId: newStudentId || undefined }),
+        body: JSON.stringify({
+          topic: newTopic || 'Math Session',
+          studentId: newStudentId || undefined,
+          scheduledMinutes: newDuration,
+        }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -154,6 +161,20 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
               {students.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
+            </select>
+            <label htmlFor="session-duration" className="sr-only">Session length</label>
+            <select
+              id="session-duration"
+              value={newDuration}
+              onChange={(e) => setNewDuration(Number(e.target.value))}
+              title="How long this session is booked for — this caps what it can bill"
+              className="px-3.5 py-2.5 rounded-xl bg-white text-sm ring-1 ring-inset ring-stone-200 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            >
+              <option value={30}>30 min</option>
+              <option value={45}>45 min</option>
+              <option value={60}>1 hour</option>
+              <option value={90}>1.5 hours</option>
+              <option value={120}>2 hours</option>
             </select>
             <Button onClick={createSession} loading={creating} size="sm">Start</Button>
             <Button variant="ghost" size="sm" onClick={() => setShowNewSession(false)}>Cancel</Button>

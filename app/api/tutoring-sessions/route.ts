@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { notifySessionScheduled } from '@/lib/session-notify'
 import { route } from '@/lib/api-handler'
 import { createSessionSchema, parseBody } from '@/lib/validations'
+import { config } from '@/lib/config'
 
 export const GET = route('tutoring-sessions', async (request: Request) => {
   const auth = await requireAuth()
@@ -75,7 +76,7 @@ export const POST = route('tutoring-sessions', async (request: Request) => {
   if ('error' in parsed) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
-  const { studentId, topic, scheduledAt } = parsed.data
+  const { studentId, topic, scheduledAt, scheduledMinutes } = parsed.data
 
   // Validate student is in tutor's roster
   if (studentId) {
@@ -93,6 +94,7 @@ export const POST = route('tutoring-sessions', async (request: Request) => {
       studentId: studentId || null,
       topic: topic || '',
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+      scheduledMinutes: scheduledMinutes ?? config.billing.defaultSessionMinutes,
     },
     include: {
       student: { select: { id: true, name: true } },

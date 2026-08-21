@@ -1,0 +1,57 @@
+name: Sweep stale sessions
+
+# Closes live sessions a tutor never ended. Those sessions otherwise stay
+# 'active' forever: they never reach the post-session analysis pipeline, and
+# they are never billed. The endpoint caps each one at its scheduled duration,
+# so how late this runs never changes what a family pays.
+#
+# Render's starter plan has no cron service, so the schedule lives here and
+# calls the deployed app over HTTP.
+#
+# Requires two repository secrets:
+#   CRON_SECRET  — must match the CRON_SECRET env var on Render
+#   APP_URL      — base URL of the deployment (optional; defaults to production)
+
+on:
+  schedule:
+    - cron: '20 * * * *' # hourly, at :20
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Base URL to sweep
+        required: false
+        default: https://www.socratutoring.com
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close abandoned sessions
+        env:
+          BASE_URL: ${{ github.event.inputs.url || secrets.APP_URL || 'https://www.socratutoring.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "CRON_SECRET repository secret is not set — the endpoint will reject this call."
+            exit 1
+          fi
+
+          # -sS keeps curl quiet but still prints errors; the status code is
+          # captured separately so a 401/500 fails the job loudly instead of
+          # silently "succeeding" with an error body.
+          response=$(mktemp)
+          status=$(curl -sS -o "$response" -w '%{http_code}' \
+            -X POST "${BASE_URL}/api/cron/sweep-sessions" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 120)
+
+          echo "HTTP $status"
+          cat "$response"
+          echo
+
+          if [ "$status" != "200" ]; then
+            echo "Sweep failed."
+            exit 1
+          fi

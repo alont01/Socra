@@ -1,13 +1,66 @@
-import { sessionHours, aggregateBilling, monthBounds, type SessionHoursRow } from '@/lib/billing'
+import { sessionHours, billableHours, aggregateBilling, monthBounds, type SessionHoursRow } from '@/lib/billing'
+
+const at = (iso: string) => new Date(iso)
+const START = at('2026-01-01T15:00:00Z')
+/** `START` plus n minutes. */
+const plus = (minutes: number) => new Date(START.getTime() + minutes * 60_000)
 
 describe('sessionHours', () => {
   it('converts a duration to hours', () => {
-    expect(sessionHours(new Date('2026-01-01T15:00:00Z'), new Date('2026-01-01T16:00:00Z'))).toBe(1)
-    expect(sessionHours(new Date('2026-01-01T15:00:00Z'), new Date('2026-01-01T15:30:00Z'))).toBe(0.5)
+    expect(sessionHours(START, at('2026-01-01T16:00:00Z'))).toBe(1)
+    expect(sessionHours(START, at('2026-01-01T15:30:00Z'))).toBe(0.5)
   })
 
   it('never returns negative (bad/reversed timestamps)', () => {
-    expect(sessionHours(new Date('2026-01-01T16:00:00Z'), new Date('2026-01-01T15:00:00Z'))).toBe(0)
+    expect(sessionHours(at('2026-01-01T16:00:00Z'), START)).toBe(0)
+  })
+
+  it('returns 0 for an invalid date rather than NaN', () => {
+    expect(sessionHours(START, new Date('nonsense'))).toBe(0)
+  })
+})
+
+describe('billableHours', () => {
+  // Grace defaults to 10 minutes (config.billing.graceMinutes).
+
+  it('bills the full time when a session runs exactly as scheduled', () => {
+    expect(billableHours(START, plus(120), 120)).toBe(2)
+    expect(billableHours(START, plus(60), 60)).toBe(1)
+  })
+
+  it('bills actual time when a session runs short', () => {
+    // Scheduled 2h, student left after 40 min → 40 min.
+    expect(billableHours(START, plus(40), 120)).toBeCloseTo(40 / 60, 10)
+  })
+
+  it('allows a small natural overrun within the grace window', () => {
+    // Scheduled 60, ran 68 → billed 68 (inside the 10-minute grace).
+    expect(billableHours(START, plus(68), 60)).toBeCloseTo(68 / 60, 10)
+  })
+
+  it('caps a session left open long past its scheduled end', () => {
+    // The forgot-to-click-End case: scheduled 60, "ran" 3h → capped at 70 min.
+    expect(billableHours(START, plus(180), 60)).toBeCloseTo(70 / 60, 10)
+  })
+
+  it('caps proportionally for a longer scheduled session', () => {
+    // Scheduled 120, left open 5h → capped at 130 min, not 60.
+    expect(billableHours(START, plus(300), 120)).toBeCloseTo(130 / 60, 10)
+  })
+
+  it('falls back to the default length when scheduledMinutes is missing or absurd', () => {
+    // A bad row must not disable the cap and bill unbounded.
+    expect(billableHours(START, plus(600), 0)).toBeCloseTo(70 / 60, 10)
+    expect(billableHours(START, plus(600), -30)).toBeCloseTo(70 / 60, 10)
+    expect(billableHours(START, plus(600), NaN)).toBeCloseTo(70 / 60, 10)
+  })
+
+  it('honours an explicit grace of zero', () => {
+    expect(billableHours(START, plus(180), 60, 0)).toBe(1)
+  })
+
+  it('never returns negative for reversed timestamps', () => {
+    expect(billableHours(plus(60), START, 60)).toBe(0)
   })
 })
 
@@ -16,6 +69,10 @@ describe('aggregateBilling', () => {
     parentId: 'p1', parentName: 'Parent One', parentEmail: 'p1@example.com',
     studentId: 's1', studentName: 'Student One',
     startedAt: new Date('2026-01-01T15:00:00Z'), endedAt: new Date('2026-01-01T16:00:00Z'),
+    // Generous by default so these cases exercise aggregation, not the cap;
+    // the cap has its own describe block above.
+    scheduledMinutes: 480,
+    autoClosed: false,
     ...over,
   })
 
@@ -71,6 +128,18 @@ describe('aggregateBilling', () => {
 
   it('returns [] for no rows', () => {
     expect(aggregateBilling([], 75)).toEqual([])
+  })
+
+  it('applies the per-session cap before summing', () => {
+    const rows = [
+      // Scheduled 60, left open 4h — must contribute 70 min, not 240.
+      row({ scheduledMinutes: 60, startedAt: new Date('2026-01-01T15:00:00Z'), endedAt: new Date('2026-01-01T19:00:00Z') }),
+      // A normal 1h session.
+      row({ scheduledMinutes: 60, startedAt: new Date('2026-01-02T15:00:00Z'), endedAt: new Date('2026-01-02T16:00:00Z') }),
+    ]
+    const [billing] = aggregateBilling(rows, 75)
+    expect(billing.totalHours).toBe(2.17) // 70min + 60min = 130min
+    expect(billing.amountCents).toBe(Math.round(2.17 * 75 * 100))
   })
 })
 

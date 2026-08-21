@@ -20,7 +20,15 @@ export const GET = route('admin/billing', async (request: Request) => {
     getMonthlyBilling(start, end),
     prisma.invoice.findMany({
       where: { periodStart: start, periodEnd: end },
-      select: { parentId: true, status: true, stripeInvoiceUrl: true, sentAt: true },
+      select: {
+        parentId: true,
+        status: true,
+        stripeInvoiceUrl: true,
+        sentAt: true,
+        paidAt: true,
+        amountCents: true,
+        lastError: true,
+      },
     }),
   ])
 
@@ -34,5 +42,8 @@ export const GET = route('admin/billing', async (request: Request) => {
     period: { start, end },
     rows,
     stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
+    // Surfaced so the admin page can warn that payment status won't update on
+    // its own — the most consequential thing to get wrong in this flow.
+    webhookConfigured: !!process.env.STRIPE_WEBHOOK_SECRET,
   })
 })

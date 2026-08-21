@@ -107,8 +107,18 @@ model Invoice {
   amountCents     Int
   stripeInvoiceId String?       @unique
   stripeInvoiceUrl String?
-  status          String        @default("pending") // pending | sent | paid | failed
+  // pending  — claimed locally, Stripe call not yet confirmed
+  // sent     — finalized and emailed to the parent
+  // paid | failed | uncollectible | void — driven by Stripe webhooks
+  status          String        @default("pending")
   sentAt          DateTime?
+  paidAt          DateTime?
+  // Guards against Stripe's out-of-order webhook delivery: an event older than
+  // the one that last set `status` is ignored. See app/api/stripe/webhook.
+  statusUpdatedAt DateTime?
+  stripeEventId   String?
+  // Set when a Stripe call fails, so the admin sees why a retry is needed.
+  lastError       String?
   createdAt       DateTime      @default(now())
 
   // One invoice per family per billing period.
@@ -184,8 +194,15 @@ model TutoringSession {
   topic         String    @default("")
   status        String    @default("scheduled")  // scheduled | active | completed | cancelled
   scheduledAt   DateTime?
+  // Intended length, set at creation. Billing caps what a session can charge at
+  // this (plus a small grace) so a call left open all afternoon doesn't bill for
+  // the whole afternoon. See lib/billing.ts billableHours.
+  scheduledMinutes Int    @default(60)
   startedAt     DateTime?
   endedAt       DateTime?
+  // True when the stale-session sweeper ended this rather than the tutor. Those
+  // sessions are billed at the capped duration and flagged for admin review.
+  autoClosed    Boolean   @default(false)
   dailyRoomName String?
   dailyRoomUrl  String?
   tutorNotes    String    @default("")
@@ -205,6 +222,8 @@ model TutoringSession {
   @@index([tutorId])
   @@index([studentId])
   @@index([status])
+  // Supports the stale-session sweeper's "active and started before X" scan.
+  @@index([status, startedAt])
 }
 
 // Adaptive diagnostic assessment: one problem at a time, difficulty ladder

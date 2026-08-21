@@ -55,6 +55,29 @@ export const config = {
   billing: {
     hourlyRateUsd: Number(process.env.HOURLY_RATE_USD) || 75,
     currency: 'usd',
+    // Length assumed for a session when none was specified.
+    defaultSessionMinutes: 60,
+    // Allowance over the scheduled length before billing stops counting. Covers
+    // a session that naturally runs a few minutes long, while still capping the
+    // "tutor forgot to click End" case. Billing never charges beyond
+    // scheduledMinutes + this. Set BILLING_GRACE_MINUTES=0 for a hard cap.
+    // Note the explicit empty-string check: `Number('')` is 0, so a set-but-blank
+    // env var would silently mean "hard cap" rather than "use the default".
+    graceMinutes:
+      (process.env.BILLING_GRACE_MINUTES ?? '').trim() !== '' &&
+      Number.isFinite(Number(process.env.BILLING_GRACE_MINUTES))
+        ? Math.max(0, Number(process.env.BILLING_GRACE_MINUTES))
+        : 10,
+    // Invoices are due this many days after being sent.
+    invoiceDueDays: 14,
+  },
+
+  // Live sessions
+  session: {
+    // An 'active' session older than this is assumed abandoned and is closed by
+    // the sweeper. Daily's room already expires at 3h (daily.roomExpirySeconds),
+    // so nothing legitimate is still running past this.
+    staleAfterHours: 4,
   },
 
   // Auth
