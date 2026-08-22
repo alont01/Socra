@@ -152,7 +152,7 @@ export default function GetStartedClient({ bookingUrl }: { bookingUrl: string })
               <h2 className="text-2xl font-bold text-stone-900 mb-2">You&rsquo;re all set{form.name ? `, ${form.name.split(' ')[0]}` : ''}!</h2>
               <p className="text-stone-500">
                 We&rsquo;ve got your request and sent a confirmation to <span className="font-medium text-stone-700">{form.email}</span>.
-                {BOOKING_URL ? ' Pick a time below to lock in your free session.' : ' A member of our team will reach out shortly to schedule.'}
+                {BOOKING_URL ? ' Pick a time below to lock in your free consultation.' : ' A member of our team will reach out shortly to schedule.'}
               </p>
             </div>
 
