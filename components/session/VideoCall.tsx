@@ -6,6 +6,7 @@ import DailyIframe, {
   DailyEventObjectParticipantLeft,
   DailyEventObjectAppMessage,
 } from '@daily-co/daily-js'
+import { reportClientError } from '@/lib/report-client-error'
 
 interface VideoCallProps {
   roomUrl: string
@@ -23,6 +24,7 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
   const callRef = useRef<DailyCall | null>(null)
   const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [remoteGone, setRemoteGone] = useState(false)
+  const [joinFailed, setJoinFailed] = useState(false)
 
   // Keep the latest onCallFrame in a ref so the call-frame effect doesn't have
   // to depend on it — re-running the effect would tear down and rebuild the
@@ -51,9 +53,17 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
     callRef.current = frame
     let destroyed = false
 
-    frame.join({ url: roomUrl, token }).then(() => {
-      if (!destroyed) onCallFrameRef.current?.(frame)
-    })
+    // A rejected join (expired token, deleted room, blocked camera, offline)
+    // otherwise surfaces as an unhandled rejection and a silent black box —
+    // the participant is left staring at nothing with no way to know why.
+    frame.join({ url: roomUrl, token }).then(
+      () => { if (!destroyed) onCallFrameRef.current?.(frame) },
+      (err: unknown) => {
+        if (destroyed) return
+        reportClientError(err, { source: 'VideoCall.join' })
+        setJoinFailed(true)
+      },
+    )
 
     const clearGrace = () => {
       if (graceTimerRef.current) {
@@ -106,7 +116,23 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full min-h-[400px] rounded-2xl overflow-hidden bg-stone-900" />
-      {remoteGone && (
+      {joinFailed && (
+        <div className="absolute inset-0 grid place-items-center rounded-2xl bg-stone-900/95 p-6 text-center">
+          <div className="max-w-sm">
+            <p className="text-white font-semibold mb-1">Couldn&rsquo;t connect to the video room</p>
+            <p className="text-stone-300 text-sm mb-4">
+              This can happen if the session link expired or your camera is blocked by the browser.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-stone-900 hover:bg-stone-100 transition-colors"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
+      {remoteGone && !joinFailed && (
         <div className="absolute inset-x-0 top-0 flex justify-center p-3 pointer-events-none">
           <div className="flex items-center gap-2 rounded-full bg-stone-900/85 text-white text-sm px-4 py-2 shadow-lg backdrop-blur">
             <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />

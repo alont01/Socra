@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -9,22 +9,15 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { AvailabilityPicker } from '@/components/AvailabilityPicker'
 import type { AvailabilityBlock } from '@/lib/availability'
+import { suggestPassword, slugFromName } from '@/lib/child-credentials'
 
-const WORDS = ['tiger', 'comet', 'maple', 'river', 'pixel', 'mango', 'orbit', 'delta']
-function suggestPassword() {
-  const w = WORDS[Math.floor(Math.random() * WORDS.length)]
-  return `${w}${Math.floor(1000 + Math.random() * 9000)}`
-}
-function slugFromName(name: string) {
-  const base = name.trim().toLowerCase().split(/\s+/)[0]?.replace(/[^a-z0-9]/g, '') || ''
-  return base ? `${base}${Math.floor(10 + Math.random() * 90)}` : ''
-}
+const DEFAULT_HOURS = '1'
 
 export default function AddChildPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [form, setForm] = useState({ name: '', gradeLevel: '', goals: '', username: '', password: '' })
-  const [desiredHours, setDesiredHours] = useState('1')
+  const [desiredHours, setDesiredHours] = useState(DEFAULT_HOURS)
   const [availability, setAvailability] = useState<AvailabilityBlock[]>([])
   const [showPw, setShowPw] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -32,8 +25,12 @@ export default function AddChildPage() {
   const [done, setDone] = useState<null | { username: string; password: string; name: string; matchStatus?: string; matchedTutorName?: string }>(null)
   const [copied, setCopied] = useState('')
 
-  // Redirect non-parents.
-  if (!loading && user && user.role !== 'PARENT') router.replace('/dashboard')
+  // Redirect non-parents. Must be an effect: navigating during render updates
+  // the router while this component is still rendering, which React warns about
+  // and which re-fires on every render until the route actually changes.
+  useEffect(() => {
+    if (!loading && user && user.role !== 'PARENT') router.replace('/dashboard')
+  }, [loading, user, router])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -192,7 +189,21 @@ export default function AddChildPage() {
               )}
 
               <div className="flex gap-3 justify-center mt-6">
-                <Button variant="ghost" onClick={() => { setDone(null); setForm({ name: '', gradeLevel: '', goals: '', username: '', password: '' }) }}>Add another child</Button>
+                {/* Reset every field, not just `form` — desiredHours and
+                    availability live in their own state, and leaving them set
+                    silently gives the next child the previous child's schedule. */}
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setDone(null)
+                    setForm({ name: '', gradeLevel: '', goals: '', username: '', password: '' })
+                    setDesiredHours(DEFAULT_HOURS)
+                    setAvailability([])
+                    setError('')
+                  }}
+                >
+                  Add another child
+                </Button>
                 <Link href="/parent/dashboard"><Button>Go to dashboard</Button></Link>
               </div>
             </div>

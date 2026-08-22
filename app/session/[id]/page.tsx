@@ -99,12 +99,25 @@ export default function SessionPage({
   }, [sendAnswer])
 
   const handleOverride = useCallback(async (problemId: string, problemTopic: string) => {
-    // Update mastery on the server
-    await fetch(`/api/tutoring-sessions/${id}/live-practice/override`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ problemTopic }),
-    })
+    // Update mastery on the server FIRST. Marking the UI correct and telling
+    // the student before knowing the write landed would leave the tutor and
+    // the student both seeing "correct" while the recorded mastery disagrees —
+    // and that number drives the practice sets generated after the session.
+    try {
+      const res = await fetch(`/api/tutoring-sessions/${id}/live-practice/override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemTopic }),
+      })
+      if (!res.ok) {
+        toast('Could not record that override. Please try again.', 'error')
+        return
+      }
+    } catch {
+      toast('Network error recording that override. Please try again.', 'error')
+      return
+    }
+
     // Update tutor-side display
     setStudentAnswers((prev) => {
       const next = new Map(prev)
@@ -114,7 +127,7 @@ export default function SessionPage({
     })
     // Notify student
     sendOverride(problemId)
-  }, [id, sendOverride])
+  }, [id, sendOverride, toast])
 
   const toggleWhiteboard = useCallback(() => {
     setWhiteboardActive((prev) => {
@@ -295,17 +308,22 @@ export default function SessionPage({
       // reconnect grace window once the tutor's frame is torn down.
       try { callFrame?.sendAppMessage({ type: 'session:ended' }, '*') } catch { /* not joined */ }
 
-      // Capture whiteboard snapshot before ending
+      // Capture whiteboard snapshot before ending. Best-effort, like the
+      // transcript below: a failed upload must not strand the tutor on an
+      // active session — that blocks the analysis pipeline and leaves the
+      // session open for the stale-session sweeper to close and bill.
       if (whiteboardActive && whiteboardSnapshotRef.current) {
-        const image = whiteboardSnapshotRef.current()
-        if (image) {
-          const base64 = image.replace(/^data:image\/\w+;base64,/, '')
-          await fetch(`/api/tutoring-sessions/${id}/whiteboard`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64 }),
-          })
-        }
+        try {
+          const image = whiteboardSnapshotRef.current()
+          if (image) {
+            const base64 = image.replace(/^data:image\/\w+;base64,/, '')
+            await fetch(`/api/tutoring-sessions/${id}/whiteboard`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageBase64: base64 }),
+            })
+          }
+        } catch { /* non-critical — the recap just won't include the board */ }
       }
 
       // Persist the live-caption buffer as a transcript fallback (before /end,
