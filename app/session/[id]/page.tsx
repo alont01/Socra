@@ -22,6 +22,11 @@ import type { DailyCall } from '@daily-co/daily-js'
 import type { PracticeProblem } from '@/lib/ai/types'
 import type { TutoringSessionData } from '@/types'
 
+// Matches the /live-transcript route's own cap (see
+// app/api/tutoring-sessions/[id]/live-transcript/route.ts) — no point buffering
+// more client-side than the server will ever store.
+const FULL_TRANSCRIPT_MAX_CHARS = 20_000
+
 export default function SessionPage({
   params,
 }: {
@@ -51,7 +56,16 @@ export default function SessionPage({
   const [remoteCanvasState, setRemoteCanvasState] = useState<string | null>(null)
   const whiteboardSnapshotRef = useRef<((opts?: { maxDim?: number }) => string | null) | null>(null)
   const whiteboardDrawRef = useRef<DrawFn | null>(null)
+  // Recent-only window for the Visualize feature — it wants "what was just
+  // discussed", not the whole lesson.
   const transcriptBufferRef = useRef<string[]>([])
+  // Full-session buffer used as the transcript fallback if Daily's VTT never
+  // comes back (see lib/session-processing.ts). Bounded by character count,
+  // matching the /live-transcript route's own 20,000-char cap, rather than by
+  // line count — the 40-line Visualize window would otherwise stand in for a
+  // 60-minute lesson and the AI analysis would be built from its last minute
+  // of dialogue with nothing signaling the truncation.
+  const fullTranscriptBufferRef = useRef<string[]>([])
   const [showVisualize, setShowVisualize] = useState(false)
   const [livePracticeProblems, setLivePracticeProblems] = useState<PracticeProblem[]>([])
   const [studentAnswers, setStudentAnswers] = useState<Map<string, StudentAnswerResult>>(new Map())
@@ -189,9 +203,21 @@ export default function SessionPage({
       } catch { /* participants unavailable */ }
       const line = `${speaker}: ${text}`
       const buf = transcriptBufferRef.current
-      if (buf[buf.length - 1] === line) return // dedupe repeats
-      buf.push(line)
-      if (buf.length > 40) buf.shift()
+      if (buf[buf.length - 1] !== line) {
+        buf.push(line)
+        if (buf.length > 40) buf.shift()
+      }
+
+      const fullBuf = fullTranscriptBufferRef.current
+      if (fullBuf[fullBuf.length - 1] !== line) {
+        fullBuf.push(line)
+        // Drop from the front once the joined text would exceed the cap, so
+        // the fallback transcript stays a trailing window of the WHOLE
+        // session rather than being pruned down to the last minute.
+        while (fullBuf.length > 1 && fullBuf.join('\n').length > FULL_TRANSCRIPT_MAX_CHARS) {
+          fullBuf.shift()
+        }
+      }
     }
     callFrame.on('transcription-message', onMsg)
     return () => { try { callFrame.off('transcription-message', onMsg) } catch { /* frame gone */ } }
@@ -367,8 +393,10 @@ export default function SessionPage({
       }
 
       // Persist the live-caption buffer as a transcript fallback (before /end,
-      // so the async analysis pipeline sees it). Best-effort.
-      const liveTranscript = transcriptBufferRef.current.join('\n')
+      // so the async analysis pipeline sees it). Best-effort. Uses the
+      // full-session buffer, not the 40-line Visualize window — the fallback
+      // needs the whole lesson, not just its last minute.
+      const liveTranscript = fullTranscriptBufferRef.current.join('\n')
       if (liveTranscript) {
         try {
           await fetch(`/api/tutoring-sessions/${id}/live-transcript`, {

@@ -47,6 +47,31 @@ export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<
   }
 }
 
+/**
+ * Escape a value before it goes into an HTML email template.
+ *
+ * These templates build markup with plain string interpolation, and several
+ * take values that trace back to a user — the public consultation form, a
+ * parent-typed child name, a tutor-typed session topic. Without this, any of
+ * those fields can inject markup into an email that lands, Socra-branded, in
+ * the team's or another user's inbox (a phishing lure with no attacker
+ * infrastructure needed). Apply to every interpolated value that isn't a
+ * fixed string or a value this server computed itself (a formatted date, a
+ * URL we built).
+ */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&': return '&amp;'
+      case '<': return '&lt;'
+      case '>': return '&gt;'
+      case '"': return '&quot;'
+      case "'": return '&#39;'
+      default: return ch
+    }
+  })
+}
+
 const shell = (body: string) => `
   <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1c1917;">
     <div style="margin-bottom: 24px;">
@@ -68,7 +93,7 @@ interface ConsultationLead {
 
 const row = (label: string, value?: string | null) =>
   value && value.trim()
-    ? `<tr><td style="padding: 4px 12px 4px 0; color: #78716c; font-size: 13px; vertical-align: top;">${label}</td><td style="padding: 4px 0; color: #1c1917; font-size: 14px;">${value}</td></tr>`
+    ? `<tr><td style="padding: 4px 12px 4px 0; color: #78716c; font-size: 13px; vertical-align: top;">${label}</td><td style="padding: 4px 0; color: #1c1917; font-size: 14px;">${escapeHtml(value)}</td></tr>`
     : ''
 
 /** Internal notification to the team when a parent requests a consultation. */
@@ -97,7 +122,7 @@ export function consultationTeamEmailHtml(lead: ConsultationLead): string {
  * reply, rather than linking back to a page with no scheduler.
  */
 export function consultationParentEmailHtml(name?: string | null, bookingUrl?: string | null): string {
-  const greeting = name && name.trim() ? `Hi ${name.trim()},` : 'Hi there,'
+  const greeting = name && name.trim() ? `Hi ${escapeHtml(name.trim())},` : 'Hi there,'
   const link = bookingUrl && bookingUrl.trim() ? bookingUrl.trim() : ''
   const body = link
     ? `We got your request for a free consultation with Socra. Pick a time that works for you and
@@ -122,15 +147,15 @@ export function consultationParentEmailHtml(name?: string | null, bookingUrl?: s
 
 /** Notify a tutor that a new student offer is waiting (first to accept wins). */
 export function tutorOfferEmailHtml(studentName: string, gradeLevel: string, slotLines: string[]): string {
-  const grade = gradeLevel ? ` (Grade ${gradeLevel})` : ''
+  const grade = gradeLevel ? ` (Grade ${escapeHtml(gradeLevel)})` : ''
   const slots = slotLines.length
     ? `<p style="color:#57534e;margin:0 0 8px;line-height:1.6;">You both have these times free:</p>
-       <ul style="color:#1c1917;margin:0 0 16px;padding-left:18px;line-height:1.7;">${slotLines.map((s) => `<li>${s}</li>`).join('')}</ul>`
+       <ul style="color:#1c1917;margin:0 0 16px;padding-left:18px;line-height:1.7;">${slotLines.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}</ul>`
     : ''
   return shell(`
     <h1 style="font-size:20px;font-weight:700;margin-bottom:8px;">New student match</h1>
     <p style="color:#57534e;margin-bottom:14px;line-height:1.6;">
-      You're a great fit for <b>${studentName}</b>${grade}. This offer is open to a few tutors — the first to accept gets the student.
+      You're a great fit for <b>${escapeHtml(studentName)}</b>${grade}. This offer is open to a few tutors — the first to accept gets the student.
     </p>
     ${slots}
     <a href="https://socratutoring.com/dashboard" style="display:inline-block;background:#f97316;color:#fff;font-weight:600;text-decoration:none;padding:12px 22px;border-radius:11px;font-size:15px;">
@@ -142,10 +167,12 @@ export function tutorOfferEmailHtml(studentName: string, gradeLevel: string, slo
 
 /** Tell the parent their child has been matched with a tutor. */
 export function matchConfirmedParentEmailHtml(childName: string, tutorName: string): string {
+  const safeChild = escapeHtml(childName)
+  const safeTutor = escapeHtml(tutorName)
   return shell(`
-    <h1 style="font-size:22px;font-weight:700;margin-bottom:12px;">${childName} has a tutor! 🎉</h1>
+    <h1 style="font-size:22px;font-weight:700;margin-bottom:12px;">${safeChild} has a tutor! 🎉</h1>
     <p style="color:#57534e;margin-bottom:16px;line-height:1.6;">
-      Great news — <b>${tutorName}</b> will be working with ${childName}. You'll be able to see sessions and progress on your dashboard.
+      Great news — <b>${safeTutor}</b> will be working with ${safeChild}. You'll be able to see sessions and progress on your dashboard.
     </p>
     <a href="https://socratutoring.com/parent/dashboard" style="display:inline-block;background:#f97316;color:#fff;font-weight:600;text-decoration:none;padding:12px 22px;border-radius:11px;font-size:15px;">
       Open your dashboard
@@ -162,17 +189,18 @@ export function sessionScheduledEmailHtml(input: {
   whenText: string // pre-formatted date/time, or "Time to be confirmed"
   isParent: boolean
 }): string {
-  const greeting = input.recipientName?.trim() ? `Hi ${input.recipientName.trim()},` : 'Hi there,'
-  const who = input.isParent ? `${input.studentName}'s` : 'Your'
+  const greeting = input.recipientName?.trim() ? `Hi ${escapeHtml(input.recipientName.trim())},` : 'Hi there,'
+  const safeStudent = escapeHtml(input.studentName)
+  const who = input.isParent ? `${safeStudent}'s` : 'Your'
   return shell(`
     <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 12px;">Session scheduled 📅</h1>
     <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">${greeting}</p>
     <p style="color: #57534e; margin-bottom: 16px; line-height: 1.6;">
-      ${who} next session with <b>${input.tutorName}</b> is set:
+      ${who} next session with <b>${escapeHtml(input.tutorName)}</b> is set:
     </p>
     <table style="border-collapse: collapse; width: 100%; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 12px;">
-      <tr><td style="padding: 12px 16px; color: #78716c; font-size: 13px;">Topic</td><td style="padding: 12px 16px; color: #1c1917; font-size: 14px; font-weight: 600;">${input.topic || 'Math session'}</td></tr>
-      <tr><td style="padding: 12px 16px; color: #78716c; font-size: 13px; border-top: 1px solid #ffedd5;">When</td><td style="padding: 12px 16px; color: #1c1917; font-size: 14px; font-weight: 600; border-top: 1px solid #ffedd5;">${input.whenText}</td></tr>
+      <tr><td style="padding: 12px 16px; color: #78716c; font-size: 13px;">Topic</td><td style="padding: 12px 16px; color: #1c1917; font-size: 14px; font-weight: 600;">${escapeHtml(input.topic) || 'Math session'}</td></tr>
+      <tr><td style="padding: 12px 16px; color: #78716c; font-size: 13px; border-top: 1px solid #ffedd5;">When</td><td style="padding: 12px 16px; color: #1c1917; font-size: 14px; font-weight: 600; border-top: 1px solid #ffedd5;">${escapeHtml(input.whenText)}</td></tr>
     </table>
     <p style="color: #78716c; font-size: 13px; margin-top: 20px; line-height: 1.5;">
       You'll find it on your Socra dashboard when it's time to join.

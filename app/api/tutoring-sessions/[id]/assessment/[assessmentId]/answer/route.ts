@@ -36,6 +36,12 @@ export const POST = route(
     if (!session.student || session.student.userId !== auth.payload.userId) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
+    // Mirrors the same check on live-practice/answer: without it, a student
+    // can keep answering (and moving mastery via completeAssessment) against
+    // an assessment from a call that already ended.
+    if (session.status !== 'active') {
+      return NextResponse.json({ error: 'This session is not active' }, { status: 400 })
+    }
 
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },

@@ -5,6 +5,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { extractHandwrittenNotes } from '@/lib/ai/note-extractor'
 import { route } from '@/lib/api-handler'
 import { imageBase64Schema, parseBody } from '@/lib/validations'
+import { config } from '@/lib/config'
 
 export const POST = route('tutoring-sessions/[id]/capture-notes', async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
@@ -42,10 +43,13 @@ export const POST = route('tutoring-sessions/[id]/capture-notes', async (request
 
   const extractedText = await extractHandwrittenNotes(imageBase64)
 
+  // Runs on the server, where the host clock is UTC (Render) — without an
+  // explicit zone this stamps a 3pm capture as 7pm. See lib/config.ts.
   const timestamp = new Date().toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: config.timeZone,
   })
   const separator = `\n\n--- Captured notes (${timestamp}) ---\n`
   const updatedNotes = session.capturedNotes

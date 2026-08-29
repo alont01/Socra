@@ -9,6 +9,7 @@ import { rateLimitKeyForIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
 import { issueVerificationCode } from '@/lib/email-verification'
+import { isInternalStudentEmail } from '@/lib/student-handle'
 
 export const POST = route('auth/login', async (request: Request) => {
   const ctx = auditContext(request)
@@ -54,9 +55,13 @@ export const POST = route('auth/login', async (request: Request) => {
   const token = await signToken({ userId: user.id, email: user.email, role: user.role })
   recordAudit({ action: 'auth.login', actor: { id: user.id, email: user.email, role: user.role }, ...ctx })
 
-  // Strip sensitive fields before sending to client
+  // Strip sensitive fields before sending to client. A parent-created child's
+  // stored email is a synthetic, non-deliverable @students.socra.internal
+  // placeholder (see lib/student-handle.ts) — an internal key, not a contact
+  // address, and must not reach the client any more than /api/auth/me does.
   const { passwordHash: _passwordHash, ...safeUser } = user
-  const response = NextResponse.json({ user: safeUser })
+  const responseUser = { ...safeUser, email: isInternalStudentEmail(user.email) ? null : user.email }
+  const response = NextResponse.json({ user: responseUser })
   setAuthCookie(response, token)
 
   return response

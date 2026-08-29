@@ -10,7 +10,7 @@ export const GET = route('tutor/students', async () => {
   if (!auth.ok) return auth.response
 
   const roster = await prisma.tutorStudent.findMany({
-    where: { tutorId: auth.tutor.id },
+    where: { tutorId: auth.tutor.id, status: 'active' },
     include: {
       student: {
         include: {
@@ -83,7 +83,7 @@ export const POST = route('tutor/students', async (request: Request) => {
   const existing = await prisma.tutorStudent.findUnique({
     where: { tutorId_studentId: { tutorId: auth.tutor.id, studentId: studentUser.studentProfile.id } },
   })
-  if (existing) {
+  if (existing && existing.status === 'active') {
     return NextResponse.json({ error: 'Student already in your roster' }, { status: 409 })
   }
 
@@ -101,9 +101,20 @@ export const POST = route('tutor/students', async (request: Request) => {
   }
 
   try {
-    await prisma.tutorStudent.create({
-      data: { tutorId: auth.tutor.id, studentId: studentUser.studentProfile.id },
-    })
+    // A row from a PRIOR pairing with this same tutor (ended via DELETE
+    // /api/tutor/students/[id]) still exists with status 'ended' rather than
+    // being removed — reactivate it instead of inserting a second row, which
+    // the @@unique([tutorId, studentId]) constraint would reject anyway.
+    if (existing) {
+      await prisma.tutorStudent.update({
+        where: { id: existing.id },
+        data: { status: 'active' },
+      })
+    } else {
+      await prisma.tutorStudent.create({
+        data: { tutorId: auth.tutor.id, studentId: studentUser.studentProfile.id },
+      })
+    }
   } catch (err: unknown) {
     // Defense in depth: a concurrent request could win the race between the
     // check above and this insert.

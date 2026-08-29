@@ -92,5 +92,28 @@ describe('answersMatch', () => {
       expect(answersMatch('triangle', 'circle')).toBe(false)
       expect(answersMatch('positive', 'negative')).toBe(false)
     })
+
+    it('does not treat an algebraic term as a value+unit split', () => {
+      // "5n" is not "5 [unit n]" — n is a coefficient/variable suffix, not a
+      // recognized unit, and must not be graded equal to a bare "5".
+      expect(answersMatch('5n', '5')).toBe(false)
+      expect(answersMatch('3x', '3')).toBe(false)
+    })
+  })
+
+  describe('variable-prefixed answers', () => {
+    it('rejects matching values under different stated variables', () => {
+      // Both reduce to "5", but "y = 5" is not the same statement as "x = 5".
+      expect(answersMatch('y = 5', 'x = 5')).toBe(false)
+    })
+
+    it('still matches when only one side names a variable', () => {
+      expect(answersMatch('x = 2', '2')).toBe(true)
+      expect(answersMatch('2', 'x = 2')).toBe(true)
+    })
+
+    it('matches when both sides use the same variable', () => {
+      expect(answersMatch('x = 5', 'x = 5')).toBe(true)
+    })
   })
 })

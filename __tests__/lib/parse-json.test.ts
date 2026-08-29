@@ -30,6 +30,18 @@ describe('extractJson', () => {
     expect(extractJson(raw)).toEqual({ a: 1, b: 2 })
   })
 
+  it('does not corrupt a URL inside a string value while stripping comments', () => {
+    // Malformed enough (trailing comma) to force the repair path, which used
+    // to treat the "//" in the URL as a line comment and truncate the string.
+    const raw = '{"url": "https://example.com/path", "a": 1,}'
+    expect(extractJson(raw)).toEqual({ url: 'https://example.com/path', a: 1 })
+  })
+
+  it('still strips a real comment that follows a string containing //', () => {
+    const raw = '{"url": "https://example.com", "a": 1} // trailing note'
+    expect(extractJson(raw)).toEqual({ url: 'https://example.com', a: 1 })
+  })
+
   it('does not confuse brackets inside string values', () => {
     expect(extractJson('{"q":"solve for x in [1,2]"}')).toEqual({ q: 'solve for x in [1,2]' })
   })

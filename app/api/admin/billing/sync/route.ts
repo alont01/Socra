@@ -18,6 +18,24 @@ const syncSchema = z.object({
 const OPEN_STATUSES = ['pending', 'sent', 'failed']
 
 /**
+ * Stripe statuses this route is allowed to write locally, mapped onto the
+ * local vocabulary. Deliberately excludes Stripe's `draft`: it means the send
+ * never got past creating the invoice, which is exactly what local `failed`
+ * already represents. Writing `draft` here would introduce a status the rest
+ * of the app doesn't recognize — `claimPeriod`'s takeover conditions
+ * (lib/billing-send.ts) and `TERMINAL_STATUSES` both fail to match it, so the
+ * period could never be retried OR resynced again, and the admin UI's retry
+ * button (which hides once `invoice` is non-null and not `failed`) disappears
+ * too. Anything not in this map is left untouched.
+ */
+const STATUS_MAP: Record<string, string> = {
+  open: 'sent',
+  paid: 'paid',
+  uncollectible: 'uncollectible',
+  void: 'void',
+}
+
+/**
  * Reconcile local invoice status against Stripe.
  *
  * Webhooks are the mechanism for payment tracking; this is the safety net for
@@ -62,9 +80,17 @@ export const POST = route('admin/billing/sync', async (request: Request) => {
     }
     if (!remote) continue
 
-    // Stripe's `open` means finalized and awaiting payment — locally that's
-    // `sent`. Everything else maps across directly.
-    const localStatus = remote.status === 'open' ? 'sent' : remote.status
+    const localStatus = STATUS_MAP[remote.status]
+    if (!localStatus) {
+      // `draft` (send never completed) or an unrecognized future Stripe
+      // status. Nothing safe to write — leave the local row as-is.
+      logger.info('Stripe status not applicable locally; leaving invoice as-is', {
+        invoiceId: invoice.id,
+        stripeStatus: remote.status,
+        localStatus: invoice.status,
+      })
+      continue
+    }
     if (localStatus === invoice.status) continue
 
     await prisma.invoice.update({

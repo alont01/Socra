@@ -116,6 +116,7 @@ export async function pruneOldEvents(days = 90): Promise<number> {
 const PRICING: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-6': { input: 3, output: 15 },
   'claude-opus-4-8': { input: 5, output: 25 },
+  'claude-sonnet-5': { input: 2, output: 10 },
 }
 
 /**

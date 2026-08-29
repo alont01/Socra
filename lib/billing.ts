@@ -119,6 +119,15 @@ export function aggregateBilling(rows: SessionHoursRow[], rateUsd: number): Pare
       hours: Math.round(c.hours * 100) / 100,
     }))
     const totalHours = Math.round(children.reduce((s, c) => s + c.hours, 0) * 100) / 100
+    // Sum the per-child amounts rather than pricing the rounded total. Stripe
+    // invoicing (lib/stripe-invoicing.ts) creates one line item per child at
+    // Math.round(child.hours * rateUsd * 100) — for an integer rate these
+    // agree, but a fractional HOURLY_RATE_USD can round each child's cents
+    // differently than it rounds the combined total. When the two disagree,
+    // `sendMonthlyInvoice`'s stale-draft check (existingCents !==
+    // billing.amountCents) never sees the numbers match and recreates the
+    // draft on every retry.
+    const amountCents = children.reduce((s, c) => s + Math.round(c.hours * rateUsd * 100), 0)
     result.push({
       parentId,
       parentName: p.name,
@@ -126,7 +135,7 @@ export function aggregateBilling(rows: SessionHoursRow[], rateUsd: number): Pare
       children,
       totalHours,
       rateUsd,
-      amountCents: Math.round(totalHours * rateUsd * 100),
+      amountCents,
       autoClosedSessions: p.autoClosed,
     })
   }

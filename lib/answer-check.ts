@@ -1,17 +1,46 @@
 import { compileExpr } from './math-eval'
 
+interface Normalized {
+  value: string
+  /** The letter stripped from a leading "letter =" prefix, or null if none. */
+  variable: string | null
+}
+
 // Normalize a free-text math answer for comparison: trim, lowercase, drop a
 // leading "variable =" prefix (e.g. "x = 2" → "2"), currency symbols, and
-// thousands separators inside numbers.
-function normalize(s: string): string {
-  return String(s ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/^[a-z]\w*\s*=\s*/i, '') // "x =", "y=" …
+// thousands separators inside numbers. The stripped variable letter (if any)
+// is returned separately — see the `variable` check in answersMatch, which
+// stops "y = 5" from matching a reference answer of "x = 5" (different
+// variables) purely because both happened to reduce to the same value.
+function normalize(s: string): Normalized {
+  let str = String(s ?? '').trim().toLowerCase()
+  let variable: string | null = null
+  const prefixMatch = str.match(/^([a-z]\w*)\s*=\s*/)
+  if (prefixMatch) {
+    variable = prefixMatch[1]
+    str = str.slice(prefixMatch[0].length)
+  }
+  str = str
     .replace(/\$/g, '')
     .replace(/,(?=\d{3}(\D|$))/g, '') // 1,000 → 1000
     .trim()
+  return { value: str, variable }
 }
+
+// Recognized unit labels. Letter-suffix matches are restricted to this list
+// (plus the ° and % symbols) so an algebraic term like "5n" or "3x" isn't
+// mistaken for "5 [unit n]" and marked equivalent to a bare "5" — splitUnit
+// used to peel off ANY trailing letter run as a "unit", which meant a
+// student's algebraic answer with a coefficient-adjacent variable could be
+// graded correct against a same-valued but structurally different reference.
+const UNIT_WORDS = new Set([
+  'mm', 'cm', 'm', 'km', 'in', 'ft', 'yd', 'mi',
+  'mg', 'g', 'kg', 'lb', 'lbs', 'oz',
+  'ms', 's', 'sec', 'secs', 'min', 'mins', 'minute', 'minutes', 'hr', 'hrs', 'hour', 'hours',
+  'deg', 'degree', 'degrees',
+  'ml', 'l', 'liter', 'liters', 'litre', 'litres', 'pt', 'qt', 'gal',
+  'sq', 'sqft', 'sqin', 'sqm', 'sqcm',
+])
 
 // Split a normalized answer into its numeric/expression part and a trailing
 // unit label, e.g. "34 cm" -> { value: "34", unit: "cm" }, "5%" -> { value:
@@ -21,7 +50,11 @@ function normalize(s: string): string {
 function splitUnit(s: string): { value: string; unit: string } {
   const m = s.match(/^(.*?)\s*(°|%|[a-z]+)$/i)
   if (!m) return { value: s, unit: '' }
-  return { value: m[1].trim(), unit: m[2].toLowerCase() }
+  const rawUnit = m[2].toLowerCase()
+  if (rawUnit !== '°' && rawUnit !== '%' && !UNIT_WORDS.has(rawUnit)) {
+    return { value: s, unit: '' } // not a recognized unit — leave it in `value`
+  }
+  return { value: m[1].trim(), unit: rawUnit }
 }
 
 /**
@@ -48,9 +81,18 @@ export function problemsMissingAnswers(problems: { answer?: string }[]): number[
  */
 export function answersMatch(studentAnswer: string, correctAnswer: string): boolean {
   if (!correctAnswer) return false
-  const a = normalize(studentAnswer)
-  const b = normalize(correctAnswer)
-  if (!a) return false
+  const na = normalize(studentAnswer)
+  const nb = normalize(correctAnswer)
+  if (!na.value) return false
+
+  // Both sides named a variable and they disagree (e.g. "y = 5" vs a
+  // reference of "x = 5") — the values coinciding is not enough; reject
+  // before comparing values so this can't be reached through the equality or
+  // numeric-equivalence checks below.
+  if (na.variable && nb.variable && na.variable !== nb.variable) return false
+
+  const a = na.value
+  const b = nb.value
   if (a === b) return true
 
   // Numeric / expression equivalence, ignoring a trailing unit label when one
