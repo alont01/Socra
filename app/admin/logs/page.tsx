@@ -11,6 +11,9 @@ type Tab = 'audit' | 'events'
 
 interface AuditRow {
   id: string
+  /** Display label: email, or "@username" for a parent-created child. */
+  actorLabel: string | null
+  /** Real, deliverable address, or null for a parent-created child. */
   actorEmail: string | null
   actorRole: string | null
   action: string
@@ -255,7 +258,7 @@ export default function AdminLogsPage() {
                           {isAudit ? (
                             <>
                               <td className="px-4 py-3">
-                                <div className="text-stone-800">{a.actorEmail || <span className="text-stone-400">anonymous</span>}</div>
+                                <div className="text-stone-800">{a.actorLabel || <span className="text-stone-400">anonymous</span>}</div>
                                 {a.actorRole && <div className="text-xs text-stone-400">{a.actorRole}</div>}
                               </td>
                               <td className="px-4 py-3 font-mono text-xs text-stone-700">{a.action}</td>

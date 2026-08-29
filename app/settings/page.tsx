@@ -12,7 +12,13 @@ import { useToast } from '@/hooks/useToast'
 type Role = 'STUDENT' | 'TUTOR' | 'PARENT'
 
 interface ProfileData {
-  email: string
+  /**
+   * Display identity: the account's email, or "@username" for a parent-created
+   * child whose stored address is a non-deliverable internal placeholder.
+   */
+  identity: string
+  /** Real, deliverable address, or null for a parent-created child. */
+  email: string | null
   role: Role
   memberSince: string
   isAdmin: boolean
@@ -170,10 +176,10 @@ export default function SettingsPage() {
         <section className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6">
           <div className="flex items-center gap-4">
             <span className="grid place-items-center h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white text-xl font-bold shadow-brand">
-              {(name || data.email).charAt(0).toUpperCase()}
+              {(name || data.identity).charAt(0).toUpperCase()}
             </span>
             <div className="min-w-0">
-              <p className="font-semibold text-stone-900 truncate">{data.email}</p>
+              <p className="font-semibold text-stone-900 truncate">{data.identity}</p>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 ring-1 ring-inset ring-orange-200/70">
                   {ROLE_LABEL[data.role]}

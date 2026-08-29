@@ -16,6 +16,11 @@ model User {
   passwordHash  String?
   role          String   @default("STUDENT")
   emailVerified Boolean  @default(false)
+  // Session cutoff. Any JWT issued before this instant is refused, which is how
+  // a password reset evicts sessions that are already signed in — the whole
+  // point of resetting a password someone else knows. Null means "never reset",
+  // so every existing token stays valid.
+  sessionsValidFrom DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   studentProfile       StudentProfile?       @relation("UserProfile")

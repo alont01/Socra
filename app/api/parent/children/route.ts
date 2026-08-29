@@ -10,6 +10,7 @@ import { runMatching } from '@/lib/matching'
 import { notifyTutorsOfOffers, notifyParentOfMatch } from '@/lib/match-notify'
 import { route } from '@/lib/api-handler'
 import { createLogger } from '@/lib/logger'
+import { INTERNAL_STUDENT_EMAIL_DOMAIN } from '@/lib/student-handle'
 
 const logger = createLogger('parent/children')
 
@@ -84,7 +85,7 @@ export const POST = route(
     // Parent-created students have no real email; store a synthetic, non-
     // deliverable internal address so email-keyed code keeps working. The child
     // never sees or needs it — they log in with their username.
-    const syntheticEmail = `student.${randomBytes(9).toString('hex')}@students.socra.internal`
+    const syntheticEmail = `student.${randomBytes(9).toString('hex')}@${INTERNAL_STUDENT_EMAIL_DOMAIN}`
     const passwordHash = await hashPassword(password)
 
     let child

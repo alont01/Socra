@@ -3,6 +3,7 @@ import { requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
 import { route } from '@/lib/api-handler'
+import { displayIdentity, isInternalStudentEmail } from '@/lib/student-handle'
 
 export const GET = route('tutor/students', async () => {
   const auth = await requireTutor()
@@ -13,7 +14,7 @@ export const GET = route('tutor/students', async () => {
     include: {
       student: {
         include: {
-          user: { select: { email: true } },
+          user: { select: { email: true, username: true } },
         },
       },
     },
@@ -23,7 +24,11 @@ export const GET = route('tutor/students', async () => {
   const students = roster.map((r) => ({
     id: r.student.id,
     name: r.student.name,
-    email: r.student.user.email,
+    // A parent-created child has no real address — `identity` is what to show a
+    // tutor (their username), while `email` is null so nothing can present the
+    // synthetic internal address as a way to contact them.
+    identity: displayIdentity(r.student.user.email, r.student.user.username),
+    email: isInternalStudentEmail(r.student.user.email) ? null : r.student.user.email,
     gradeLevel: r.student.gradeLevel,
     mathTopics: r.student.mathTopics,
     addedAt: r.createdAt,
@@ -61,9 +66,17 @@ export const POST = route('tutor/students', async (request: Request) => {
     //  - role STUDENT but profile not yet created → onboarding unfinished
     //    (common right after an OAuth sign-in), or
     //  - a different role entirely (tutor/parent).
-    const msg = studentUser.role === 'STUDENT'
-      ? 'That person signed in but hasn\'t finished setting up their student profile yet. Ask them to log in and complete onboarding.'
-      : `That account is a ${studentUser.role.toLowerCase()}, not a student. They can switch to Student in Settings.`
+    // Don't send the tutor away with an instruction the other person can't
+    // follow: switching your own role is super-admin only (see
+    // /api/profile/role), and Settings tells ordinary users exactly that. A
+    // parent who wants their child tutored adds the child from their own
+    // dashboard, which is the route that actually exists.
+    const msg =
+      studentUser.role === 'STUDENT'
+        ? "That person signed in but hasn't finished setting up their student profile yet. Ask them to log in and complete onboarding."
+        : studentUser.role === 'PARENT'
+          ? "That's a parent account, not a student. Ask them to add their child from their own dashboard — the child gets their own login, and you'll be matched automatically."
+          : `That account is a ${studentUser.role.toLowerCase()}, not a student.`
     return NextResponse.json({ error: msg }, { status: 404 })
   }
 
@@ -108,7 +121,10 @@ export const POST = route('tutor/students', async (request: Request) => {
     student: {
       id: studentUser.studentProfile.id,
       name: studentUser.studentProfile.name,
-      email: studentUser.email,
+      // Same shape as GET, so the roster renders an added student identically
+      // to one it loaded from the server.
+      identity: displayIdentity(studentUser.email, studentUser.username),
+      email: isInternalStudentEmail(studentUser.email) ? null : studentUser.email,
       gradeLevel: studentUser.studentProfile.gradeLevel,
       mathTopics: studentUser.studentProfile.mathTopics,
     },

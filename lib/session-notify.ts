@@ -5,10 +5,11 @@ import { prisma } from '@/lib/prisma'
 import { config } from '@/lib/config'
 import { sendEmail, sessionScheduledEmailHtml } from '@/lib/email'
 import { createLogger } from '@/lib/logger'
+import { isInternalStudentEmail } from '@/lib/student-handle'
 
 const logger = createLogger('session-notify')
 
-const isRealEmail = (email?: string | null) => !!email && !email.endsWith('@students.socra.internal')
+const isRealEmail = (email?: string | null) => !!email && !isInternalStudentEmail(email)
 
 export function formatWhen(scheduledAt: Date | null): string {
   if (!scheduledAt) return 'Time to be confirmed'

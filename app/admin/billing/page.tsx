@@ -60,6 +60,9 @@ export default function AdminBillingPage() {
 
   const [month, setMonth] = useState(currentMonthValue())
   const [rows, setRows] = useState<BillingRow[] | null>(null)
+  // Comes from config, not from the rows — so it still displays in a month
+  // with nothing to bill.
+  const [rateUsd, setRateUsd] = useState<number | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(true)
   const [webhookConfigured, setWebhookConfigured] = useState(true)
   const [state, setState] = useState<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
@@ -79,6 +82,7 @@ export default function AdminBillingPage() {
       if (!res.ok) return setState('error')
       const data = await res.json()
       setRows(data.rows)
+      setRateUsd(data.rateUsd ?? null)
       setStripeConfigured(data.stripeConfigured)
       setWebhookConfigured(data.webhookConfigured)
       setState('ok')
@@ -184,7 +188,7 @@ export default function AdminBillingPage() {
         <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
           <div>
             <h1 className="text-2xl font-bold text-stone-900">Monthly Billing</h1>
-            <p className="text-sm text-stone-500 mt-1">Hours billed at ${rows?.[0]?.rateUsd ?? '—'}/hr, computed from completed sessions.</p>
+            <p className="text-sm text-stone-500 mt-1">Hours billed at ${rateUsd ?? '—'}/hr, computed from completed sessions.</p>
           </div>
           <div className="flex items-center gap-2">
             <button

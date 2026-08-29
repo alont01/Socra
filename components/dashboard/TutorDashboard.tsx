@@ -3,20 +3,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
-import { StudentRoster } from './StudentRoster'
+import { StudentRoster, type Student } from './StudentRoster'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { TutorOffers } from './TutorOffers'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import { useToast } from '@/hooks/useToast'
 import Link from 'next/link'
-
-interface Student {
-  id: string
-  name: string
-  email: string
-  gradeLevel: string
-  mathTopics: string
-}
 
 interface TutoringSession {
   id: string

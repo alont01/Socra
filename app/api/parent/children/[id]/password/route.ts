@@ -46,9 +46,11 @@ export const POST = route(
     const password = parsed.data.password ?? suggestPassword()
     const passwordHash = await hashPassword(password)
 
+    // Also ends any session already signed in as the child. A parent resetting
+    // this because the password got shared around expects exactly that.
     await prisma.user.update({
       where: { id: child.userId },
-      data: { passwordHash },
+      data: { passwordHash, sessionsValidFrom: new Date() },
     })
 
     // Any outstanding reset tokens for this account are now stale.

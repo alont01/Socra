@@ -71,10 +71,26 @@ export const PATCH = route('tutoring-sessions/[id]', async (request: Request, { 
   if (tutorNotes !== undefined) updateData.tutorNotes = tutorNotes
   if (topic !== undefined) updateData.topic = topic
   if (status !== undefined) {
+    // Completing a session is NOT one of the transitions this route may make.
+    //
+    // `endedAt` and the post-session pipeline (transcript → analysis → practice
+    // set → mastery) both live in POST /end. Completing here set `status` alone,
+    // leaving `endedAt` null — and a completed session with no `endedAt` is
+    // invisible to billing (getMonthlyBilling requires it) AND to the sweeper
+    // (which only scans `active`), so the session could never be recovered by
+    // either. The family was silently never charged for a lesson that happened,
+    // and the student and parent were left on "Analysis pending" forever.
+    if (status === 'completed') {
+      return NextResponse.json(
+        { error: "Use POST /api/tutoring-sessions/[id]/end to complete a session." },
+        { status: 400 },
+      )
+    }
+
     // Validate status transitions
     const validTransitions: Record<string, string[]> = {
       scheduled: ['active', 'cancelled'],
-      active: ['completed', 'cancelled'],
+      active: ['cancelled'],  // completion goes through /end
       completed: [],    // terminal state
       cancelled: [],    // terminal state
     }
@@ -86,6 +102,13 @@ export const PATCH = route('tutoring-sessions/[id]', async (request: Request, { 
       )
     }
     updateData.status = status
+
+    // Cancelling a session that had already started still closes it out. It is
+    // never billed (billing only reads `completed`), but leaving `endedAt` null
+    // on a terminal row makes it indistinguishable from one still running.
+    if (status === 'cancelled' && session.startedAt && !session.endedAt) {
+      updateData.endedAt = new Date()
+    }
   }
 
   // If setting to active and no room yet, create one

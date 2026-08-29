@@ -35,12 +35,49 @@ export async function requireAuth(): Promise<AuthSuccess | AuthFailure> {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
 
+  // A valid signature is not enough: the account may have reset its password
+  // since this token was issued. Without this check the reset changed nothing
+  // for whoever was already signed in — they kept full access for the rest of
+  // the 7-day expiry, which is exactly the person a reset is meant to evict.
+  //
+  // One primary-key lookup. The role-specific helpers below already hit the DB,
+  // so this only adds a query for the routes that use requireAuth alone.
+  const account = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: { sessionsValidFrom: true },
+  })
+  if (!account) {
+    // The user was deleted while holding a live token.
+    return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+  if (account.sessionsValidFrom && !isIssuedAfter(payload.iat, account.sessionsValidFrom)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Session expired. Please sign in again.' }, { status: 401 }),
+    }
+  }
+
   // Every route authenticates through here, so this is the one place that needs
   // to know who the caller is for the rest of the request's log lines to carry
   // it. See lib/request-context.ts.
   setRequestActor({ userId: payload.userId, role: payload.role })
 
   return { ok: true, payload }
+}
+
+/**
+ * Whether a token issued at `iat` (epoch seconds) postdates the account's
+ * session cutoff.
+ *
+ * A token with no `iat` cannot be placed in time. On an account that has reset
+ * its password that is the unsafe direction to guess, so it is refused — the
+ * cost is one extra sign-in, and only for tokens predating the field.
+ */
+function isIssuedAfter(iat: number | undefined, validFrom: Date): boolean {
+  if (typeof iat !== 'number' || !Number.isFinite(iat)) return false
+  // `iat` is whole seconds, so a token minted in the same second as the reset
+  // rounds down below it. Compare at second granularity in both directions.
+  return iat >= Math.floor(validFrom.getTime() / 1000)
 }
 
 /**

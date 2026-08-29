@@ -5,6 +5,7 @@ import { isAdmin, isSuperAdmin } from '@/lib/admin'
 import { safeJsonParse } from '@/lib/json'
 import { recordAudit, auditContext } from '@/lib/audit'
 import { route } from '@/lib/api-handler'
+import { displayIdentity, isInternalStudentEmail } from '@/lib/student-handle'
 
 // GET: current user's account + role-specific profile for the settings page.
 export const GET = route('profile', async () => {
@@ -40,7 +41,12 @@ export const GET = route('profile', async () => {
 
   return NextResponse.json({
     id: user.id,
-    email: user.email,
+    // What Settings shows as this account's identity. A parent-created child
+    // has a synthetic @students.socra.internal address they were never meant to
+    // see — showing it told a kid their email was something no one can write
+    // to. They sign in with a username, so that is what they get shown.
+    identity: displayIdentity(user.email, user.username),
+    email: isInternalStudentEmail(user.email) ? null : user.email,
     role: user.role,
     memberSince: user.createdAt,
     isAdmin: isAdmin(user.email),

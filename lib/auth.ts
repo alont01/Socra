@@ -34,6 +34,15 @@ export interface JWTPayload {
   userId: string
   email: string
   role: string
+  /**
+   * Issued-at, in epoch seconds — set by `signToken`'s `.setIssuedAt()`.
+   *
+   * Checked against `User.sessionsValidFrom` so a password reset can invalidate
+   * tokens that were handed out before it. Optional because a token minted
+   * before this field was read still verifies; `requireAuth` treats a missing
+   * `iat` on an account that HAS reset as too old to trust.
+   */
+  iat?: number
 }
 
 export async function signToken(payload: JWTPayload): Promise<string> {

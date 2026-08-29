@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { getMonthlyBilling, monthBounds } from '@/lib/billing'
 import { route } from '@/lib/api-handler'
+import { config } from '@/lib/config'
 
 // This month's (or a requested month's) billable hours per family, cross-
 // referenced against already-sent invoices so the admin view can show status
@@ -41,6 +42,11 @@ export const GET = route('admin/billing', async (request: Request) => {
   return NextResponse.json({
     period: { start, end },
     rows,
+    // Sent independently of `rows`. The page used to read the rate off the
+    // first row, so a month with nothing to bill — a quiet month, or the first
+    // one ever — rendered "Hours billed at $—/hr" and looked broken. The rate
+    // is a config constant; it exists whether or not anyone owes anything.
+    rateUsd: config.billing.hourlyRateUsd,
     stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
     // Surfaced so the admin page can warn that payment status won't update on
     // its own — the most consequential thing to get wrong in this flow.

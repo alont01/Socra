@@ -29,9 +29,12 @@ export const POST = route('auth/reset-password', async (request: Request) => {
 
   const passwordHash = await hashPassword(password)
 
+  // `sessionsValidFrom` evicts every JWT issued before now. A reset is usually
+  // done because someone else has the old password; leaving their existing
+  // cookie working for the rest of its 7-day life defeats the point.
   await prisma.user.update({
     where: { id: resetToken.userId },
-    data: { passwordHash },
+    data: { passwordHash, sessionsValidFrom: new Date() },
   })
 
   await prisma.passwordResetToken.delete({ where: { token } })

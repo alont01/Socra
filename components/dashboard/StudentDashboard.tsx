@@ -76,12 +76,19 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
   // Soonest upcoming session (scheduled sorts by date; an active call with no
   // date, or one with a date, both count — active always takes priority since
   // it's happening right now).
-  const nextSession =
-    activeSessions[0] ||
-    [...upcomingSessions]
-      .filter((s) => s.scheduledAt)
-      .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())[0] ||
-    null
+  //
+  // A dateless session still counts here. The tutor's "New session" dialog has
+  // no date field, so every session it creates has a null scheduledAt — and
+  // filtering those out left the card reading "Nothing scheduled yet" directly
+  // beside a stat saying "Upcoming sessions: 1", with no way in. Dated sessions
+  // sort first (soonest wins); an undated one is the fallback, rendered as
+  // "time TBD".
+  const datedSessions = [...upcomingSessions]
+    .filter((s) => s.scheduledAt)
+    .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())
+  const undatedSessions = upcomingSessions.filter((s) => !s.scheduledAt)
+
+  const nextSession = activeSessions[0] || datedSessions[0] || undatedSessions[0] || null
 
   const formatWhen = (dateStr: string | null) => {
     if (!dateStr) return null

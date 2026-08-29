@@ -132,3 +132,80 @@ describe('route', () => {
     expect(recordEvent).toHaveBeenCalledWith(expect.objectContaining({ name: 'http.500' }))
   })
 })
+
+describe('route — streamed responses', () => {
+  beforeEach(() => {
+    jest.spyOn(console, 'log').mockImplementation(() => {})
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    recordEvent.mockClear()
+  })
+  afterEach(() => jest.restoreAllMocks())
+
+  const sse = (stream: ReadableStream<Uint8Array>) =>
+    new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+
+  const drain = async (res: Response) => {
+    const reader = res.body!.getReader()
+    const chunks: string[] = []
+    const decoder = new TextDecoder()
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(decoder.decode(value))
+    }
+    return chunks.join('')
+  }
+
+  it('passes a healthy SSE stream through untouched', async () => {
+    const handler = route('chat', async () =>
+      sse(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('data: hi\n\n'))
+            controller.close()
+          },
+        }),
+      ),
+    )
+    const res = await handler(req(), {} as never)
+    expect(res.status).toBe(200)
+    expect(await drain(res)).toBe('data: hi\n\n')
+  })
+
+  it('records an http.500 when the stream dies after the headers went out', async () => {
+    // The failure mode this guards: the route returns 200 + an open stream in
+    // ~1ms, then the model call fails. Before this, the wrapper had already
+    // logged a debug-level 200 and recorded nothing at all.
+    const handler = route('chat', async () =>
+      sse(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('data: partial\n\n'))
+            controller.error(new Error('upstream model call failed'))
+          },
+        }),
+      ),
+    )
+    const res = await handler(req(), {} as never)
+    expect(res.status).toBe(200) // headers really did go out as 200
+
+    await expect(drain(res)).rejects.toThrow(/upstream model call failed/)
+
+    expect(recordEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'error',
+        name: 'http.500',
+        success: false,
+        metadata: expect.objectContaining({ module: 'chat', streamed: true }),
+      }),
+    )
+  })
+
+  it('leaves a non-streaming response object alone', async () => {
+    const original = NextResponse.json({ ok: true })
+    const handler = route('thing', async () => original)
+    const res = await handler(req(), {} as never)
+    expect(res).toBe(original)
+  })
+})

@@ -123,7 +123,10 @@ export function route<Ctx = DefaultRouteContext>(
         const durationMs = Date.now() - startedAt
         tagResponse(response, requestId)
         logCompletion(logger, { method, path, status: response.status, durationMs, requestId })
-        return response
+        // A streamed response has already "succeeded" by this point — the
+        // status line and headers went out before a single token did. If the
+        // stream then dies, nothing above would ever know. See watchStream.
+        return watchStream(response, logger, { module, method, path, requestId, startedAt })
       } catch (error) {
         // `redirect()` and `notFound()` signal control flow by throwing. They
         // are not failures and must reach Next's own handler untouched —
@@ -166,6 +169,83 @@ export function route<Ctx = DefaultRouteContext>(
       }
     })
   }
+}
+
+/**
+ * Wrap a streamed response so a mid-stream failure is still logged and counted.
+ *
+ * `route()` logs the moment the handler returns, which for a normal response is
+ * the whole story. A streaming route (SSE — the student chat) is different: it
+ * returns 200 plus an open ReadableStream in about a millisecond, and only then
+ * starts calling the model. When that call fails the connection is torn down
+ * and the platform reports a 500, but the wrapper had already recorded a
+ * `debug`-level 200 and no `http.5xx` event. The one route where a failure is
+ * most visible to a user was the one route invisible to the logs.
+ *
+ * Only SSE responses are wrapped. Everything else is handed back untouched:
+ * a buffered body is fully materialized before it gets here, so there is no
+ * later failure to catch and nothing to gain from rebuilding the response.
+ */
+function watchStream(
+  response: Response,
+  logger: ReturnType<typeof createLogger>,
+  entry: { module: string; method: string; path: string; requestId: string; startedAt: number },
+): Response {
+  const body = response.body
+  if (!body) return response
+  if (!response.headers.get('content-type')?.includes('text/event-stream')) return response
+
+  return new Response(guardStream(body, logger, entry), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
+/**
+ * Report a stream that dies partway through with the same weight `route()`
+ * gives a thrown 500 — an error log line plus an `http.500` event — so a broken
+ * SSE route shows up on the admin dashboard instead of reading as healthy.
+ */
+function guardStream(
+  stream: ReadableStream<Uint8Array>,
+  logger: ReturnType<typeof createLogger>,
+  entry: { module: string; method: string; path: string; requestId: string; startedAt: number },
+): ReadableStream<Uint8Array> {
+  const { module, method, path, requestId, startedAt } = entry
+  const reader = stream.getReader()
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error) {
+        const durationMs = Date.now() - startedAt
+        logger.error('Response stream failed after headers were sent', error, {
+          method, path, status: 500, durationMs, requestId,
+        })
+        const { errorName, errorMessage, errorCode } = serializeError(error)
+        recordEvent({
+          category: 'error',
+          name: 'http.500',
+          level: 'error',
+          success: false,
+          durationMs,
+          metadata: { module, method, path, requestId, errorName, errorMessage, errorCode, streamed: true },
+        })
+        controller.error(error)
+      }
+    },
+    cancel(reason) {
+      // The client went away mid-stream (closed the tab, navigated). Normal.
+      void reader.cancel(reason)
+    },
+  })
 }
 
 /**

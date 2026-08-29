@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail, tutorOfferEmailHtml, matchConfirmedParentEmailHtml } from '@/lib/email'
 import { formatSlot, type OverlapSlot } from '@/lib/availability'
 import { createLogger } from '@/lib/logger'
+import { isInternalStudentEmail } from '@/lib/student-handle'
 
 const logger = createLogger('match-notify')
 
@@ -23,7 +24,7 @@ export async function notifyTutorsOfOffers(studentId: string): Promise<void> {
     offers.map((o) => {
       const to = o.tutor.user.email
       // Skip synthetic student-style addresses just in case; tutors have real ones.
-      if (!to || to.endsWith('@students.socra.internal')) return Promise.resolve(false)
+      if (!to || isInternalStudentEmail(to)) return Promise.resolve(false)
       let slots: OverlapSlot[] = []
       try {
         slots = JSON.parse(o.overlapSlots)
@@ -47,7 +48,7 @@ export async function notifyParentOfMatch(studentId: string, tutorName: string):
     select: { name: true, parent: { select: { user: { select: { email: true } } } } },
   })
   const to = student?.parent?.user.email
-  if (!to || to.endsWith('@students.socra.internal')) return
+  if (!to || isInternalStudentEmail(to)) return
   await sendEmail({
     to,
     subject: `${student!.name} has been matched with a tutor`,

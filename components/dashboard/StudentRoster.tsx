@@ -5,10 +5,18 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { InviteParentButton } from '@/components/parent/InviteParentButton'
 
-interface Student {
+export interface Student {
   id: string
   name: string
-  email: string
+  /**
+   * How to refer to this student in the UI: their email, or "@username" for a
+   * parent-created child. Never the synthetic @students.socra.internal address
+   * those accounts carry — nothing can deliver to it, so showing it invites a
+   * tutor to try. See lib/student-handle.ts.
+   */
+  identity: string
+  /** Real, deliverable address, or null for a parent-created child. */
+  email: string | null
   gradeLevel: string
   mathTopics: string
 }
@@ -117,7 +125,7 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
             <div key={s.id} className="flex items-center justify-between py-2 px-3 rounded-xl bg-stone-50">
               <div>
                 <p className="font-medium text-stone-900 text-sm">{s.name}</p>
-                <p className="text-xs text-stone-400">{s.email} · {s.gradeLevel || 'Grade not set'}</p>
+                <p className="text-xs text-stone-400">{s.identity} · {s.gradeLevel || 'Grade not set'}</p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <InviteParentButton studentId={s.id} label="Invite parent" />

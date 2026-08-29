@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { safeJsonParse } from '@/lib/json'
 import type { Prisma } from '@prisma/client'
 import { route } from '@/lib/api-handler'
+import { displayIdentity, isInternalStudentEmail } from '@/lib/student-handle'
 
 export const GET = route('admin/audit', async (request: Request) => {
   const auth = await requireAdmin()
@@ -54,10 +55,31 @@ export const GET = route('admin/audit', async (request: Request) => {
     }),
   ])
 
+  // Rows store whatever address the actor authenticated with, which for a
+  // parent-created child is their synthetic @students.socra.internal
+  // placeholder — an internal key that reads like a real mailbox in the audit
+  // table. Resolve those back to the username they actually sign in with.
+  // One lookup for the page's distinct actors, not per row.
+  const actorIds = [...new Set(items.map((a) => a.actorId).filter((id): id is string => !!id))]
+  const usernameById = new Map(
+    actorIds.length > 0
+      ? (
+          await prisma.user.findMany({
+            where: { id: { in: actorIds } },
+            select: { id: true, username: true },
+          })
+        ).map((u) => [u.id, u.username])
+      : [],
+  )
+
   return NextResponse.json({
     items: items.map((a) => ({
       id: a.id,
-      actorEmail: a.actorEmail,
+      // What the table renders. Falls back to the stored email, which is right
+      // for every real account and for a failed sign-in (where the identifier
+      // typed IS the username, and there is no actorId to resolve).
+      actorLabel: displayIdentity(a.actorEmail, a.actorId ? usernameById.get(a.actorId) : null),
+      actorEmail: isInternalStudentEmail(a.actorEmail) ? null : a.actorEmail,
       actorRole: a.actorRole,
       action: a.action,
       status: a.status,
