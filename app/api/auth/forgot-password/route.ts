@@ -5,13 +5,14 @@ import { config } from '@/lib/config'
 import { sendEmail, passwordResetEmailHtml } from '@/lib/email'
 import { createLogger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { rateLimitKeyForIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/rate-limit'
 import { forgotPasswordSchema, parseBody } from '@/lib/validations'
 
 const logger = createLogger('auth/forgot-password')
 
 export const POST = route('auth/forgot-password', async (request: Request) => {
-  const ip = request.headers.get('x-forwarded-for') || 'unknown'
+  const ip = rateLimitKeyForIp(request)
   const rl = rateLimit(`forgot-pw:${ip}`, { maxRequests: 3, windowMs: 60_000 })
   if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 

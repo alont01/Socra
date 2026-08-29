@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
+import { rateLimitKeyForIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/rate-limit'
 import { resetPasswordSchema, parseBody } from '@/lib/validations'
 import { route } from '@/lib/api-handler'
 
 export const POST = route('auth/reset-password', async (request: Request) => {
-  const ip = request.headers.get('x-forwarded-for') || 'unknown'
+  const ip = rateLimitKeyForIp(request)
   const rl = rateLimit(`reset-pw:${ip}`, { maxRequests: 5, windowMs: 60_000 })
   if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 

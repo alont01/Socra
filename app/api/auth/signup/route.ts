@@ -3,13 +3,14 @@ import { route } from '@/lib/api-handler'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
 import { signupSchema, parseBody } from '@/lib/validations'
+import { rateLimitKeyForIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
 import { issueVerificationCode } from '@/lib/email-verification'
 
 export const POST = route('auth/signup', async (request: Request) => {
   const ctx = auditContext(request)
-  const ip = request.headers.get('x-forwarded-for') || 'unknown'
+  const ip = rateLimitKeyForIp(request)
   const rl = rateLimit(`signup:${ip}`, { maxRequests: 5, windowMs: 60_000 })
   if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 

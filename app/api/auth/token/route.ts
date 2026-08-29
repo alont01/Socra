@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { comparePassword } from '@/lib/password'
 import { signToken } from '@/lib/auth'
 import { loginSchema, parseBody } from '@/lib/validations'
+import { rateLimitKeyForIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordAudit, auditContext } from '@/lib/audit'
 
@@ -14,7 +15,7 @@ import { recordAudit, auditContext } from '@/lib/audit'
  */
 export const POST = route('auth/token', async (request: Request) => {
   const ctx = auditContext(request)
-  const ip = request.headers.get('x-forwarded-for') || 'unknown'
+  const ip = rateLimitKeyForIp(request)
   const rl = rateLimit(`token:${ip}`, { maxRequests: 10, windowMs: 60_000 })
   if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 

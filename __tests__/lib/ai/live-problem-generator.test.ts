@@ -40,7 +40,28 @@ describe('generateLiveProblems', () => {
 
     const result = await generateLiveProblems(base)
     expect(result).toHaveLength(1)
-    expect(result[0]).toMatchObject({ id: 'lp1', question: 'Area of a 3x4 rectangle?', difficulty: 'medium', topic: 'Geometry' })
+    expect(result[0]).toMatchObject({ question: 'Area of a 3x4 rectangle?', difficulty: 'medium', topic: 'Geometry' })
+    expect(result[0].id).toEqual(expect.any(String))
+  })
+
+  // Grading keys attempts on (tutoringSessionId, problemId), so an id that
+  // repeats across two generations in one session makes the student's answer to
+  // the second batch collide with the first and come back "already answered".
+  it('assigns ids that are unique across separate generations', async () => {
+    const payload = JSON.stringify([{ question: 'q1' }, { question: 'q2' }])
+
+    mockTracked.mockResolvedValue(reply(payload))
+    const first = await generateLiveProblems(base)
+    const second = await generateLiveProblems(base)
+
+    const ids = [...first, ...second].map((p) => p.id)
+    expect(new Set(ids).size).toBe(4)
+  })
+
+  it('ignores an id supplied by the model', async () => {
+    mockTracked.mockResolvedValue(reply(JSON.stringify([{ id: 'lp1', question: 'q' }])))
+    const [problem] = await generateLiveProblems(base)
+    expect(problem.id).not.toBe('lp1')
   })
 
   it('throws when no valid problems can be parsed', async () => {

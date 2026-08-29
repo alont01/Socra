@@ -1,4 +1,21 @@
 import crypto from 'crypto'
+import { config } from '@/lib/config'
+
+/**
+ * How long a minted answer token stays valid.
+ *
+ * The token is the only thing carrying the correct answer to the student's
+ * browser and back, and it used to be valid forever: it bound the answer to a
+ * session and problem but never to a point in time. The DB's unique
+ * (tutoringSessionId, problemId) index is what actually stops a student
+ * resubmitting a revealed answer, which left the grading path's integrity
+ * resting entirely on ids never repeating. This bounds the window instead, so
+ * the token stops being useful once the session it belongs to is over.
+ *
+ * Tied to the stale-session threshold: the sweeper closes an `active` session
+ * after this long, so nothing legitimate is still being answered past it.
+ */
+const TOKEN_TTL_MS = config.session.staleAfterHours * 3_600_000
 
 let cachedKey: Buffer | undefined
 
@@ -35,7 +52,7 @@ export function createAnswerToken(
   const iv = crypto.randomBytes(12)
   const cipher = crypto.createCipheriv('aes-256-gcm', getKey(), iv)
 
-  const payload = JSON.stringify({ a: data.answer, t: data.topic, s: sessionId, p: problemId })
+  const payload = JSON.stringify({ a: data.answer, t: data.topic, s: sessionId, p: problemId, i: Date.now() })
   const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()])
   const tag = cipher.getAuthTag()
 
@@ -66,6 +83,15 @@ export function decryptAnswerToken(
     const payload = JSON.parse(decrypted.toString('utf8'))
 
     if (payload.s !== sessionId || payload.p !== problemId) return null
+
+    // Reject anything past its window, and anything without an issue time —
+    // a token minted before `i` existed cannot be aged, and treating unknown
+    // as valid would leave the old unbounded tokens working indefinitely.
+    // The only tokens this rejects in practice are ones issued to a session
+    // still live across the deploy that added this; regenerating the problems
+    // mints fresh ones.
+    if (typeof payload.i !== 'number' || !Number.isFinite(payload.i)) return null
+    if (Date.now() - payload.i > TOKEN_TTL_MS) return null
 
     return { answer: payload.a, topic: payload.t }
   } catch {

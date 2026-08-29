@@ -25,6 +25,34 @@ describe('initialLevel', () => {
   it('falls back to default when no topic matches', () => {
     expect(initialLevel([{ topic: 'Algebra', mastery: 0.9 }], 'Geometry')).toBe(5)
   })
+
+  it('prefers an exact topic match over substring matches', () => {
+    const mastery = [
+      { topic: 'Adding Fractions', mastery: 0.1 },
+      { topic: 'Fractions', mastery: 1 },
+      { topic: 'Dividing Fractions', mastery: 0.1 },
+    ]
+    expect(initialLevel(mastery, 'Fractions')).toBe(10)
+  })
+
+  // Picking the first of several substring hits made the starting difficulty a
+  // function of row order. An ambiguous match tells us nothing, so it has to
+  // fall back to the neutral mid-point rather than guess.
+  it('falls back to default when several topics match ambiguously', () => {
+    const mastery = [
+      { topic: 'Adding Fractions', mastery: 0 },
+      { topic: 'Dividing Fractions', mastery: 1 },
+    ]
+    expect(initialLevel(mastery, 'Fractions')).toBe(5)
+  })
+
+  it('is not swayed by row order when the match is ambiguous', () => {
+    const a = [
+      { topic: 'Pre-Algebra', mastery: 0 },
+      { topic: 'Algebra II', mastery: 1 },
+    ]
+    expect(initialLevel(a, 'Algebra')).toBe(initialLevel([...a].reverse(), 'Algebra'))
+  })
 })
 
 describe('nextLevel', () => {

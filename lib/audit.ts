@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { clientIp } from '@/lib/client-ip'
 import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('audit')
@@ -22,13 +23,15 @@ export interface RecordAuditInput {
 }
 
 /**
- * Pull client context (ip, user agent) off an incoming request. `x-forwarded-for`
- * can be a comma-separated chain; we keep the first (client) hop.
+ * Pull client context (ip, user agent) off an incoming request.
+ *
+ * The IP comes from the trusted end of the `x-forwarded-for` chain (see
+ * lib/client-ip.ts). Taking the first hop instead — the client-supplied end —
+ * meant an attacker could write their own address into the audit log of every
+ * action they took, which is worse than recording nothing.
  */
 export function auditContext(request: Request): { ip: string | null; userAgent: string | null } {
-  const fwd = request.headers.get('x-forwarded-for')
-  const ip = fwd ? fwd.split(',')[0].trim() : null
-  return { ip, userAgent: request.headers.get('user-agent') }
+  return { ip: clientIp(request), userAgent: request.headers.get('user-agent') }
 }
 
 /**

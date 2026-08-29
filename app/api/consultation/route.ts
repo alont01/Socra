@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { consultationSchema, parseBody } from '@/lib/validations'
+import { rateLimitKeyForIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/rate-limit'
 import { sendEmail, consultationTeamEmailHtml, consultationParentEmailHtml } from '@/lib/email'
 import { recordEvent } from '@/lib/metrics'
@@ -15,7 +16,7 @@ const TEAM_EMAIL = process.env.TEAM_EMAIL || 'team@socratutoring.com'
 // form; we persist the lead, notify the team, and confirm to the parent.
 export const POST = route('consultation', async (request: Request) => {
   try {
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const ip = rateLimitKeyForIp(request)
     const rl = rateLimit(`consultation:${ip}`, { maxRequests: 5, windowMs: 60_000 })
     if (rl.limited) return NextResponse.json({ error: rl.message }, { status: rl.status })
 

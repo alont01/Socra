@@ -55,6 +55,14 @@ function VerifyForm() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        // The account is already verified (this code was accepted by an earlier
+        // attempt whose response we never saw). Nothing is wrong — they just
+        // need to sign in, so send them there instead of leaving them on a form
+        // that can no longer succeed.
+        if (data.alreadyVerified) {
+          router.replace(`/auth${next ? `?next=${encodeURIComponent(next)}` : ''}`)
+          return
+        }
         setError(data.error || 'Could not verify. Please try again.')
         return
       }

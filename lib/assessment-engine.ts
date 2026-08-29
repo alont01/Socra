@@ -17,19 +17,32 @@ function clampLevel(level: number): number {
 /**
  * Pick the starting difficulty for a topic. Uses the student's existing
  * mastery (0-1) for a matching topic if one exists — mapped onto the 1-10
- * ladder — otherwise falls back to the configured mid-point. Matching is a
- * loose substring check (mirrors the live-practice weak-area matching), since
- * mastery topics and assessment topics aren't a rigid enum.
+ * ladder — otherwise falls back to the configured mid-point.
+ *
+ * Mastery topics are free text, not an enum, so matching stays loose: an exact
+ * name wins, and a substring match is accepted only when exactly one row
+ * matches. Taking the first of several substring hits (what this used to do)
+ * meant "Fractions" could seed from "Adding Fractions" or "Dividing Fractions"
+ * depending on nothing but row order, and "Algebra" collided with "Pre-Algebra"
+ * and "Algebra II" — silently starting the diagnostic at the wrong difficulty.
+ * An ambiguous match carries no more information than no match, so it falls
+ * back to the neutral mid-point rather than guessing.
  */
 export function initialLevel(masteryData: { topic: string; mastery: number }[], topic: string): number {
   const needle = topic.trim().toLowerCase()
   if (!needle) return startLevel
-  const match = masteryData.find(
-    (m) => m.topic.toLowerCase().includes(needle) || needle.includes(m.topic.toLowerCase()),
-  )
-  if (!match) return startLevel
+
+  const exact = masteryData.filter((m) => m.topic.trim().toLowerCase() === needle)
+  const candidates = exact.length > 0
+    ? exact
+    : masteryData.filter((m) => {
+        const hay = m.topic.trim().toLowerCase()
+        return hay.includes(needle) || needle.includes(hay)
+      })
+
+  if (candidates.length !== 1) return startLevel
   // mastery 0..1 -> level 1..10, rounded.
-  return clampLevel(Math.round(1 + match.mastery * (maxLevel - minLevel)))
+  return clampLevel(Math.round(1 + candidates[0].mastery * (maxLevel - minLevel)))
 }
 
 /** Next ladder position given how the current item resolved. */
