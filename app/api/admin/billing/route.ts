@@ -14,6 +14,9 @@ export const GET = route('admin/billing', async (request: Request) => {
 
   const { searchParams } = new URL(request.url)
   const monthParam = searchParams.get('month') // "2026-08"
+  if (monthParam && !/^\d{4}-\d{2}$/.test(monthParam)) {
+    return NextResponse.json({ error: 'month must be YYYY-MM' }, { status: 400 })
+  }
   const reference = monthParam ? new Date(`${monthParam}-01T00:00:00Z`) : new Date()
   const { start, end } = monthBounds(reference)
 

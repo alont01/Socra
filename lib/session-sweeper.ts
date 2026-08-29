@@ -13,6 +13,7 @@ import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
 import { recordEvent } from '@/lib/metrics'
 import { processSessionPostCompletion } from '@/lib/session-processing'
+import { resolveScheduledMinutes } from '@/lib/billing'
 
 const logger = createLogger('session-sweeper')
 
@@ -59,7 +60,10 @@ export async function sweepStaleSessions(now: Date = new Date()): Promise<SweepR
   for (const session of batch) {
     try {
       const startedAt = session.startedAt!
-      const cappedMinutes = session.scheduledMinutes + config.billing.graceMinutes
+      // Same fallback billableHours() uses for a missing/nonsensical scheduled
+      // length — otherwise a bad row here bakes an unbounded `endedAt` into a
+      // row billing then caps correctly, and the two permanently disagree.
+      const cappedMinutes = resolveScheduledMinutes(session.scheduledMinutes) + config.billing.graceMinutes
       const endedAt = new Date(startedAt.getTime() + cappedMinutes * 60_000)
 
       // Conditional: only close it if it's still active. A tutor ending the

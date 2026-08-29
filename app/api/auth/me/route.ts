@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/api-auth'
 import { route } from '@/lib/api-handler'
 import { prisma } from '@/lib/prisma'
+import { isInternalStudentEmail } from '@/lib/student-handle'
 
 export const GET = route('auth/me', async () => {
   const auth = await requireAuth()
@@ -29,7 +30,12 @@ export const GET = route('auth/me', async () => {
   return NextResponse.json({
     user: {
       id: user.id,
-      email: user.email,
+      // A parent-created child's stored `email` is a synthetic, non-deliverable
+      // @students.socra.internal placeholder (see lib/student-handle.ts) — an
+      // internal key, not a contact address. /api/profile and
+      // /api/tutor/students already mask it; this endpoint is on the same auth
+      // path and must not be the one place that leaks it to the client.
+      email: isInternalStudentEmail(user.email) ? null : user.email,
       role: user.role,
       studentProfile: user.studentProfile,
       parentProfile: user.parentProfile

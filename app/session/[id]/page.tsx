@@ -41,6 +41,13 @@ export default function SessionPage({
   const [roomUrl, setRoomUrl] = useState('')
   const [callFrame, setCallFrame] = useState<DailyCall | null>(null)
   const [whiteboardActive, setWhiteboardActive] = useState(false)
+  // Once the board has ever been activated, it stays mounted for the rest of
+  // the call — only its visibility toggles. Whiteboard previously unmounted on
+  // `!whiteboardActive`, which called fabricCanvasRef.current.dispose() in its
+  // cleanup: turning the board off and back on (or off before ending the
+  // session) silently threw away everything drawn, on both the tutor's canvas
+  // and the recap's whiteboardImage capture.
+  const [whiteboardMounted, setWhiteboardMounted] = useState(false)
   const [remoteCanvasState, setRemoteCanvasState] = useState<string | null>(null)
   const whiteboardSnapshotRef = useRef<((opts?: { maxDim?: number }) => string | null) | null>(null)
   const whiteboardDrawRef = useRef<DrawFn | null>(null)
@@ -60,6 +67,10 @@ export default function SessionPage({
     onWhiteboardStarted: useCallback(() => setWhiteboardActive(true), []),
     onWhiteboardStopped: useCallback(() => setWhiteboardActive(false), []),
   })
+
+  useEffect(() => {
+    if (whiteboardActive) setWhiteboardMounted(true)
+  }, [whiteboardActive])
 
   const [studentOverrides, setStudentOverrides] = useState<Set<string>>(new Set())
   const [assessmentActive, setAssessmentActive] = useState(false)
@@ -337,7 +348,11 @@ export default function SessionPage({
       // transcript below: a failed upload must not strand the tutor on an
       // active session — that blocks the analysis pipeline and leaves the
       // session open for the stale-session sweeper to close and bill.
-      if (whiteboardActive && whiteboardSnapshotRef.current) {
+      //
+      // Gated on `whiteboardMounted`, not `whiteboardActive`: a tutor who drew
+      // on the board and then hid the panel before ending still has content
+      // worth capturing (the canvas is still alive — see whiteboardMounted).
+      if (whiteboardMounted && whiteboardSnapshotRef.current) {
         try {
           const image = whiteboardSnapshotRef.current()
           if (image) {
@@ -376,7 +391,7 @@ export default function SessionPage({
     } finally {
       setEnding(false)
     }
-  }, [id, router, whiteboardActive, callFrame, toast])
+  }, [id, router, whiteboardMounted, callFrame, toast])
 
   const handleLeave = useCallback(() => {
     setInCall(false)
@@ -451,9 +466,11 @@ export default function SessionPage({
           {!isTutor && <CaptureNotesButton sessionId={id} />}
         </div>
 
-        {/* Whiteboard — shown when active */}
-        {whiteboardActive && (
-          <div className="flex-1 relative">
+        {/* Whiteboard — mounted once it's ever been activated, so toggling it
+            off (or leaving it off before ending the session) never disposes
+            the canvas. Only its visibility toggles with `whiteboardActive`. */}
+        {whiteboardMounted && (
+          <div className={`flex-1 relative ${whiteboardActive ? '' : 'hidden'}`}>
             <Whiteboard
               isTutor={isTutor}
               onCanvasStateChange={isTutor ? sendCanvasState : undefined}
@@ -461,7 +478,7 @@ export default function SessionPage({
               snapshotRef={whiteboardSnapshotRef}
               drawRef={isTutor ? whiteboardDrawRef : undefined}
             />
-            {isTutor && (
+            {isTutor && whiteboardActive && (
               <button
                 onClick={() => setShowVisualize(true)}
                 className="absolute top-2 right-2 z-10 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 text-white text-sm font-medium px-3 py-1.5 shadow-brand hover:bg-orange-600 transition-colors"
@@ -469,7 +486,7 @@ export default function SessionPage({
                 <span aria-hidden>✦</span> Visualize
               </button>
             )}
-            {isTutor && showVisualize && (
+            {isTutor && whiteboardActive && showVisualize && (
               <VisualizePanel
                 sessionId={id}
                 getContext={getVisualizeContext}

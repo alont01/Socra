@@ -58,6 +58,20 @@ export function sessionHours(startedAt: Date, endedAt: Date): number {
  *
  * Short sessions bill their actual length — the cap only ever reduces.
  */
+/**
+ * A missing or nonsensical scheduled length must not disable the cap, or a
+ * single bad row bills unbounded. Falls back to the default session length.
+ *
+ * Shared with lib/session-sweeper.ts, which computes the same capped end time
+ * for an abandoned session — the two must agree, or the hours the sweeper
+ * bakes into `endedAt` could disagree with what billing then bills for it.
+ */
+export function resolveScheduledMinutes(scheduledMinutes: number): number {
+  return Number.isFinite(scheduledMinutes) && scheduledMinutes > 0
+    ? scheduledMinutes
+    : config.billing.defaultSessionMinutes
+}
+
 export function billableHours(
   startedAt: Date,
   endedAt: Date,
@@ -65,14 +79,7 @@ export function billableHours(
   graceMinutes: number = config.billing.graceMinutes,
 ): number {
   const actual = sessionHours(startedAt, endedAt)
-
-  // A missing or nonsensical scheduled length must not disable the cap, or a
-  // single bad row bills unbounded. Fall back to the default session length.
-  const scheduled =
-    Number.isFinite(scheduledMinutes) && scheduledMinutes > 0
-      ? scheduledMinutes
-      : config.billing.defaultSessionMinutes
-
+  const scheduled = resolveScheduledMinutes(scheduledMinutes)
   const cap = (scheduled + Math.max(0, graceMinutes)) / 60
   return Math.min(actual, cap)
 }

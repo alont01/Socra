@@ -18,6 +18,14 @@ import { useRef, useState, useCallback } from 'react'
  */
 export const WHITEBOARD_CUSTOM_PROPS = ['socraGroup']
 
+/**
+ * Undo steps kept per session. Each entry is a full canvas JSON serialization
+ * (tens of KB once a board fills up) pushed on every object add/modify/remove,
+ * with no prior cap — a long session's history grew without bound in the
+ * tutor's tab. 50 steps is far more than anyone actually undoes through.
+ */
+const MAX_HISTORY = 50
+
 /** Serialize a canvas, keeping the custom properties above. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serializeCanvas(canvas: { toObject: (props?: string[]) => any }): string {
@@ -43,6 +51,7 @@ export function useWhiteboardHistory(
     if (!canvas || isUpdatingRef.current) return
     const json = serializeCanvas(canvas)
     historyRef.current.push(json)
+    if (historyRef.current.length > MAX_HISTORY) historyRef.current.shift()
     redoStackRef.current = []
     setCanUndo(true)
     setCanRedo(false)

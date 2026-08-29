@@ -18,11 +18,18 @@ export const POST = route(
 
     const session = await prisma.tutoringSession.findUnique({
       where: { id },
-      select: { id: true, tutor: { select: { userId: true } } },
+      select: { id: true, status: true, tutor: { select: { userId: true } } },
     })
     if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
     if (session.tutor.userId !== auth.payload.userId) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+    // The normal caller (endSession, client-side) always sends this before the
+    // session is marked completed. A write reaching here after that means a
+    // stale tab or a race with the sweeper — a completed session's transcript
+    // has already fed the analysis pipeline and must not be overwritten.
+    if (session.status !== 'active') {
+      return NextResponse.json({ error: 'Session is not active' }, { status: 400 })
     }
 
     await prisma.tutoringSession.update({ where: { id }, data: { liveTranscript: transcript } })

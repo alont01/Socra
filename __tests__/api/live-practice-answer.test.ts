@@ -58,6 +58,7 @@ beforeEach(() => {
   })
   p.tutoringSession.findUnique.mockResolvedValue({
     id: 'sess1',
+    status: 'active',
     student: { id: 'stu1', userId: STUDENT_USER },
   })
   mockDecrypt.mockReturnValue({ answer: '42', topic: 'algebra' })
@@ -135,6 +136,21 @@ describe('POST live-practice answer', () => {
     })
     const res = await req(payload)
     expect(res.status).toBe(403)
+    expect(mockMastery).not.toHaveBeenCalled()
+  })
+
+  it('refuses to grade against a session that already ended', async () => {
+    // The answer token stays valid past when the session ends (bounded by the
+    // stale-session threshold, not the session's own lifecycle) — the route
+    // itself must be the one to close this window.
+    p.tutoringSession.findUnique.mockResolvedValue({
+      id: 'sess1',
+      status: 'completed',
+      student: { id: 'stu1', userId: STUDENT_USER },
+    })
+    const res = await req(payload)
+    expect(res.status).toBe(400)
+    expect(p.livePracticeAttempt.create).not.toHaveBeenCalled()
     expect(mockMastery).not.toHaveBeenCalled()
   })
 })

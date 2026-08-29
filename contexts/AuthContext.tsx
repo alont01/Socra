@@ -4,7 +4,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 
 export interface AuthUser {
   id: string
-  email: string
+  // Null for a parent-created child — their stored email is a synthetic,
+  // non-deliverable placeholder that /api/auth/me masks before it reaches
+  // the client. See lib/student-handle.ts.
+  email: string | null
   role: string
   studentProfile?: {
     id: string
@@ -23,7 +26,6 @@ export interface AuthUser {
       name: string
       gradeLevel: string
       onboardingDone: boolean
-      sessionsCount: number
       mathTopics: string
     }>
   } | null

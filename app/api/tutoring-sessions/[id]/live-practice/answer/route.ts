@@ -40,6 +40,13 @@ export const POST = route('tutoring-sessions/[id]/live-practice/answer', async (
   if (!session.student || session.student.userId !== auth.payload.userId) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
+  // The answer token stays valid until the stale-session threshold (see
+  // lib/answer-token.ts), well past when a session actually ends — without
+  // this, a student could keep grading (and moving mastery) against problems
+  // from a call that already ended.
+  if (session.status !== 'active') {
+    return NextResponse.json({ error: 'This session is not active' }, { status: 400 })
+  }
 
   const correct = answersMatch(answer, stored.answer)
 

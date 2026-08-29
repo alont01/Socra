@@ -49,15 +49,18 @@ export const GET = route('parent/billing', async () => {
 
   // Hours delivered so far this period, computed the same way billing does it —
   // capped at the booked length, so this can't quote a number lower than the
-  // invoice that follows.
+  // invoice that follows. Filtered on `startedAt` within the period, exactly
+  // like getMonthlyBilling: filtering on `endedAt` instead let a session that
+  // started late one month and ended early the next appear in a different
+  // month here than the one it's actually invoiced under.
   const childIds = children.map((c) => c.id)
   const sessions = childIds.length
     ? await prisma.tutoringSession.findMany({
         where: {
           studentId: { in: childIds },
           status: 'completed',
-          startedAt: { not: null },
-          endedAt: { gte: start, lt: end },
+          startedAt: { not: null, gte: start, lt: end },
+          endedAt: { not: null },
         },
         select: { studentId: true, startedAt: true, endedAt: true, scheduledMinutes: true },
       })

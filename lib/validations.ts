@@ -89,16 +89,6 @@ export const resendVerificationSchema = z.object({
 
 // ── Onboarding ──
 
-export const onboardingSchema = z.object({
-  name: z.string().min(1),
-  gradeLevel: z.string().min(1),
-  mathTopics: z.array(z.string()).default([]),
-  strengthAreas: z.array(z.string()).default([]),
-  weaknessAreas: z.array(z.string()).default([]),
-  learningStyle: z.string().default(''),
-  goals: z.string().default(''),
-})
-
 export const onboardingCompleteSchema = z.object({
   name: z.string().min(1),
   gradeLevel: z.string().min(1),

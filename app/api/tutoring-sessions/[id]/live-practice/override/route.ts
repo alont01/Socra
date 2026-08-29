@@ -47,14 +47,19 @@ export const POST = route('tutoring-sessions/[id]/live-practice/override', async
   // otherwise apply the compensating bump again and inflate mastery past what
   // one right answer is worth. The conditional updateMany is the arbiter:
   // exactly one caller flips `overridden` from false.
+  //
+  // Also requires `correct: false` — without it, overriding an attempt the
+  // student already got right applies a second, unearned positive bump on top
+  // of the one `updateMasteryScore` already gave it when they answered.
   if (problemId) {
     const claimed = await prisma.livePracticeAttempt.updateMany({
-      where: { tutoringSessionId: id, problemId, overridden: false },
+      where: { tutoringSessionId: id, problemId, overridden: false, correct: false },
       data: { overridden: true, correct: true },
     })
     if (claimed.count === 0) {
-      // Either already overridden, or the student never submitted an answer for
-      // this problem. Neither is an error worth interrupting the tutor over.
+      // Already overridden, already correct, or the student never submitted an
+      // answer for this problem. None of those is an error worth interrupting
+      // the tutor over.
       return NextResponse.json({ success: true, alreadyApplied: true })
     }
   }

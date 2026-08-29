@@ -8,6 +8,7 @@ import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { TutorOffers } from './TutorOffers'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import { useToast } from '@/hooks/useToast'
+import { fetchAllTutoringSessions } from '@/lib/fetch-sessions'
 import Link from 'next/link'
 
 interface TutoringSession {
@@ -18,6 +19,13 @@ interface TutoringSession {
   createdAt: string
   student?: { id: string; name: string; gradeLevel?: string } | null
 }
+
+/**
+ * How many of the (fully-fetched, most-recent-first) sessions the "Sessions"
+ * list actually renders. The stat tiles above it still derive from every
+ * session — only the list itself stays a short recent-activity view.
+ */
+const SESSIONS_LIST_LIMIT = 20
 
 interface TutorDashboardProps {
   tutorName: string
@@ -51,10 +59,12 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
     setLoadError(false)
     Promise.all([
       fetch('/api/tutor/students').then((r) => { if (!r.ok) throw new Error(); return r.json() }),
-      fetch('/api/tutoring-sessions').then((r) => { if (!r.ok) throw new Error(); return r.json() }),
-    ]).then(([studentsData, sessionsData]) => {
+      // Fetched in full (not just the first page) so activeCount/completedCount
+      // below count every session, not just the newest 50-100.
+      fetchAllTutoringSessions<TutoringSession>(),
+    ]).then(([studentsData, allSessions]) => {
       setStudents(studentsData.students || [])
-      setSessions(sessionsData.sessions || [])
+      setSessions(allSessions)
     }).catch(() => {
       setLoadError(true)
     }).finally(() => {
@@ -215,7 +225,7 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
         {/* Sessions — right */}
         <section aria-labelledby="sessions-heading" className="lg:col-span-2">
           <h2 id="sessions-heading" className="text-lg font-bold text-stone-900 mb-4">Sessions</h2>
-          <UpcomingSessionsPanel sessions={sessions} role="TUTOR" />
+          <UpcomingSessionsPanel sessions={sessions.slice(0, SESSIONS_LIST_LIMIT)} role="TUTOR" />
         </section>
       </div>
 

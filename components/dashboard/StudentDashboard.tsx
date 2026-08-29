@@ -5,6 +5,14 @@ import Link from 'next/link'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/hooks/useToast'
+import { fetchAllTutoringSessions } from '@/lib/fetch-sessions'
+
+/**
+ * How many of the (fully-fetched, most-recent-first) sessions the "Your
+ * sessions" list actually renders. The stat tiles below still derive from
+ * every session — only the list itself stays a short recent-activity view.
+ */
+const SESSIONS_LIST_LIMIT = 20
 
 interface TutoringSession {
   id: string
@@ -47,9 +55,11 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
   const [tutor, setTutor] = useState<{ id: string; name: string } | null | undefined>(undefined)
 
   useEffect(() => {
-    fetch('/api/tutoring-sessions')
-      .then((r) => { if (!r.ok) throw new Error(); return r.json() })
-      .then((data) => setSessions(data.sessions || []))
+    // Fetched in full (not just the first page) so the stat tiles below —
+    // "Upcoming sessions" in particular — count every session, not just the
+    // newest 50-100.
+    fetchAllTutoringSessions<TutoringSession>()
+      .then((all) => setSessions(all))
       .catch(() => toast('Failed to load sessions', 'error'))
       .finally(() => setLoading(false))
   }, [toast])
@@ -219,7 +229,7 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
             <Skeleton className="h-16 rounded-3xl" />
           </div>
         ) : (
-          <UpcomingSessionsPanel sessions={sessions} role="STUDENT" />
+          <UpcomingSessionsPanel sessions={sessions.slice(0, SESSIONS_LIST_LIMIT)} role="STUDENT" />
         )}
       </section>
 

@@ -94,6 +94,23 @@ export const PATCH = route('tutor/practice-sets/[id]', async (request: Request, 
   }
   const { title, problems, status } = parsed.data
 
+  // PracticeSetAttempt.problemIndex is a positional index into this JSON
+  // array, not a stable id — so once any attempt exists, rewriting `problems`
+  // (reordering, adding, or removing a problem) silently repoints every
+  // recorded attempt at a different question. This can be reached even on a
+  // set currently `draft`: revert-to-draft doesn't clear attempts, only a
+  // fresh edit would corrupt them, so the guard is on attempts existing at
+  // all, not on the current status.
+  if (problems !== undefined && result.attempts.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          'This set already has student attempts recorded — its problems can no longer be edited. Generate a new set instead.',
+      },
+      { status: 409 },
+    )
+  }
+
   // Assigning with a blank answer key silently breaks grading: the student's
   // attempt route has nothing to compare against, so every answer is marked
   // wrong AND drags that topic's mastery down. Block it at the boundary rather

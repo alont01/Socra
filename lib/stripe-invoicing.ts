@@ -98,7 +98,7 @@ export async function sendMonthlyInvoice(
   const customerId = await getOrCreateStripeCustomerId(billing.parentId)
   const periodLabel = periodStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
-  const invoiceId = options.existingStripeInvoiceId
+  let invoiceId = options.existingStripeInvoiceId
     ? options.existingStripeInvoiceId
     : await createDraft(stripe, billing, periodStart, periodEnd, customerId, periodLabel, options)
 
@@ -119,6 +119,34 @@ export async function sendMonthlyInvoice(
   }
 
   if (invoice.status === 'draft') {
+    const existingLines = invoice.lines?.data ?? []
+    // A resumed draft that already has lines was built from a PRIOR
+    // recomputation of billing.amountCents — the caller refreshes those figures
+    // on every takeover (a sweeper can close a session between attempts), but
+    // the old draft's lines don't move with them. Sending it as-is would email
+    // an amount that no longer matches what the local Invoice row (and the
+    // parent's billing page) say is owed. Nothing has been sent yet, so the
+    // safe fix is to discard the stale draft and start clean rather than
+    // silently bill the old total.
+    const existingCents = existingLines.reduce((sum, li) => sum + (li.amount ?? 0), 0)
+    if (existingLines.length > 0 && existingCents !== billing.amountCents) {
+      logger.warn('Resumed draft no longer matches recomputed billing; recreating it', {
+        parentId: billing.parentId,
+        staleInvoiceId: invoiceId,
+        staleCents: existingCents,
+        currentCents: billing.amountCents,
+      })
+      await stripe.invoices.del(invoiceId)
+      // A fresh idempotency key, scoped to the stale invoice being replaced —
+      // reusing the original key would just hand back the (now-deleted)
+      // cached response for it.
+      invoiceId = await createDraft(
+        stripe, billing, periodStart, periodEnd, customerId, periodLabel, options,
+        `invoice:retry:${invoiceId}`,
+      )
+      invoice = await stripe.invoices.retrieve(invoiceId, { expand: ['lines'] })
+    }
+
     // Only add lines to an empty draft. A resumed draft already has them, and
     // adding a second set would double the amount.
     if ((invoice.lines?.data.length ?? 0) === 0) {
@@ -131,7 +159,10 @@ export async function sendMonthlyInvoice(
             amount: Math.round(child.hours * billing.rateUsd * 100),
             description: `Tutoring — ${child.studentName} (${child.hours} hr${child.hours === 1 ? '' : 's'} @ $${billing.rateUsd}/hr) — ${periodLabel}`,
           },
-          { idempotencyKey: idempotencyKey(billing.parentId, periodStart, `item:${child.studentId}`) },
+          // Scoped to this invoice id (not just parent+period+student) so that
+          // recreating the draft above doesn't replay the stale draft's cached
+          // item response — which would leave the NEW invoice with no items.
+          { idempotencyKey: idempotencyKey(billing.parentId, periodStart, `item:${invoiceId}:${child.studentId}`) },
         )
       }
     }
@@ -164,6 +195,8 @@ async function createDraft(
   customerId: string,
   periodLabel: string,
   options: SendInvoiceOptions,
+  /** Override the idempotency-key suffix — used when recreating a stale draft. */
+  keySuffix: string = 'invoice',
 ): Promise<string> {
   const draft = await stripe.invoices.create(
     {
@@ -180,7 +213,7 @@ async function createDraft(
         periodEnd: periodEnd.toISOString(),
       },
     },
-    { idempotencyKey: idempotencyKey(billing.parentId, periodStart, 'invoice') },
+    { idempotencyKey: idempotencyKey(billing.parentId, periodStart, keySuffix) },
   )
 
   if (!draft.id) throw new Error('Stripe returned an invoice without an id')

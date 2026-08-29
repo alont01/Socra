@@ -55,6 +55,7 @@ function stripeDouble(overrides: {
         hosted_invoice_url: 'https://stripe.test/inv',
       }),
       sendInvoice: jest.fn().mockResolvedValue({}),
+      del: jest.fn().mockResolvedValue({}),
     },
   }
 }
@@ -142,7 +143,9 @@ describe('sendMonthlyInvoice', () => {
 
   it('does not re-add line items to a resumed draft that already has them', async () => {
     const stripe = stripeDouble({
-      retrieve: { id: 'in_partial', status: 'draft', lines: { data: [{ id: 'il_1' }] }, hosted_invoice_url: null },
+      // Its total matches billing.amountCents (15000) — a genuinely resumable
+      // draft, not a stale one.
+      retrieve: { id: 'in_partial', status: 'draft', lines: { data: [{ id: 'il_1', amount: 15000 }] }, hosted_invoice_url: null },
     })
     mockGetStripe.mockReturnValue(stripe)
 
@@ -150,7 +153,35 @@ describe('sendMonthlyInvoice', () => {
 
     // Adding a second set of lines would double the family's bill.
     expect(stripe.invoiceItems.create).not.toHaveBeenCalled()
+    expect(stripe.invoices.del).not.toHaveBeenCalled()
     expect(stripe.invoices.finalizeInvoice).toHaveBeenCalledWith('in_partial')
+  })
+
+  it('discards and recreates a resumed draft whose lines no longer match recomputed billing', async () => {
+    // Simulates: the draft was created against a higher figure, then a
+    // sweeper closed a session and the recomputed billing dropped before this
+    // retry ran. retrieve() is called twice — once for the resumed stale
+    // draft, once for the freshly-created replacement — and must reflect each.
+    const stripe = stripeDouble({ createId: 'in_fresh' })
+    stripe.invoices.retrieve
+      .mockResolvedValueOnce({ id: 'in_stale', status: 'draft', lines: { data: [{ id: 'il_old', amount: 9000 }] }, hosted_invoice_url: null })
+      .mockResolvedValueOnce({ id: 'in_fresh', status: 'draft', lines: { data: [] }, hosted_invoice_url: null })
+    mockGetStripe.mockReturnValue(stripe)
+    const onInvoiceCreated = jest.fn()
+
+    await sendMonthlyInvoice(billing, periodStart, periodEnd, { existingStripeInvoiceId: 'in_stale', onInvoiceCreated })
+
+    // The stale draft is discarded, never sent as-is.
+    expect(stripe.invoices.del).toHaveBeenCalledWith('in_stale')
+    // A fresh draft is created and items attached to it (not the stale one).
+    expect(stripe.invoices.create).toHaveBeenCalledTimes(1)
+    expect(stripe.invoiceItems.create).toHaveBeenCalledWith(
+      expect.objectContaining({ invoice: 'in_fresh' }),
+      expect.anything(),
+    )
+    expect(stripe.invoices.finalizeInvoice).toHaveBeenCalledWith('in_fresh')
+    // The caller's pointer is repointed at the surviving invoice.
+    expect(onInvoiceCreated).toHaveBeenCalledWith('in_fresh')
   })
 
   it('skips finalize for an invoice already finalized, and just sends it', async () => {
