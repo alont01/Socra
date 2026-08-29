@@ -94,6 +94,16 @@ export const POST = route('tutor/practice-sets', async (request: Request) => {
   if (!session.analysis) {
     return NextResponse.json({ error: 'Session has not been analyzed yet' }, { status: 400 })
   }
+  // A placeholder analysis exists as a row but carries no gaps or concepts.
+  // Generating from it doesn't fail — it quietly produces generic problems off
+  // the topic name alone, which is worse than refusing, because the tutor has
+  // no way to tell that homework wasn't built from their student's session.
+  if (session.analysis.status !== 'ok') {
+    return NextResponse.json(
+      { error: 'This session has no analysis to build from yet. Retry the analysis first, then generate homework.' },
+      { status: 400 },
+    )
+  }
 
   const studentGaps = safeJsonParse<string[]>(session.analysis.studentGaps, [])
   const conceptsCovered = safeJsonParse<string[]>(session.analysis.conceptsCovered, [])

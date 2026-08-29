@@ -38,6 +38,7 @@ export const GET = route('parent/children/[id]/sessions', async (_request: Reque
         endedAt: true,
         analysis: {
           select: {
+            status: true,
             summary: true,
             conceptsCovered: true,
             studentStrengths: true,
@@ -50,11 +51,22 @@ export const GET = route('parent/children/[id]/sessions', async (_request: Reque
 
   // Sanitize: parents see the summary, concepts, strengths and gaps — but NOT
   // tutorFeedback, which is coaching written for the tutor.
+  //
+  // A non-'ok' analysis is a placeholder whose summary is an apology addressed
+  // to the tutor ("Add tutor notes, then retry"). Sending it here put that text
+  // in front of a parent as their child's lesson recap, with no way to act on
+  // it. Those sessions report `analysis: null` — the page already renders that
+  // as a neutral pending state.
   const items = sessions.map((s) => ({
     id: s.id,
     topic: s.topic,
     endedAt: s.endedAt,
-    analysis: s.analysis
+    // 'pending' means the pipeline hasn't finished and one is still coming;
+    // 'unavailable' means it finished and produced nothing usable, so waiting
+    // won't help. Collapsing both into a null analysis made a permanently
+    // failed session read as "Analysis pending." forever.
+    recapStatus: !s.analysis ? 'pending' : s.analysis.status === 'ok' ? 'ready' : 'unavailable',
+    analysis: s.analysis && s.analysis.status === 'ok'
       ? {
           summary: s.analysis.summary,
           conceptsCovered: safeJsonParse<string[]>(s.analysis.conceptsCovered, []),

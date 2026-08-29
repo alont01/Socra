@@ -47,7 +47,10 @@ export function StudentProblemPanel({
 
   const submitAnswer = async (problem: PracticeProblem) => {
     const state = getState(problem.id)
-    if (!state.answer.trim() || state.submitted) return
+    // `submitting` matters as much as `submitted`: the button disables itself
+    // while in flight, but Enter doesn't go through the button, so a second
+    // keypress fired a second grading request for the same problem.
+    if (!state.answer.trim() || state.submitted || state.submitting) return
 
     updateState(problem.id, { submitting: true, error: undefined })
     try {
@@ -76,6 +79,24 @@ export function StudentProblemPanel({
         })
       } else {
         const errData = await res.json().catch(() => ({ error: 'Something went wrong' }))
+        // The answer was already recorded (a duplicate submission, or a retry
+        // after a response we never saw). That's a success from the student's
+        // side — show the graded result rather than a scary error.
+        if (res.status === 409 && errData.alreadyAnswered) {
+          updateState(problem.id, {
+            submitted: true,
+            correct: errData.correct,
+            correctAnswer: errData.correctAnswer,
+            submitting: false,
+            error: undefined,
+          })
+          onAnswerSubmitted({
+            problemId: problem.id,
+            answer: state.answer.trim(),
+            correct: errData.correct,
+          })
+          return
+        }
         updateState(problem.id, { submitting: false, error: errData.error || `Error (${res.status})` })
       }
     } catch {

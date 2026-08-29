@@ -18,11 +18,22 @@ describe('config', () => {
   it('has valid AI model strings', () => {
     expect(config.ai.analysisModel).toContain('claude')
     expect(config.ai.practiceModel).toContain('claude')
+    expect(config.ai.visualizeModel).toContain('claude')
+    expect(config.ai.assessmentModel).toContain('claude')
   })
 
   it('has positive max tokens', () => {
     expect(config.ai.analysisMaxTokens).toBeGreaterThan(0)
     expect(config.ai.practiceMaxTokens).toBeGreaterThan(0)
+  })
+
+  it('leaves the reasoning models room to think', () => {
+    // Thinking tokens are drawn from max_tokens. These three run on a model
+    // that thinks by default, so a ceiling sized for the answer alone would
+    // truncate mid-thought instead of just producing something shorter.
+    expect(config.ai.visualizeMaxTokens).toBeGreaterThanOrEqual(8000)
+    expect(config.ai.practiceMaxTokens).toBeGreaterThanOrEqual(4000)
+    expect(config.ai.assessmentMaxTokens).toBeGreaterThanOrEqual(2000)
   })
 
   it('has positive auth JWT expiry', () => {

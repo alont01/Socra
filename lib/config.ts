@@ -2,6 +2,13 @@
 
 export const config = {
   // Daily.co
+  // The app's canonical wall-clock timezone. Availability blocks, scheduling,
+  // and anything shown to a family are all in this zone (see lib/availability).
+  // Server-rendered dates MUST pass this to toLocaleString: Node inherits the
+  // host's zone, which is UTC on Render, so omitting it silently emails people
+  // a time several hours off.
+  timeZone: 'America/New_York',
+
   daily: {
     roomExpirySeconds: 60 * 60 * 3, // 3 hours
     maxParticipants: 2,
@@ -19,11 +26,25 @@ export const config = {
   },
 
   // AI
+  //
+  // Model choice is per-task, not one house model. The three jobs where being
+  // wrong is expensive — a visualization whose geometry doesn't hold up, a
+  // practice problem with a bad answer key, an assessment item pitched at the
+  // wrong level — run on Sonnet 5, which thinks adaptively by default and is
+  // markedly faster than Opus 5 (these run while a tutor or student waits).
+  // Verified on the visualize path with `npm run eval:visualize`; re-run that
+  // before moving any of these to a smaller or older model.
+  //
+  // IMPORTANT: thinking tokens count against `max_tokens`. The ceilings below
+  // are sized for reasoning + output; halving one truncates the answer
+  // mid-thought rather than producing a shorter answer.
   ai: {
     analysisModel: 'claude-sonnet-4-6' as const,
     analysisMaxTokens: 2048,
-    practiceModel: 'claude-sonnet-4-6' as const,
-    practiceMaxTokens: 2048,
+    // Practice problems are graded automatically, so a wrong answer key marks a
+    // correct student wrong. Runs in the post-session pipeline — nobody waiting.
+    practiceModel: 'claude-sonnet-5' as const,
+    practiceMaxTokens: 8000,
     practiceProblemsCount: 5,
     noteExtractorModel: 'claude-sonnet-4-6' as const,
     studentChatModel: 'claude-sonnet-4-6' as const,
@@ -33,9 +54,15 @@ export const config = {
     livePracticeCount: 3,
     onboardingModel: 'claude-opus-4-8' as const,
     onboardingMaxTokens: 2048,
-    assessmentModel: 'claude-sonnet-4-6' as const,
-    assessmentMaxTokens: 1024, // one problem at a time
-    assessmentSummaryMaxTokens: 1536,
+    assessmentModel: 'claude-sonnet-5' as const,
+    assessmentMaxTokens: 4000, // one problem at a time, plus room to reason it through
+    assessmentSummaryMaxTokens: 6000,
+    // The hardest job in the app: plan a pedagogical build-up AND compute
+    // coordinates that actually hold (four congruent triangles that really do
+    // pack into the square). Spatial reasoning is where a weaker model produces
+    // something plausible-looking and geometrically wrong.
+    visualizeModel: 'claude-sonnet-5' as const,
+    visualizeMaxTokens: 16000,
   },
 
   // Adaptive assessment

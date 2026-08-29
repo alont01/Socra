@@ -12,8 +12,16 @@ interface WhiteboardProps {
   snapshotRef?: React.MutableRefObject<((opts?: { maxDim?: number }) => string | null) | null>
   // Imperative hook for the AI "Visualize" feature: given a list of SVG strings,
   // render them onto the tutor's canvas as images (which then sync to the student).
-  drawRef?: React.MutableRefObject<((svgs: string[]) => Promise<void>) | null>
+  drawRef?: React.MutableRefObject<DrawFn | null>
 }
+
+/**
+ * Places AI-generated SVGs on the canvas. `replaceGroup` tags the placed objects
+ * so a later call with the same tag swaps them out in place — that's what lets a
+ * staged explanation advance a step without stacking a new copy of the figure
+ * underneath the last one.
+ */
+export type DrawFn = (svgs: string[], opts?: { replaceGroup?: string }) => Promise<void>
 
 export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, snapshotRef, drawRef }: WhiteboardProps) {
   const canvasElRef = useRef<HTMLCanvasElement>(null)
@@ -94,7 +102,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
 
       // Expose the AI draw function (tutor only — it mutates the live canvas).
       if (drawRef && isTutor) {
-        drawRef.current = async (svgs: string[]) => {
+        drawRef.current = async (svgs: string[], opts?: { replaceGroup?: string }) => {
           const c = fabricCanvasRef.current
           if (!c) return
           const fb: any = await import('fabric')
@@ -105,11 +113,27 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
           // scrolls) so the drawing appears where they're looking, not off-screen
           // at the top over earlier work.
           let top = (containerRef.current?.scrollTop ?? 0) + 20
+          let left = 20
+          if (opts?.replaceGroup) {
+            const prior = c.getObjects().filter((o: any) => o.socraGroup === opts.replaceGroup)
+            if (prior.length > 0) {
+              // Reuse the spot the tutor (or the last step) left it in, so the
+              // figure holds still as the explanation advances.
+              left = prior[0].left ?? left
+              top = prior[0].top ?? top
+              for (const o of prior) c.remove(o)
+            }
+          }
           for (const svg of svgs) {
             const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
             try {
               const img = await ImageCls.fromURL(url)
-              img.set({ left: 20, top, selectable: true })
+              img.set({ left, top, selectable: true })
+              // Fabric drops properties it doesn't know about when serializing,
+              // so this tag only survives undo/redo and the student-side sync
+              // because it's listed in WHITEBOARD_CUSTOM_PROPS — add any new
+              // custom property there too.
+              if (opts?.replaceGroup) (img as any).socraGroup = opts.replaceGroup
               c.add(img)
               top += (img.height || 240) + 16
             } catch {

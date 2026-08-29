@@ -13,7 +13,9 @@ interface PracticeSetCardProps {
 
 export function PracticeSetCard({ id, title, topic, problemCount, completedCount, createdAt }: PracticeSetCardProps) {
   const pct = problemCount > 0 ? Math.round((completedCount / problemCount) * 100) : 0
-  const isComplete = completedCount >= problemCount
+  // A set with no problems isn't "Done" — 0 >= 0 marked an empty set complete,
+  // which is the one case where the badge is actively misleading.
+  const isComplete = problemCount > 0 && completedCount >= problemCount
 
   return (
     <Link href={`/student/practice/${id}`}>

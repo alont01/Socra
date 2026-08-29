@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { trackedMessage, firstText } from '@/lib/ai/client'
 import { extractJson } from '@/lib/ai/parse-json'
 import { normalizeDrawSpec } from '@/lib/whiteboard-draw'
+import { WHITEBOARD_SPEC_PROMPT } from '@/lib/ai/visual-prompt'
 import { config } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
 import { route } from '@/lib/api-handler'
@@ -46,9 +47,9 @@ export const POST = route(
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
-    const prompt = `You are a math tutor's AI assistant. During a live session, help visualize what the student is stuck on by producing a drawing for the shared whiteboard.
-
-## Session
+    // Only session-specific context goes in the message; the instructions live
+    // in the cached system block above it.
+    const context = `## Session
 - Topic: ${session.topic}
 - Student: ${session.student?.name || 'the student'} (Grade ${session.student?.gradeLevel || '?'})
 ${hint ? `- The tutor asks you to visualize: ${hint}` : ''}
@@ -60,19 +61,7 @@ ${transcript || '(no transcript captured)'}
 ${notes || '(none)'}
 ${whiteboardImage ? '\n## Current whiteboard\nThe attached image is the current whiteboard. Build on it; don\'t repeat what\'s already drawn.' : ''}
 
-${currentSpec ? `## Current draft (revise this)\n${JSON.stringify(currentSpec)}\n${instruction ? `The tutor wants this change: "${instruction}". Apply it and return the full updated spec.` : 'Improve or refine this draft.'}\n` : ''}
-Decide the ONE or TWO most helpful things to draw, then output ONLY JSON in this shape:
-{
-  "items": [
-    { "kind": "graph", "title": "y = x²", "xDomain": [-4, 4], "series": [{ "expr": "x^2", "label": "y = x²" }], "points": [{ "x": 2, "y": 4, "label": "(2, 4)" }] },
-    { "kind": "note", "title": "Solving 3x² − 12 = 0", "lines": ["3(x² − 4) = 0", "x² = 4", "x = ±2"] }
-  ]
-}
-Rules:
-- "graph": expr is a formula in x (+ - * / ^, implicit multiplication, pi, e, sin cos tan sqrt abs ln log exp). Give an xDomain. Add labeled "points" for key features.
-- "note": short worked steps or a definition, one string per line. Use plain text math (x^2, ±, √), NOT LaTeX.
-- "shapes" (optional): { "kind":"shapes", "width":480, "height":320, "primitives":[{"type":"line","x1":..,"y1":..,"x2":..,"y2":..},{"type":"circle","cx":..,"cy":..,"r":..},{"type":"text","x":..,"y":..,"text":".."}] } in a top-left origin pixel space, for geometry/number lines.
-- At most 2 items. Keep it focused on the sticking point. Output only the JSON.`
+${currentSpec ? `## Current draft (revise this)\n${JSON.stringify(currentSpec)}\n${instruction ? `The tutor wants this change: "${instruction}". Apply it and return the full updated spec.` : 'Improve or refine this draft.'}\n` : ''}`
 
     const content: Anthropic.Messages.ContentBlockParam[] = []
     if (whiteboardImage.startsWith('data:image')) {
@@ -81,11 +70,15 @@ Rules:
         content.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } })
       }
     }
-    content.push({ type: 'text', text: prompt })
+    content.push({ type: 'text', text: context })
 
     const response = await trackedMessage('visualize', {
-      model: config.ai.analysisModel,
-      max_tokens: 1500,
+      model: config.ai.visualizeModel,
+      max_tokens: config.ai.visualizeMaxTokens,
+      // Static instructions first, with the cache breakpoint at the end of them:
+      // the tutor's refine loop re-sends this block on every "Update", and a
+      // prefix hit is ~90% cheaper and noticeably faster.
+      system: [{ type: 'text', text: WHITEBOARD_SPEC_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content }],
     })
 

@@ -11,7 +11,9 @@ export const GET = route('student/practice', async () => {
   const sets = await prisma.practiceSet.findMany({
     where: { studentId: auth.student.id, status: 'assigned' },
     include: {
-      _count: { select: { attempts: true } },
+      // Distinct problem indexes only — the raw attempt count would double-count
+      // nothing today but says nothing useful either; completion is what the
+      // card shows.
       attempts: { select: { problemIndex: true }, distinct: ['problemIndex'] },
       tutoringSession: { select: { topic: true } },
     },

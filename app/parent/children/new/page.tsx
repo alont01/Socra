@@ -24,6 +24,9 @@ export default function AddChildPage() {
   const [error, setError] = useState('')
   const [done, setDone] = useState<null | { username: string; password: string; name: string; matchStatus?: string; matchedTutorName?: string }>(null)
   const [copied, setCopied] = useState('')
+  // Read after mount: window doesn't exist during the server render.
+  const [signInHost, setSignInHost] = useState('this site')
+  useEffect(() => { setSignInHost(window.location.host) }, [])
 
   // Redirect non-parents. Must be an effect: navigating during render updates
   // the router while this component is still rendering, which React warns about
@@ -159,7 +162,12 @@ export default function AddChildPage() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} className="h-7 w-7"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
               <h1 className="text-2xl font-bold text-stone-900 mb-1">{done.name}&rsquo;s account is ready</h1>
-              <p className="text-stone-500 mb-6">Share these with {done.name}. They sign in at <span className="font-medium text-stone-700">socratutoring.com</span>.</p>
+              {/* The host the parent is actually on, rather than a hardcoded
+                  domain that goes stale the moment the site moves. */}
+              <p className="text-stone-500 mb-6">
+                Share these with {done.name}. They sign in at{' '}
+                <span className="font-medium text-stone-700">{signInHost}</span>.
+              </p>
 
               <div className="text-left rounded-2xl bg-orange-50 ring-1 ring-orange-100 p-4 space-y-3">
                 {([['Username', done.username], ['Password', done.password]] as const).map(([label, value]) => (

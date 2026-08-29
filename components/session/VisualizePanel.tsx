@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { buildSpecSvgs, type DrawSpec } from '@/lib/whiteboard-draw'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { buildSpecFrames, type DrawSpec, type Frame } from '@/lib/whiteboard-draw'
 import { Button } from '@/components/ui/Button'
 
 interface VisualizeContext {
@@ -13,7 +13,7 @@ interface VisualizeContext {
 interface VisualizePanelProps {
   sessionId: string
   getContext: () => VisualizeContext
-  onPlace: (svgs: string[]) => Promise<void> | void
+  onPlace: (svgs: string[], opts?: { replaceGroup?: string }) => Promise<void> | void
   onClose: () => void
 }
 
@@ -26,7 +26,11 @@ function svgToDataUrl(svg: string) {
 // on the shared whiteboard on confirm.
 export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: VisualizePanelProps) {
   const [spec, setSpec] = useState<DrawSpec | null>(null)
-  const [svgs, setSvgs] = useState<string[]>([])
+  const [frames, setFrames] = useState<Frame[]>([])
+  const [current, setCurrent] = useState(0)
+  // Every reveal from this panel replaces the last one on the board, so a
+  // build-up advances in place instead of stacking copies of the figure.
+  const groupId = useRef(`viz-${Math.random().toString(36).slice(2)}`).current
   const [instruction, setInstruction] = useState('')
   const [loading, setLoading] = useState(false)
   const [placing, setPlacing] = useState(false)
@@ -58,9 +62,10 @@ export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: Visu
         const newSpec = data.spec as DrawSpec
         setSpec(newSpec)
         try {
-          setSvgs(buildSpecSvgs(newSpec))
+          setFrames(buildSpecFrames(newSpec))
+          setCurrent(0)
         } catch {
-          setSvgs([])
+          setFrames([])
           setError('The visualization could not be rendered. Try a different instruction.')
         }
         setInstruction('')
@@ -79,11 +84,26 @@ export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: Visu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const confirm = async () => {
-    if (svgs.length === 0) return
+  // Reveal the step being previewed, then move to the next one. The tutor talks
+  // over each beat, so the panel stays open until the explanation is finished.
+  const reveal = async () => {
+    const frame = frames[current]
+    if (!frame) return
     setPlacing(true)
     try {
-      await onPlace(svgs)
+      await onPlace([frame.svg], { replaceGroup: groupId })
+      if (current + 1 < frames.length) setCurrent(current + 1)
+      else onClose()
+    } finally {
+      setPlacing(false)
+    }
+  }
+
+  const placeAll = async () => {
+    if (frames.length === 0) return
+    setPlacing(true)
+    try {
+      await onPlace(frames.map((f) => f.svg), { replaceGroup: groupId })
       onClose()
     } finally {
       setPlacing(false)
@@ -118,12 +138,44 @@ export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: Visu
             </div>
           ) : error ? (
             <p className="text-sm text-red-600 py-6 text-center">{error}</p>
-          ) : svgs.length > 0 ? (
+          ) : frames.length > 0 ? (
             <div className="space-y-3">
-              {svgs.map((svg, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={svgToDataUrl(svg)} alt={`Visualization ${i + 1}`} className="w-full rounded-xl ring-1 ring-stone-200 bg-white" />
-              ))}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={svgToDataUrl(frames[current].svg)}
+                alt={frames[current].caption || `Step ${current + 1} of ${frames.length}`}
+                className="w-full rounded-xl ring-1 ring-stone-200 bg-white"
+              />
+              {frames.length > 1 && (
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => setCurrent((i) => Math.max(0, i - 1))}
+                    disabled={current === 0}
+                    className="text-sm text-stone-500 hover:text-stone-800 disabled:opacity-30 px-2 py-1"
+                  >
+                    ← Back
+                  </button>
+                  <div className="flex items-center gap-1.5" role="tablist" aria-label="Explanation steps">
+                    {frames.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrent(i)}
+                        aria-label={`Step ${i + 1}`}
+                        aria-selected={i === current}
+                        role="tab"
+                        className={`h-2 rounded-full transition-all ${i === current ? 'w-5 bg-orange-500' : 'w-2 bg-stone-300 hover:bg-stone-400'}`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setCurrent((i) => Math.min(frames.length - 1, i + 1))}
+                    disabled={current === frames.length - 1}
+                    className="text-sm text-stone-500 hover:text-stone-800 disabled:opacity-30 px-2 py-1"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm text-stone-400 py-6 text-center">No visualization yet.</p>
@@ -145,9 +197,16 @@ export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: Visu
           </form>
           <div className="flex items-center justify-between gap-3">
             <button onClick={onClose} className="text-sm text-stone-500 hover:text-stone-700">Discard</button>
-            <Button onClick={confirm} loading={placing} disabled={loading || svgs.length === 0}>
-              Place on whiteboard
-            </Button>
+            <div className="flex items-center gap-2">
+              {frames.length > 1 && (
+                <Button onClick={placeAll} variant="ghost" size="sm" disabled={loading || placing}>
+                  Place all steps
+                </Button>
+              )}
+              <Button onClick={reveal} loading={placing} disabled={loading || frames.length === 0}>
+                {frames.length > 1 ? `Show step ${current + 1} to student` : 'Place on whiteboard'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

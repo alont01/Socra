@@ -3,6 +3,7 @@ import { fetchTranscriptWithRetry } from '@/lib/daily'
 import { analyzeSession } from '@/lib/ai/session-analyzer'
 import { generatePracticeSet } from '@/lib/ai/practice-set-generator'
 import { config } from '@/lib/config'
+import { applyMastery } from '@/lib/progress'
 import { createLogger } from '@/lib/logger'
 import { recordEvent } from '@/lib/metrics'
 
@@ -121,6 +122,9 @@ async function saveInsufficientAnalysis(sessionId: string) {
       where: { tutoringSessionId: sessionId },
       create: {
         tutoringSessionId: sessionId,
+        // `status` is what every reader keys off; this text is only ever shown
+        // to the tutor, who is the one who can act on it.
+        status: 'insufficient',
         summary:
           "Not enough was captured from this session to generate an analysis. Add tutor notes (or make sure the session was recorded), then retry.",
         conceptsCovered: '[]',
@@ -193,24 +197,23 @@ async function analyzeAndSave(
   try {
     const analysis = await analyzeSession(input)
 
-    // Use upsert to prevent unique constraint violation from concurrent calls
+    const fields = {
+      status: 'ok',
+      summary: analysis.summary,
+      conceptsCovered: JSON.stringify(analysis.conceptsCovered),
+      studentStrengths: JSON.stringify(analysis.studentStrengths),
+      studentGaps: JSON.stringify(analysis.studentGaps),
+      tutorFeedback: analysis.tutorFeedback,
+    }
+
+    // Use upsert to prevent unique constraint violation from concurrent calls.
+    // A real analysis DOES replace a placeholder — that's the retry path
+    // succeeding, and `status` flipping to 'ok' is what unblocks the student
+    // and parent views.
     await prisma.sessionAnalysis.upsert({
       where: { tutoringSessionId: sessionId },
-      create: {
-        tutoringSessionId: sessionId,
-        summary: analysis.summary,
-        conceptsCovered: JSON.stringify(analysis.conceptsCovered),
-        studentStrengths: JSON.stringify(analysis.studentStrengths),
-        studentGaps: JSON.stringify(analysis.studentGaps),
-        tutorFeedback: analysis.tutorFeedback,
-      },
-      update: {
-        summary: analysis.summary,
-        conceptsCovered: JSON.stringify(analysis.conceptsCovered),
-        studentStrengths: JSON.stringify(analysis.studentStrengths),
-        studentGaps: JSON.stringify(analysis.studentGaps),
-        tutorFeedback: analysis.tutorFeedback,
-      },
+      create: { tutoringSessionId: sessionId, ...fields },
+      update: fields,
     })
 
     return analysis
@@ -223,6 +226,7 @@ async function analyzeAndSave(
         where: { tutoringSessionId: sessionId },
         create: {
           tutoringSessionId: sessionId,
+          status: 'failed',
           summary: 'Analysis could not be generated. Please try again later.',
           conceptsCovered: '[]',
           studentStrengths: '[]',
@@ -277,28 +281,9 @@ async function updateMasteryForConcepts(studentId: string, concepts: string[]) {
 
   for (const concept of concepts) {
     try {
-      // Use a transaction to make the read-then-update atomic, preventing
-      // concurrent session completions from losing increments
-      await prisma.$transaction(async (tx) => {
-        const existing = await tx.studentProgress.findUnique({
-          where: { studentId_topic: { studentId, topic: concept } },
-        })
-
-        const nextMastery = existing
-          ? Math.min(1.0, existing.mastery + sessionCoverageIncrement)
-          : initialSessionCoverage
-
-        if (existing) {
-          await tx.studentProgress.update({ where: { id: existing.id }, data: { mastery: nextMastery } })
-        } else {
-          await tx.studentProgress.create({ data: { studentId, topic: concept, mastery: nextMastery } })
-        }
-
-        // Time-series snapshot for the progress-over-time trend.
-        await tx.masteryHistory.create({
-          data: { studentId, topic: concept, mastery: nextMastery, source: 'session' },
-        })
-      })
+      await applyMastery(studentId, concept, 'session', (current) =>
+        current === null ? initialSessionCoverage : current + sessionCoverageIncrement,
+      )
     } catch (err) {
       logger.error(`Failed to update mastery for concept "${concept}"`, err, { studentId })
     }

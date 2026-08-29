@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { RichContent } from '@/components/visuals/RichContent'
@@ -20,13 +20,22 @@ interface Attempt {
   correct: boolean | null
 }
 
+interface AttemptResult {
+  answer: string
+  /** null = answered but not graded (no answer key on the problem). */
+  correct: boolean | null
+  correctAnswer?: string
+}
+
 interface PracticeWorkspaceProps {
   practiceSetId: string
   problems: Problem[]
   existingAttempts: Attempt[]
+  /** Reports the problem on screen so the side chat can help with it. */
+  onCurrentProblemChange?: (problem: Problem | null) => void
 }
 
-export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }: PracticeWorkspaceProps) {
+export function PracticeWorkspace({ practiceSetId, problems, existingAttempts, onCurrentProblemChange }: PracticeWorkspaceProps) {
   const [currentIndex, setCurrentIndex] = useState(() => {
     // Start at the first unanswered problem
     const attempted = new Set(existingAttempts.map((a) => a.problemIndex))
@@ -37,13 +46,13 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
   const [answer, setAnswer] = useState('')
   const [showHint, setShowHint] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [attempts, setAttempts] = useState<Map<number, { answer: string; correct: boolean; correctAnswer?: string }>>(
+  // `correct: null` is an answered-but-ungraded problem (the set was assigned
+  // without an answer key). It counts as answered but never as wrong.
+  const [attempts, setAttempts] = useState<Map<number, AttemptResult>>(
     () => {
-      const map = new Map<number, { answer: string; correct: boolean }>()
+      const map = new Map<number, AttemptResult>()
       existingAttempts.forEach((a) => {
-        if (a.correct !== null) {
-          map.set(a.problemIndex, { answer: a.studentAnswer, correct: a.correct })
-        }
+        map.set(a.problemIndex, { answer: a.studentAnswer, correct: a.correct })
       })
       return map
     }
@@ -52,15 +61,23 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
   const problem = problems[currentIndex]
   const existingResult = attempts.get(currentIndex)
 
+  useEffect(() => {
+    onCurrentProblemChange?.(problem ?? null)
+  }, [problem, onCurrentProblemChange])
+
   const answeredCount = attempts.size
-  const correctCount = Array.from(attempts.values()).filter((a) => a.correct).length
+  const correctCount = Array.from(attempts.values()).filter((a) => a.correct === true).length
+  const gradedCount = Array.from(attempts.values()).filter((a) => a.correct !== null).length
   const allAnswered = problems.length > 0 && answeredCount >= problems.length
   const progressPct = problems.length > 0 ? Math.round((answeredCount / problems.length) * 100) : 0
 
   const goTo = (i: number) => { setCurrentIndex(i); setAnswer(''); setShowHint(false) }
 
   const submitAnswer = async () => {
-    if (!answer.trim()) return
+    // The button disables itself while loading, but Enter doesn't go through
+    // the button — without this guard a second keypress fires a second request
+    // for the same problem.
+    if (!answer.trim() || submitting) return
     setSubmitting(true)
 
     try {
@@ -77,9 +94,22 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
           correct: data.correct,
           correctAnswer: data.correctAnswer,
         }))
-      } else {
-        toast('Failed to submit answer', 'error')
+        return
       }
+
+      const data = await res.json().catch(() => ({}))
+      // 409 means this problem was already recorded — a double submit, or a
+      // retry after a response we never saw. The answer DID land, so showing
+      // "failed to submit" was both wrong and unfixable: retrying just 409s
+      // again. Reconcile to the stored result instead.
+      if (res.status === 409 && data.attempt) {
+        setAttempts((prev) => new Map(prev).set(currentIndex, {
+          answer: data.attempt.studentAnswer ?? answer,
+          correct: data.correct ?? null,
+        }))
+        return
+      }
+      toast(data.error || 'Failed to submit answer', 'error')
     } catch {
       toast('Failed to submit answer', 'error')
     } finally {
@@ -95,7 +125,9 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
 
   if (!problem) return null
 
-  const scorePct = problems.length > 0 ? Math.round((correctCount / problems.length) * 100) : 0
+  // Score out of what was actually graded — an ungraded problem shouldn't
+  // quietly count against the student's percentage.
+  const scorePct = gradedCount > 0 ? Math.round((correctCount / gradedCount) * 100) : 0
   const celebration = scorePct >= 80
     ? { emoji: '🎉', title: 'Fantastic work!', msg: 'You crushed this set.' }
     : scorePct >= 50
@@ -121,7 +153,7 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
           <div className="text-4xl mb-2" aria-hidden>{celebration.emoji}</div>
           <h2 className="text-xl font-bold">{celebration.title}</h2>
           <p className="text-orange-50 mt-1">{celebration.msg}</p>
-          <p className="mt-3 text-3xl font-bold tabular-nums">{correctCount}/{problems.length}</p>
+          <p className="mt-3 text-3xl font-bold tabular-nums">{correctCount}/{gradedCount || problems.length}</p>
           <Link href="/student/practice">
             <button className="mt-4 bg-white text-orange-600 font-semibold px-6 py-2 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm">
               Back to practice sets
@@ -136,15 +168,25 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
           <button
             key={i}
             onClick={() => goTo(i)}
-            aria-label={`Problem ${i + 1}${attempts.has(i) ? (attempts.get(i)!.correct ? ', correct' : ', incorrect') : ''}`}
+            aria-label={`Problem ${i + 1}${
+              attempts.has(i)
+                ? attempts.get(i)!.correct === true
+                  ? ', correct'
+                  : attempts.get(i)!.correct === false
+                  ? ', incorrect'
+                  : ', answered'
+                : ''
+            }`}
             aria-current={i === currentIndex ? 'true' : undefined}
             className={`w-8 h-8 rounded-full text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 ${
               i === currentIndex
                 ? 'bg-orange-500 text-white'
                 : attempts.has(i)
-                ? attempts.get(i)!.correct
+                ? attempts.get(i)!.correct === true
                   ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
+                  : attempts.get(i)!.correct === false
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-stone-200 text-stone-600'
                 : 'bg-stone-100 text-stone-500'
             }`}
           >
@@ -186,18 +228,33 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
 
         {/* Answer area */}
         {existingResult ? (
-          <div className={`animate-pop rounded-xl px-4 py-3 ${existingResult.correct ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+          <div className={`animate-pop rounded-xl px-4 py-3 ${
+            existingResult.correct === true
+              ? 'bg-green-50 border border-green-200'
+              : existingResult.correct === false
+              ? 'bg-red-50 border border-red-200'
+              : 'bg-stone-50 border border-stone-200'
+          }`}>
             <p className="text-sm font-medium mb-1">
-              {existingResult.correct ? '✓ Correct!' : 'Not quite.'}
+              {existingResult.correct === true
+                ? '✓ Correct!'
+                : existingResult.correct === false
+                ? 'Not quite.'
+                : 'Answer recorded'}
             </p>
             <p className="text-xs text-stone-500">Your answer: {existingResult.answer}</p>
-            {!existingResult.correct && existingResult.correctAnswer && (
+            {existingResult.correct === false && existingResult.correctAnswer && (
               <div className="text-xs text-stone-500 mt-1">
                 Correct answer: <RichContent content={existingResult.correctAnswer} />
               </div>
             )}
-            {!existingResult.correct && (
+            {existingResult.correct === false && (
               <p className="text-xs text-orange-500 mt-2">Keep going — every mistake is a step closer to mastery!</p>
+            )}
+            {existingResult.correct === null && (
+              <p className="text-xs text-stone-500 mt-2">
+                This one doesn&apos;t have an answer key yet, so your tutor will check it.
+              </p>
             )}
             {currentIndex < problems.length - 1 && (
               <button
@@ -215,9 +272,10 @@ export function PracticeWorkspace({ practiceSetId, problems, existingAttempts }:
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitAnswer()}
+              disabled={submitting}
               placeholder="Type your answer..."
               aria-label="Your answer"
-              className="flex-1 px-4 py-2 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-orange-400"
+              className="flex-1 px-4 py-2 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-orange-400 disabled:bg-stone-50 disabled:text-stone-400"
             />
             <Button onClick={submitAnswer} loading={submitting} size="sm">
               Submit

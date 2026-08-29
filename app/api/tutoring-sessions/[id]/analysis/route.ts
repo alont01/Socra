@@ -33,6 +33,17 @@ export const GET = route('tutoring-sessions/[id]/analysis', async (_request: Req
     return NextResponse.json({ analysis: null, status: 'processing' })
   }
 
+  // A placeholder row is not a recap. Reporting it as 'ready' is what let
+  // "Analysis could not be generated" render as the session summary — and
+  // reach parents as their child's lesson. Callers get the reason instead, and
+  // `analysis` stays null so nothing can accidentally display the text.
+  if (session.analysis.status !== 'ok') {
+    return NextResponse.json({
+      analysis: null,
+      status: session.analysis.status === 'insufficient' ? 'insufficient' : 'failed',
+    })
+  }
+
   return NextResponse.json({
     analysis: {
       summary: session.analysis.summary,

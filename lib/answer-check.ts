@@ -25,6 +25,20 @@ function splitUnit(s: string): { value: string; unit: string } {
 }
 
 /**
+ * 1-based positions of problems with no usable answer key.
+ *
+ * Grading compares against a stored answer, so a problem without one can never
+ * be marked correct — the student is told they're wrong whatever they type, and
+ * the topic's mastery drops for it. Homework is checked with this before it can
+ * be assigned.
+ */
+export function problemsMissingAnswers(problems: { answer?: string }[]): number[] {
+  return problems
+    .map((p, i) => (p.answer && p.answer.trim() ? null : i + 1))
+    .filter((n): n is number => n !== null)
+}
+
+/**
  * Grade a student's answer against the expected answer.
  *
  * Beyond exact (case/whitespace-insensitive) string equality, this accepts

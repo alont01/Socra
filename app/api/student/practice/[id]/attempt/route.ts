@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { updateMasteryScore } from '@/lib/progress'
 import { safeJsonParse } from '@/lib/json'
 import { rateLimit } from '@/lib/rate-limit'
@@ -35,39 +36,47 @@ export const POST = route('student/practice/[id]/attempt', async (request: Reque
     return NextResponse.json({ error: 'Invalid problem index' }, { status: 400 })
   }
 
-  // Prevent re-answering the same problem (only first attempt counts for mastery)
-  const existingAttempt = await prisma.practiceSetAttempt.findFirst({
-    where: { practiceSetId: id, problemIndex },
-  })
-  if (existingAttempt) {
-    return NextResponse.json({
-      error: 'Already answered this problem',
-      attempt: existingAttempt,
-      correct: existingAttempt.correct,
-    }, { status: 409 })
+  // No answer key means we cannot grade this, and "cannot grade" is not the
+  // same as "wrong". Marking it false told the student they were incorrect
+  // whatever they typed, and pushed the topic's mastery down for it. Record
+  // the attempt as ungraded (correct: null) and leave mastery alone.
+  const hasKey = !!(problem.answer && problem.answer.trim())
+  const correct = hasKey ? answersMatch(studentAnswer, problem.answer!) : null
+
+  // Only the first attempt counts for mastery. Checking for an existing row
+  // before inserting doesn't hold: two submissions in flight at once (a double
+  // Enter, a retried request) both pass the check and both move mastery. The
+  // unique index on (practiceSetId, problemIndex) is the real arbiter — insert
+  // first, and treat the conflict as the "already answered" case.
+  let attempt
+  try {
+    attempt = await prisma.practiceSetAttempt.create({
+      data: { practiceSetId: id, problemIndex, studentAnswer, correct },
+    })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      const existingAttempt = await prisma.practiceSetAttempt.findUnique({
+        where: { practiceSetId_problemIndex: { practiceSetId: id, problemIndex } },
+      })
+      return NextResponse.json({
+        error: 'Already answered this problem',
+        attempt: existingAttempt,
+        correct: existingAttempt?.correct ?? null,
+      }, { status: 409 })
+    }
+    throw err
   }
 
-  const correct = problem.answer
-    ? answersMatch(studentAnswer, problem.answer)
-    : false
-
-  const attempt = await prisma.practiceSetAttempt.create({
-    data: {
-      practiceSetId: id,
-      problemIndex,
-      studentAnswer,
-      correct,
-    },
-  })
-
-  // Update mastery for the problem's topic
-  if (problem.topic) {
+  // Reached only by the submission that won the insert, so mastery moves once.
+  // An ungraded attempt has no signal to contribute.
+  if (problem.topic && correct !== null) {
     await updateMasteryScore(auth.student.id, problem.topic, correct)
   }
 
   return NextResponse.json({
     attempt,
     correct,
-    ...(correct ? {} : { correctAnswer: problem.answer }),
+    ungraded: correct === null,
+    ...(correct === false ? { correctAnswer: problem.answer } : {}),
   })
 })

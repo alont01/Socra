@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { StudentRoster } from './StudentRoster'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { TutorOffers } from './TutorOffers'
 import { LoadingDots } from '@/components/ui/LoadingDots'
+import { useToast } from '@/hooks/useToast'
 import Link from 'next/link'
 
 interface Student {
@@ -38,9 +39,11 @@ const steps = [
 
 export function TutorDashboard({ tutorName }: TutorDashboardProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [students, setStudents] = useState<Student[]>([])
   const [sessions, setSessions] = useState<TutoringSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [creating, setCreating] = useState(false)
   const [showNewSession, setShowNewSession] = useState(false)
   const [newTopic, setNewTopic] = useState('')
@@ -49,19 +52,25 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
   // whole afternoon. See lib/billing.ts.
   const [newDuration, setNewDuration] = useState(60)
 
-  useEffect(() => {
+  // An outage used to be indistinguishable from a brand-new account: both
+  // rendered the "no students yet" empty state.
+  const load = useCallback(() => {
+    setLoading(true)
+    setLoadError(false)
     Promise.all([
-      fetch('/api/tutor/students').then((r) => r.json()),
-      fetch('/api/tutoring-sessions').then((r) => r.json()),
+      fetch('/api/tutor/students').then((r) => { if (!r.ok) throw new Error(); return r.json() }),
+      fetch('/api/tutoring-sessions').then((r) => { if (!r.ok) throw new Error(); return r.json() }),
     ]).then(([studentsData, sessionsData]) => {
       setStudents(studentsData.students || [])
       setSessions(sessionsData.sessions || [])
     }).catch(() => {
-      // Fail silently — dashboard will show empty state
+      setLoadError(true)
     }).finally(() => {
       setLoading(false)
     })
   }, [])
+
+  useEffect(() => { load() }, [load])
 
   const createSession = async () => {
     setCreating(true)
@@ -78,7 +87,12 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
       if (res.ok) {
         const data = await res.json()
         router.push(`/session/${data.session.id}`)
+        return
       }
+      const data = await res.json().catch(() => ({}))
+      toast(data.error || 'Could not create the session. Please try again.', 'error')
+    } catch {
+      toast('Network error creating the session.', 'error')
     } finally {
       setCreating(false)
     }
@@ -132,6 +146,19 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
           </div>
         </div>
       </section>
+
+      {/* A failed load must not read as "you have no students yet". */}
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-3xl bg-amber-50 ring-1 ring-amber-200/70 p-5">
+          <div className="flex-1 min-w-[220px]">
+            <h2 className="font-semibold text-stone-900 text-sm">We couldn&apos;t load your dashboard</h2>
+            <p className="text-sm text-stone-500 mt-0.5">
+              Your students and sessions are still here — this was a connection problem.
+            </p>
+          </div>
+          <Button size="sm" variant="secondary" onClick={load}>Try again</Button>
+        </div>
+      )}
 
       {/* Pending student-match offers */}
       <TutorOffers />

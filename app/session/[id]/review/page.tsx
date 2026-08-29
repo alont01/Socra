@@ -26,7 +26,16 @@ export default function ReviewPage({
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null)
   const [transcript, setTranscript] = useState<TranscriptData | null>(null)
   const [whiteboardImage, setWhiteboardImage] = useState<string | null>(null)
-  const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'error'>('loading')
+  // Notes are editable here so the "add notes, then retry" advice on an
+  // insufficient-content session is something the tutor can actually act on —
+  // notes feed the same analysis pipeline as the transcript.
+  const [notes, setNotes] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
+  // 'failed' / 'insufficient' are real server-reported states now, not the
+  // client's guess: the pipeline writes a placeholder analysis row and the API
+  // reports why. They used to arrive as status 'ready' with apology text in the
+  // summary field, which rendered as though it were the recap.
+  const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'failed' | 'insufficient' | 'error'>('loading')
   const [sessionRole, setSessionRole] = useState<'tutor' | 'student'>('student')
   const [retrying, setRetrying] = useState(false)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
@@ -70,6 +79,13 @@ export default function ReviewPage({
           stopPolling()
           // The transcript often finishes alongside the analysis — refresh it.
           fetchTranscript()
+        } else if (data.status === 'failed' || data.status === 'insufficient') {
+          // The pipeline finished and reached a placeholder. Polling on would
+          // just spin for five minutes before showing the same thing.
+          setAnalysis(null)
+          setStatus(data.status)
+          stopPolling()
+          fetchTranscript()
         }
       } catch {
         // Transient — keep polling.
@@ -95,6 +111,10 @@ export default function ReviewPage({
           if (sessionData.session?.whiteboardImage) {
             setWhiteboardImage(sessionData.session.whiteboardImage)
           }
+          // Only present for the tutor — the API strips it for students.
+          if (typeof sessionData.session?.tutorNotes === 'string') {
+            setNotes(sessionData.session.tutorNotes)
+          }
         }
 
         // Always load whatever transcript exists (independent of analysis state).
@@ -110,6 +130,11 @@ export default function ReviewPage({
         if (data.status === 'processing') {
           setStatus('processing')
           pollForAnalysis()
+          return
+        }
+        if (data.status === 'failed' || data.status === 'insufficient') {
+          setAnalysis(null)
+          setStatus(data.status)
           return
         }
         setAnalysis(data.analysis)
@@ -168,6 +193,30 @@ export default function ReviewPage({
     }
   }
 
+  // Save notes and retry in one action: retrying without persisting the notes
+  // the tutor just typed would re-run the pipeline against the same empty
+  // session and fail again for exactly the same reason.
+  const saveNotesAndRetry = async () => {
+    setSavingNotes(true)
+    try {
+      const res = await fetch(`/api/tutoring-sessions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tutorNotes: notes }),
+      })
+      if (!res.ok) {
+        toast('Could not save your notes — nothing was retried.', 'error')
+        return
+      }
+    } catch {
+      toast('Network error saving your notes.', 'error')
+      return
+    } finally {
+      setSavingNotes(false)
+    }
+    await retryAnalysis()
+  }
+
   return (
     <div className="min-h-screen bg-[#FFFBF5]">
       <Navbar />
@@ -197,6 +246,71 @@ export default function ReviewPage({
             <LoadingDots />
             <p className="text-stone-500 mt-4">Analyzing your session...</p>
             <p className="text-xs text-stone-400 mt-1">This may take a few minutes while the transcript is processed.</p>
+          </div>
+        )}
+
+        {/* The pipeline produced a placeholder, not a recap. The tutor gets the
+            reason and the retry; the student gets a plain, honest message
+            instead of an apology dressed up as their lesson summary. */}
+        {(status === 'failed' || status === 'insufficient') && (
+          <div className="bg-white rounded-3xl ring-1 ring-amber-100 shadow-soft p-8 text-center">
+            <div className="mx-auto mb-3 grid place-items-center h-12 w-12 rounded-2xl bg-amber-100 text-amber-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                <circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5h.01" />
+              </svg>
+            </div>
+            {isTutor ? (
+              <>
+                <p className="text-stone-900 font-semibold mb-1">
+                  {status === 'insufficient'
+                    ? 'Not enough was captured to write a recap'
+                    : 'The recap couldn’t be generated'}
+                </p>
+                <p className="text-sm text-stone-500 mb-4 max-w-md mx-auto">
+                  {status === 'insufficient'
+                    ? 'There was no transcript, notes, or whiteboard to work from. Write down what you covered and retry — the recap and the homework set are both generated from this.'
+                    : 'This was a problem on our side, not with your session. The transcript and notes are safe; retrying usually works.'}
+                </p>
+
+                {status === 'insufficient' ? (
+                  <div className="max-w-md mx-auto text-left">
+                    <label htmlFor="recap-notes" className="text-sm font-medium text-stone-700 block mb-1.5">
+                      Session notes
+                    </label>
+                    <textarea
+                      id="recap-notes"
+                      rows={5}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="We worked through factoring quadratics. Maya was solid on pulling out a common factor but got stuck when the leading coefficient wasn't 1…"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white text-stone-900 placeholder-stone-400 ring-1 ring-inset ring-stone-200 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-y text-sm"
+                    />
+                    <button
+                      onClick={saveNotesAndRetry}
+                      disabled={retrying || savingNotes || !notes.trim()}
+                      className="mt-3 inline-flex items-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                    >
+                      {savingNotes ? 'Saving…' : retrying ? 'Retrying…' : 'Save notes & retry'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={retryAnalysis}
+                    disabled={retrying}
+                    className="inline-flex items-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    {retrying ? 'Retrying…' : 'Retry analysis'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-stone-900 font-semibold mb-1">No recap for this session</p>
+                <p className="text-sm text-stone-500 max-w-md mx-auto">
+                  A summary wasn&apos;t generated for this one. Your tutor can regenerate it — everything else about your progress is unaffected.
+                </p>
+              </>
+            )}
           </div>
         )}
 

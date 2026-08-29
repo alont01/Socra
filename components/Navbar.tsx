@@ -56,6 +56,11 @@ export function Navbar() {
                   </Link>
                 </>
               )}
+              {isParent && (
+                <Link href="/parent/billing">
+                  <Button variant="ghost" size="sm">Billing</Button>
+                </Link>
+              )}
               {isTutor && (
                 <Link href="/tutor/availability">
                   <Button variant="ghost" size="sm">Availability</Button>

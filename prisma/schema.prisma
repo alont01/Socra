@@ -218,6 +218,7 @@ model TutoringSession {
   analysis      SessionAnalysis?
   practiceSets  PracticeSet[]
   assessment    Assessment?
+  livePracticeAttempts LivePracticeAttempt[]
 
   @@index([tutorId])
   @@index([studentId])
@@ -287,6 +288,16 @@ model SessionAnalysis {
   id                String          @id @default(cuid())
   tutoringSessionId String          @unique
   tutoringSession   TutoringSession @relation(fields: [tutoringSessionId], references: [id], onDelete: Cascade)
+  // ok           — a real, model-generated analysis.
+  // failed       — the analysis call errored; `summary` is placeholder text.
+  // insufficient — too little was captured (no transcript, notes, or board).
+  //
+  // A placeholder row exists so the pipeline is idempotent and the UI has
+  // something to poll, but its summary is an apology, not a recap. Anything
+  // that shows a summary to a student or parent MUST check this first —
+  // otherwise "Analysis could not be generated" is what a parent reads as
+  // their child's lesson.
+  status            String          @default("ok")
   summary           String          @default("")
   conceptsCovered   String          @default("[]")
   studentStrengths  String          @default("[]")
@@ -322,7 +333,34 @@ model PracticeSetAttempt {
   correct       Boolean?
   attemptedAt   DateTime    @default(now())
 
+  @@unique([practiceSetId, problemIndex])
   @@index([practiceSetId])
+}
+
+// One graded answer per live-practice problem, per session.
+//
+// Live practice grades against a signed answer token rather than a stored
+// problem, so the server has no record that a problem was already answered.
+// Without this row the same token replays freely: submit, read the revealed
+// correct answer, submit again — each replay is another mastery update. The
+// unique index is the arbiter, exactly as PracticeSetAttempt is for homework.
+model LivePracticeAttempt {
+  id                String          @id @default(cuid())
+  tutoringSessionId String
+  tutoringSession   TutoringSession @relation(fields: [tutoringSessionId], references: [id], onDelete: Cascade)
+  studentId         String
+  problemId         String
+  topic             String          @default("")
+  studentAnswer     String          @default("")
+  correct           Boolean         @default(false)
+  // Set when the tutor marked an incorrect answer correct, so a second
+  // "Mark Correct" click doesn't apply the mastery bump twice.
+  overridden        Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+
+  @@unique([tutoringSessionId, problemId])
+  @@index([tutoringSessionId])
+  @@index([studentId])
 }
 
 model StudentProgress {

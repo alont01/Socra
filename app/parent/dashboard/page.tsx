@@ -60,11 +60,16 @@ export default function ParentDashboardPage() {
               <h1 className="text-2xl font-bold tracking-tight">Hi {parentName}!</h1>
               <p className="text-orange-100 mt-1">Follow your child&apos;s math progress, session by session.</p>
             </div>
-            <Link href="/parent/children/new">
-              <button className="shrink-0 bg-white text-orange-600 font-semibold px-5 py-2 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm">
-                Add a child +
-              </button>
-            </Link>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <Link href="/parent/children/new">
+                <button className="bg-white text-orange-600 font-semibold px-5 py-2 rounded-xl shadow-lg shadow-orange-900/10 hover:bg-orange-50 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 text-sm">
+                  Add a child +
+                </button>
+              </Link>
+              <Link href="/parent/billing" className="text-xs text-orange-50/90 hover:text-white underline underline-offset-2">
+                Billing &amp; invoices
+              </Link>
+            </div>
           </div>
         </div>
 

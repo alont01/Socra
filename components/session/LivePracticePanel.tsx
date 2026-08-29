@@ -35,11 +35,15 @@ export function LivePracticePanel({
   const [mastery, setMastery] = useState<MasteryEntry[]>([])
   const [editedAnswers, setEditedAnswers] = useState<Record<string, string>>({})
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
+  const [generateError, setGenerateError] = useState('')
 
   const generateProblems = async () => {
     setGenerating(true)
     setSent(false)
     setEditedAnswers({})
+    setGenerateError('')
+    setSendError('')
     try {
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/live-practice`, {
         method: 'POST',
@@ -50,7 +54,14 @@ export function LivePracticePanel({
         const data = await res.json()
         onProblemsGenerated(data.problems)
         if (data.studentMastery) setMastery(data.studentMastery)
+        return
       }
+      // A silent no-op mid-lesson reads as a dead button — the tutor clicks it
+      // again while the student waits.
+      const data = await res.json().catch(() => ({}))
+      setGenerateError(data.error || 'Could not generate problems. Try again.')
+    } catch {
+      setGenerateError('Network error — could not generate problems.')
     } finally {
       setGenerating(false)
     }
@@ -59,6 +70,7 @@ export function LivePracticePanel({
   const handleSend = async () => {
     const hasEdits = Object.keys(editedAnswers).length > 0
     setSending(true)
+    setSendError('')
 
     try {
       let finalProblems = problems
@@ -79,21 +91,36 @@ export function LivePracticePanel({
           body: JSON.stringify({ problems: problemsToSign }),
         })
 
-        if (res.ok) {
-          const { tokens } = await res.json()
-          finalProblems = problems.map((p) => {
-            if (editedAnswers[p.id] !== undefined) {
-              return { ...p, answer: editedAnswers[p.id], answerToken: tokens[p.id] }
-            }
-            return p
-          })
-          // Update parent state with corrected problems
-          onProblemsGenerated(finalProblems)
+        // Falling through on a failed re-sign sent the ORIGINAL answers and
+        // reported success — the tutor believed their corrections had gone out
+        // while the student was being graded against the answers the tutor had
+        // just fixed. Stop instead; the corrections are still on screen.
+        if (!res.ok) {
+          setSendError('Your corrected answers could not be saved, so nothing was sent. Try again.')
+          return
         }
+
+        const { tokens } = await res.json()
+        const unsigned = problemsToSign.filter((p) => !tokens?.[p.id])
+        if (unsigned.length > 0) {
+          setSendError('Some corrected answers came back unsigned, so nothing was sent. Try again.')
+          return
+        }
+
+        finalProblems = problems.map((p) => {
+          if (editedAnswers[p.id] !== undefined) {
+            return { ...p, answer: editedAnswers[p.id], answerToken: tokens[p.id] }
+          }
+          return p
+        })
+        // Update parent state with corrected problems
+        onProblemsGenerated(finalProblems)
       }
 
       onSendToStudent(finalProblems)
       setSent(true)
+    } catch {
+      setSendError('Network error — nothing was sent. Try again.')
     } finally {
       setSending(false)
     }
@@ -103,6 +130,7 @@ export function LivePracticePanel({
     onClear()
     setSent(false)
     setEditedAnswers({})
+    setSendError('')
   }
 
   const getAnswer = (p: PracticeProblem) =>
@@ -159,6 +187,11 @@ export function LivePracticePanel({
         >
           Generate Practice
         </Button>
+        {generateError && (
+          <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mt-2" role="alert">
+            {generateError}
+          </p>
+        )}
       </div>
 
       {/* Generated problems */}
@@ -252,7 +285,13 @@ export function LivePracticePanel({
 
       {/* Send / Clear */}
       {problems.length > 0 && (
-        <div className="flex gap-2">
+        <div className="space-y-2">
+          {sendError && (
+            <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2" role="alert">
+              {sendError}
+            </p>
+          )}
+          <div className="flex gap-2">
           {!sent ? (
             <Button onClick={handleSend} loading={sending} size="sm" className="flex-1">
               {Object.keys(editedAnswers).length > 0 ? 'Send Corrected' : 'Send to Student'}
@@ -262,6 +301,7 @@ export function LivePracticePanel({
               Clear Problems
             </Button>
           )}
+          </div>
         </div>
       )}
     </div>

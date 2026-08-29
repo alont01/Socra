@@ -36,6 +36,14 @@ export const addChildSchema = z.object({
   availability: availabilitySchema.optional(),
 })
 
+// Parent resets their child's sign-in password. Child accounts have a
+// synthetic, non-deliverable email, so the normal forgot-password flow can
+// never reach them — the parent is the only recovery path there is.
+// `password` is optional: omitting it asks the server to generate one.
+export const resetChildPasswordSchema = z.object({
+  password: z.string().min(6, 'Password must be at least 6 characters').max(128).optional(),
+})
+
 // Tutor sets up matching: weekly capacity + availability + accepting toggle.
 export const matchingSetupSchema = z.object({
   maxHoursPerWeek: z.number().int().min(0).max(80).nullable().optional(),
@@ -105,12 +113,19 @@ export const chatMessageSchema = z.object({
 
 export const chatSchema = z.object({
   messages: z.array(chatMessageSchema).min(1, 'At least one message is required'),
+  // The problem the student is looking at while they ask, so the assistant can
+  // help with THIS question instead of guessing from "I'm stuck". Question text
+  // only — the answer key never leaves the server.
+  problemContext: z.string().trim().max(2000).optional(),
 })
 
 // ── Sessions ──
 
 export const createSessionSchema = z.object({
-  studentId: z.string().min(1),
+  // Optional: the tutor dashboard offers an "open" session with no student
+  // attached (used for a first call before a match is confirmed). The route
+  // still verifies roster membership whenever an id IS supplied.
+  studentId: z.string().min(1).optional(),
   topic: z.string().min(1, 'Topic is required'),
   scheduledAt: z.string().optional(),
   // Intended length. Caps what the session can bill (lib/billing.ts), so the

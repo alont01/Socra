@@ -8,6 +8,9 @@ import { route } from '@/lib/api-handler'
 
 const overrideSchema = z.object({
   problemTopic: z.string().min(1),
+  // Optional for backward compatibility with an older client that only sent a
+  // topic. When present it makes the override idempotent — see below.
+  problemId: z.string().min(1).optional(),
 })
 
 /**
@@ -24,6 +27,7 @@ export const POST = route('tutoring-sessions/[id]/live-practice/override', async
   if ('error' in parsed) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
+  const { problemTopic, problemId } = parsed.data
 
   const session = await prisma.tutoringSession.findUnique({
     where: { id },
@@ -38,8 +42,25 @@ export const POST = route('tutoring-sessions/[id]/live-practice/override', async
     return NextResponse.json({ error: 'No student in session' }, { status: 400 })
   }
 
+  // Claim the override before applying it. "Mark Correct" is a plain button on
+  // a live panel — a second click, or a retry after a slow response, would
+  // otherwise apply the compensating bump again and inflate mastery past what
+  // one right answer is worth. The conditional updateMany is the arbiter:
+  // exactly one caller flips `overridden` from false.
+  if (problemId) {
+    const claimed = await prisma.livePracticeAttempt.updateMany({
+      where: { tutoringSessionId: id, problemId, overridden: false },
+      data: { overridden: true, correct: true },
+    })
+    if (claimed.count === 0) {
+      // Either already overridden, or the student never submitted an answer for
+      // this problem. Neither is an error worth interrupting the tutor over.
+      return NextResponse.json({ success: true, alreadyApplied: true })
+    }
+  }
+
   // Apply a correct score to compensate for the earlier incorrect one
-  await updateMasteryScore(session.student.id, parsed.data.problemTopic, true)
+  await updateMasteryScore(session.student.id, problemTopic, true)
 
   return NextResponse.json({ success: true })
 })

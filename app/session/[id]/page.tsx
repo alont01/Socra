@@ -10,7 +10,7 @@ import { StudentProblemPanel } from '@/components/session/StudentProblemPanel'
 import { AssessmentStudentPanel } from '@/components/session/AssessmentStudentPanel'
 import { JoinCallCard } from '@/components/session/JoinCallCard'
 import { CaptureNotesButton } from '@/components/session/CaptureNotesButton'
-import { Whiteboard } from '@/components/session/Whiteboard'
+import { Whiteboard, type DrawFn } from '@/components/session/Whiteboard'
 import { VisualizePanel } from '@/components/session/VisualizePanel'
 import { useWhiteboardSync } from '@/hooks/useWhiteboardSync'
 import { useLivePracticeSync } from '@/hooks/useLivePracticeSync'
@@ -43,7 +43,7 @@ export default function SessionPage({
   const [whiteboardActive, setWhiteboardActive] = useState(false)
   const [remoteCanvasState, setRemoteCanvasState] = useState<string | null>(null)
   const whiteboardSnapshotRef = useRef<((opts?: { maxDim?: number }) => string | null) | null>(null)
-  const whiteboardDrawRef = useRef<((svgs: string[]) => Promise<void>) | null>(null)
+  const whiteboardDrawRef = useRef<DrawFn | null>(null)
   const transcriptBufferRef = useRef<string[]>([])
   const [showVisualize, setShowVisualize] = useState(false)
   const [livePracticeProblems, setLivePracticeProblems] = useState<PracticeProblem[]>([])
@@ -107,7 +107,7 @@ export default function SessionPage({
       const res = await fetch(`/api/tutoring-sessions/${id}/live-practice/override`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ problemTopic }),
+        body: JSON.stringify({ problemTopic, problemId }),
       })
       if (!res.ok) {
         toast('Could not record that override. Please try again.', 'error')
@@ -196,8 +196,8 @@ export default function SessionPage({
     [],
   )
 
-  const placeVisualization = useCallback(async (svgs: string[]) => {
-    await whiteboardDrawRef.current?.(svgs)
+  const placeVisualization = useCallback(async (svgs: string[], opts?: { replaceGroup?: string }) => {
+    await whiteboardDrawRef.current?.(svgs, opts)
   }, [])
 
   useEffect(() => {
@@ -229,6 +229,31 @@ export default function SessionPage({
     }
     if (user && id) fetchSession()
   }, [user, id, router, toast])
+
+  // A student sitting on a scheduled session has no way to know when the tutor
+  // starts it — the status only arrives with a page load. Poll while we're
+  // waiting so the card flips to "Join Session" on its own, and stop as soon as
+  // it does (or once the student is in the call).
+  useEffect(() => {
+    if (!user || !id) return
+    if (isTutor || inCall) return
+    if (session?.status !== 'scheduled') return
+
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/tutoring-sessions/${id}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.session?.status && data.session.status !== 'scheduled') {
+          setSession(data.session)
+        }
+      } catch {
+        // Transient — keep polling.
+      }
+    }, 10_000)
+
+    return () => clearInterval(poll)
+  }, [user, id, isTutor, inCall, session?.status])
 
   const fetchMeetingToken = useCallback(async (): Promise<boolean> => {
     const tokenRes = await fetch('/api/daily/token', {
@@ -384,6 +409,7 @@ export default function SessionPage({
         <Navbar />
         <main className="max-w-6xl mx-auto px-4 py-16">
           <JoinCallCard
+            sessionId={id}
             topic={session.topic}
             studentName={session.student?.name || null}
             tutorName={session.tutor.name}

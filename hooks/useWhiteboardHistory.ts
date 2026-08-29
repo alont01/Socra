@@ -3,6 +3,28 @@
 import { useRef, useState, useCallback } from 'react'
 
 /**
+ * Object properties Fabric doesn't know about but that must survive
+ * serialization.
+ *
+ * `socraGroup` tags the images placed by the AI "Visualize" feature so a later
+ * step of a staged explanation can replace the previous one in place. Fabric
+ * only serializes its own known properties, so anything not listed here is
+ * silently dropped by the toObject → loadFromJSON round trip that undo/redo and
+ * the student-side sync both go through — after one undo the tag was gone and
+ * the next step stacked a second copy of the figure on top of the first.
+ *
+ * Note: in Fabric v6 `toJSON()` takes no arguments (its docstring still shows
+ * the v5 form). `toObject(props)` is the one that honours this list.
+ */
+export const WHITEBOARD_CUSTOM_PROPS = ['socraGroup']
+
+/** Serialize a canvas, keeping the custom properties above. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializeCanvas(canvas: { toObject: (props?: string[]) => any }): string {
+  return JSON.stringify(canvas.toObject(WHITEBOARD_CUSTOM_PROPS))
+}
+
+/**
  * Manages undo/redo history for a Fabric.js canvas.
  */
 export function useWhiteboardHistory(
@@ -19,7 +41,7 @@ export function useWhiteboardHistory(
   const saveHistory = useCallback(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas || isUpdatingRef.current) return
-    const json = JSON.stringify(canvas.toJSON())
+    const json = serializeCanvas(canvas)
     historyRef.current.push(json)
     redoStackRef.current = []
     setCanUndo(true)
@@ -27,8 +49,9 @@ export function useWhiteboardHistory(
     onCanvasStateChange?.(json)
   }, [fabricCanvasRef, isUpdatingRef, onCanvasStateChange])
 
-  const initHistory = useCallback((canvas: { toJSON: () => unknown }) => {
-    historyRef.current = [JSON.stringify(canvas.toJSON())]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const initHistory = useCallback((canvas: { toObject: (props?: string[]) => any }) => {
+    historyRef.current = [serializeCanvas(canvas)]
     redoStackRef.current = []
     setCanUndo(false)
     setCanRedo(false)

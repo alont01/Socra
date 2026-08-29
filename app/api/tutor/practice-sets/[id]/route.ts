@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireTutor } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { safeJsonParse } from '@/lib/json'
+import { problemsMissingAnswers } from '@/lib/answer-check'
 import { z } from 'zod'
 import { parseBody } from '@/lib/validations'
 import type { PracticeProblem } from '@/lib/ai/types'
@@ -92,6 +93,29 @@ export const PATCH = route('tutor/practice-sets/[id]', async (request: Request, 
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
   const { title, problems, status } = parsed.data
+
+  // Assigning with a blank answer key silently breaks grading: the student's
+  // attempt route has nothing to compare against, so every answer is marked
+  // wrong AND drags that topic's mastery down. Block it at the boundary rather
+  // than letting a draft the model left incomplete reach a student.
+  //
+  // Checked against the problems this request will leave stored — which is the
+  // incoming set when one was sent, and the saved set when only `status` moved.
+  if (status === 'assigned') {
+    const effective = problems ?? safeJsonParse<PracticeProblem[]>(result.problems, [])
+    const missing = problemsMissingAnswers(effective)
+    if (missing.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            missing.length === effective.length
+              ? 'Add a correct answer to each problem before assigning — answers are what the homework is graded against.'
+              : `Problem${missing.length === 1 ? '' : 's'} ${missing.join(', ')} ${missing.length === 1 ? 'has' : 'have'} no correct answer yet. Fill ${missing.length === 1 ? 'it' : 'those'} in before assigning.`,
+        },
+        { status: 400 },
+      )
+    }
+  }
 
   const data: {
     title?: string

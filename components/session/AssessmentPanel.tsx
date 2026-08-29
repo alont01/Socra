@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { RichContent } from '@/components/visuals/RichContent'
 import { Button } from '@/components/ui/Button'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useAssessmentSync } from '@/hooks/useAssessmentSync'
 import type { AssessmentData } from '@/types'
 import type { DailyCall } from '@daily-co/daily-js'
@@ -27,7 +28,9 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
   const [starting, setStarting] = useState(false)
   const [ending, setEnding] = useState(false)
   const [gradingId, setGradingId] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
+  const generatingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -43,10 +46,29 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
 
   useEffect(() => { load() }, [load])
 
+  // The student's submit broadcasts 'generating'; the next problem landing
+  // broadcasts 'changed'. If the student's request dies mid-flight the second
+  // signal never comes, so the bar is also on a timer — a progress bar that
+  // never resolves is worse than none.
+  const clearGenerating = useCallback(() => {
+    if (generatingTimeout.current) clearTimeout(generatingTimeout.current)
+    generatingTimeout.current = null
+    setGenerating(false)
+  }, [])
+
   const { notifyChanged } = useAssessmentSync({
     callFrame,
-    onChanged: useCallback(() => { load() }, [load]),
+    onChanged: useCallback(() => { clearGenerating(); load() }, [load, clearGenerating]),
+    onGenerating: useCallback(() => {
+      setGenerating(true)
+      if (generatingTimeout.current) clearTimeout(generatingTimeout.current)
+      generatingTimeout.current = setTimeout(() => setGenerating(false), 90_000)
+    }, []),
   })
+
+  useEffect(() => () => {
+    if (generatingTimeout.current) clearTimeout(generatingTimeout.current)
+  }, [])
 
   const start = async () => {
     setStarting(true)
@@ -66,9 +88,13 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
     }
   }
 
+  // These both record something the tutor is telling the student is true, so a
+  // silent no-op is the worst outcome: the button looks dead, and the grade the
+  // tutor believes they applied never reached the record that drives mastery.
   const override = async (itemId: string, tutorResult: 'correct' | 'incorrect' | 'worked_together') => {
     if (!assessment) return
     setGradingId(itemId)
+    setError('')
     try {
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/override`, {
         method: 'POST',
@@ -79,7 +105,12 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
         const data = await res.json()
         setAssessment(data.assessment)
         notifyChanged()
+        return
       }
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || 'That grade could not be saved. Try again.')
+    } catch {
+      setError('Network error — that grade was not saved.')
     } finally {
       setGradingId(null)
     }
@@ -88,13 +119,19 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
   const end = async () => {
     if (!assessment) return
     setEnding(true)
+    setError('')
     try {
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/end`, { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
         setAssessment(data.assessment)
         notifyChanged()
+        return
       }
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || 'Could not end the assessment. Try again.')
+    } catch {
+      setError('Network error — the assessment is still running.')
     } finally {
       setEnding(false)
     }
@@ -112,6 +149,7 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
         </p>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button onClick={start} loading={starting} size="sm">Start assessment</Button>
+        <ProgressBar active={starting} estimatedMs={15000} label="Writing the first problem…" />
       </div>
     )
   }
@@ -120,6 +158,10 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
 
   return (
     <div className="p-4 space-y-4">
+      {error && (
+        <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2" role="alert">{error}</p>
+      )}
+
       {/* Ladder */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
@@ -178,9 +220,17 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
           {assessment.currentItem.answer && (
             <p className="text-xs text-stone-400 mt-2">Answer: <span className="font-mono text-stone-600">{assessment.currentItem.answer}</span></p>
           )}
-          <p className="text-xs text-stone-400 mt-2 italic">Waiting for the student to answer…</p>
+          {!generating && <p className="text-xs text-stone-400 mt-2 italic">Waiting for the student to answer…</p>}
         </div>
       )}
+
+      {/* The student has answered and the next problem is being written. This
+          window belongs to the model, not the student — say so. */}
+      <ProgressBar
+        active={generating}
+        estimatedMs={15000}
+        label="Student answered — writing the next problem…"
+      />
 
       {assessment.status === 'in_progress' && (
         <Button variant="ghost" size="sm" onClick={end} loading={ending}>End assessment now</Button>

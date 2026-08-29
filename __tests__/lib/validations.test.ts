@@ -146,6 +146,18 @@ describe('validation schemas', () => {
       })
       expect(result.success).toBe(true)
     })
+
+    // The dashboard offers "No student (open)"; requiring studentId made that
+    // option fail validation with no visible error.
+    it('accepts an open session with no student', () => {
+      const result = createSessionSchema.safeParse({ topic: 'Algebra' })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects an empty-string studentId', () => {
+      const result = createSessionSchema.safeParse({ studentId: '', topic: 'Algebra' })
+      expect(result.success).toBe(false)
+    })
   })
 
   describe('practiceAttemptSchema', () => {

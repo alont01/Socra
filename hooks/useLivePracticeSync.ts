@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import type { DailyCall, DailyEventObjectAppMessage } from '@daily-co/daily-js'
 import type { PracticeProblem } from '@/lib/ai/types'
 
@@ -9,6 +9,7 @@ type PracticeMessageType =
   | 'practice:answer'
   | 'practice:clear'
   | 'practice:override'
+  | 'practice:request-state'
 
 interface PracticeMessage {
   type: PracticeMessageType
@@ -38,15 +39,22 @@ export function useLivePracticeSync({
   onCleared,
   onOverrideReceived,
 }: UseLivePracticeSyncOptions) {
+  // The problems currently in front of the student, as last broadcast. Sent
+  // problems live only in the tutor's browser memory, so a student who
+  // refreshes or joins late used to end up with an empty panel and no way back
+  // — the tutor's only recourse was Clear and regenerate, which throws away
+  // the work. Keeping the last payload lets us answer a re-join request, the
+  // same way the whiteboard answers 'whiteboard:request-state'.
+  const lastSentRef = useRef<string | null>(null)
+
   const sendProblems = useCallback(
     (problems: PracticeProblem[]) => {
       if (!callFrame || !isTutor) return
       // Strip answers before sending to student
       const safe = problems.map(({ answer, ...rest }) => rest)
-      const msg: PracticeMessage = {
-        type: 'practice:problems',
-        payload: JSON.stringify(safe),
-      }
+      const payload = JSON.stringify(safe)
+      lastSentRef.current = payload
+      const msg: PracticeMessage = { type: 'practice:problems', payload }
       callFrame.sendAppMessage(msg, '*')
     },
     [callFrame, isTutor]
@@ -66,6 +74,7 @@ export function useLivePracticeSync({
 
   const sendClear = useCallback(() => {
     if (!callFrame || !isTutor) return
+    lastSentRef.current = null
     const msg: PracticeMessage = { type: 'practice:clear' }
     callFrame.sendAppMessage(msg, '*')
   }, [callFrame, isTutor])
@@ -117,10 +126,27 @@ export function useLivePracticeSync({
             onOverrideReceived?.(msg.payload)
           }
           break
+        case 'practice:request-state':
+          // A (re)joining student asks what they should be working on. Replay
+          // the last broadcast; nothing outstanding means nothing to send.
+          if (isTutor && lastSentRef.current) {
+            callFrame.sendAppMessage(
+              { type: 'practice:problems', payload: lastSentRef.current } satisfies PracticeMessage,
+              '*',
+            )
+          }
+          break
       }
     }
 
     callFrame.on('app-message', handleAppMessage)
+
+    // Student: ask for anything already in flight (covers a refresh or a late
+    // join). Harmless when there's nothing outstanding.
+    if (!isTutor) {
+      callFrame.sendAppMessage({ type: 'practice:request-state' } satisfies PracticeMessage, '*')
+    }
+
     return () => {
       callFrame.off('app-message', handleAppMessage)
     }

@@ -19,9 +19,27 @@ const SUGGESTIONS = [
   'Quiz me on fractions',
 ]
 
+// Shown instead when the student is sitting on a specific problem: the useful
+// openings there are all about the thing in front of them.
+const PROBLEM_SUGGESTIONS = [
+  'Give me a hint',
+  'How do I start this one?',
+  'Show me a similar example',
+  'Explain the idea behind this',
+]
+
 const MAX_STORED = 50
 
-export function StudentChatPanel() {
+interface StudentChatPanelProps {
+  /**
+   * The question the student is currently looking at, when the panel sits
+   * beside a problem. Sent with each message so "I'm stuck" has a referent.
+   * Question text only — never the answer.
+   */
+  problemContext?: string
+}
+
+export function StudentChatPanel({ problemContext }: StudentChatPanelProps = {}) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -83,7 +101,7 @@ export function StudentChatPanel() {
       const res = await fetch('/api/student/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, problemContext }),
       })
 
       if (!res.ok || !res.body) {
@@ -158,11 +176,17 @@ export function StudentChatPanel() {
                 <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5Z" />
               </svg>
             </div>
-            <p className="text-stone-600 font-medium">Ask me anything about math!</p>
-            <p className="text-xs text-stone-500 mt-1">I can explain concepts, graph functions, or work through problems with you.</p>
+            <p className="text-stone-600 font-medium">
+              {problemContext ? 'Stuck on this one?' : 'Ask me anything about math!'}
+            </p>
+            <p className="text-xs text-stone-500 mt-1">
+              {problemContext
+                ? 'I can see the problem you\'re on. I\'ll help you work it out — not hand you the answer.'
+                : 'I can explain concepts, graph functions, or work through problems with you.'}
+            </p>
 
             <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
+              {(problemContext ? PROBLEM_SUGGESTIONS : SUGGESTIONS).map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}

@@ -20,7 +20,10 @@ export default function DashboardPage() {
     }
   }, [user, loading, router])
 
-  if (loading) {
+  // Parents are redirected to their own dashboard by the effect above, but the
+  // redirect isn't instant — rendering on through showed them a flash of the
+  // student dashboard (with someone else's headings) on the way out.
+  if (loading || !user || user.role === 'PARENT') {
     return (
       <div className="min-h-screen bg-[#FFFBF5] flex items-center justify-center">
         <LoadingDots />
@@ -28,7 +31,7 @@ export default function DashboardPage() {
     )
   }
 
-  const isTutor = user?.role === 'TUTOR'
+  const isTutor = user.role === 'TUTOR'
 
   return (
     <div className="min-h-screen bg-[#FFFBF5]">

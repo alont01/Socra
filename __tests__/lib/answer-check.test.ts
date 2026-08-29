@@ -1,4 +1,26 @@
-import { answersMatch } from '@/lib/answer-check'
+import { answersMatch, problemsMissingAnswers } from '@/lib/answer-check'
+
+describe('problemsMissingAnswers', () => {
+  it('returns nothing when every problem has an answer', () => {
+    expect(problemsMissingAnswers([{ answer: '4' }, { answer: '0.5' }])).toEqual([])
+  })
+
+  it('reports 1-based positions of problems with no answer', () => {
+    expect(
+      problemsMissingAnswers([{ answer: '4' }, { answer: '' }, {}, { answer: 'x=2' }]),
+    ).toEqual([2, 3])
+  })
+
+  // A whitespace-only key grades every submission wrong, exactly like an
+  // empty one — answersMatch('anything', '   ') can never be true.
+  it('treats a whitespace-only answer as missing', () => {
+    expect(problemsMissingAnswers([{ answer: '   ' }])).toEqual([1])
+  })
+
+  it('handles an empty set', () => {
+    expect(problemsMissingAnswers([])).toEqual([])
+  })
+})
 
 describe('answersMatch', () => {
   it('matches exact strings case-insensitively', () => {

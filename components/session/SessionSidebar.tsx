@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { LivePracticePanel } from './LivePracticePanel'
 import { AssessmentPanel } from './AssessmentPanel'
 import type { PracticeProblem } from '@/lib/ai/types'
@@ -34,26 +34,93 @@ export function SessionSidebar({
 }: SessionSidebarProps) {
   const [tab, setTab] = useState<'notes' | 'practice' | 'assessment'>('notes')
   const [notes, setNotes] = useState(initialNotes)
-  const [saving, setSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  // 'unsaved' is a real state, not a transient one: notes only reached the
+  // server on blur, so a tutor who typed for an hour and closed the tab lost
+  // all of it — and those notes are what the post-session recap and the
+  // generated homework are built from when the transcript is thin.
+  const [saveState, setSaveState] = useState<'idle' | 'unsaved' | 'saving' | 'saved' | 'error'>('idle')
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The value the server has (or is being sent). Lets an autosave skip a
+  // no-op write and lets the unmount flush know whether anything is pending.
+  const savedValueRef = useRef(initialNotes)
+  const notesRef = useRef(initialNotes)
+  // Notes are last-write-wins text, so two overlapping PATCHes that resolve out
+  // of order leave the server holding the OLDER draft — easy to trigger by
+  // blurring the field while a debounced save is already in flight. One request
+  // at a time; anything typed meanwhile is picked up by the follow-up pass.
+  const inFlightRef = useRef(false)
+  const resaveRef = useRef(false)
 
   const saveNotes = useCallback(async (value: string) => {
-    setSaving(true)
+    if (value === savedValueRef.current) return
+    if (inFlightRef.current) {
+      resaveRef.current = true
+      return
+    }
+    inFlightRef.current = true
+    setSaveState('saving')
     try {
-      await fetch(`/api/tutoring-sessions/${sessionId}`, {
+      const res = await fetch(`/api/tutoring-sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tutorNotes: value }),
       })
-      setLastSaved(new Date())
+      // A 4xx/5xx used to land here as "Saved" — the tutor was told their
+      // notes were safe when the request had been rejected.
+      if (!res.ok) {
+        setSaveState('error')
+        return
+      }
+      savedValueRef.current = value
+      // Don't claim "Saved" if more was typed while this request was in flight.
+      setSaveState(notesRef.current === value ? 'saved' : 'unsaved')
+    } catch {
+      setSaveState('error')
     } finally {
-      setSaving(false)
+      inFlightRef.current = false
+      if (resaveRef.current) {
+        resaveRef.current = false
+        // Send whatever the field holds now, not the value this call carried.
+        void saveNotes(notesRef.current)
+      }
     }
   }, [sessionId])
 
-  const handleBlur = () => {
-    saveNotes(notes)
+  const handleChange = (value: string) => {
+    setNotes(value)
+    notesRef.current = value
+    setSaveState(value === savedValueRef.current ? 'idle' : 'unsaved')
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => saveNotes(value), 1500)
   }
+
+  const flush = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    saveNotes(notesRef.current)
+  }, [saveNotes])
+
+  // Leaving the field saves immediately rather than waiting out the debounce.
+  const handleBlur = () => flush()
+
+  // Last-chance flush when the panel goes away (tab switch away from the
+  // session, end of call). Fire-and-forget — nothing can await here.
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (notesRef.current !== savedValueRef.current) {
+      const body = JSON.stringify({ tutorNotes: notesRef.current })
+      // keepalive lets the request outlive the unmount/navigation.
+      fetch(`/api/tutoring-sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => { /* best effort */ })
+    }
+  }, [sessionId])
 
   return (
     <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-4 h-full flex flex-col">
@@ -96,13 +163,31 @@ export function SessionSidebar({
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-stone-900 text-sm">Session Notes</h3>
-            <span className="text-xs text-stone-400">
-              {saving ? 'Saving...' : lastSaved ? 'Saved' : ''}
-            </span>
+            {saveState === 'error' ? (
+              <button
+                onClick={flush}
+                className="text-xs font-medium text-red-600 hover:text-red-700"
+              >
+                Not saved — retry
+              </button>
+            ) : (
+              <span
+                className="text-xs text-stone-400"
+                aria-live="polite"
+              >
+                {saveState === 'saving'
+                  ? 'Saving…'
+                  : saveState === 'unsaved'
+                  ? 'Unsaved'
+                  : saveState === 'saved'
+                  ? 'Saved'
+                  : ''}
+              </span>
+            )}
           </div>
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => handleChange(e.target.value)}
             onBlur={handleBlur}
             placeholder="Type your session notes here..."
             className="flex-1 w-full resize-none text-sm text-stone-700 placeholder:text-stone-300 focus:outline-none"

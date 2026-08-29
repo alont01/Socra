@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { RichContent } from '@/components/visuals/RichContent'
 import { Button } from '@/components/ui/Button'
 import { useAssessmentSync } from '@/hooks/useAssessmentSync'
@@ -43,10 +43,18 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assessment])
 
-  useAssessmentSync({
+  // A 'changed' signal arriving while the feedback screen is up used to be
+  // dropped outright, so a tutor override or an early end during that window
+  // left the student on stale state indefinitely. Defer it instead: remember
+  // that a refresh is owed and run it when they continue.
+  const pendingReloadRef = useRef(false)
+
+  const { notifyChanged, notifyGenerating } = useAssessmentSync({
     callFrame,
-    // Don't clobber an active feedback screen with a refetch mid-reveal.
-    onChanged: useCallback(() => { if (!feedback) load() }, [load, feedback]),
+    onChanged: useCallback(() => {
+      if (feedback) pendingReloadRef.current = true
+      else load()
+    }, [load, feedback]),
   })
 
   const submit = async (e: React.FormEvent) => {
@@ -54,6 +62,9 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
     if (!assessment?.currentItem || !answer.trim() || submitting) return
     setSubmitting(true)
     setError('')
+    // The tutor can't see this request. Tell them the wait has started now,
+    // rather than leaving their panel claiming the student hasn't answered.
+    notifyGenerating()
     try {
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/answer`, {
         method: 'POST',
@@ -61,18 +72,32 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
         body: JSON.stringify({ itemId: assessment.currentItem.id, answer: answer.trim() }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setError(data.error || 'Could not submit your answer.'); return }
+      if (!res.ok) {
+        setError(data.error || 'Could not submit your answer.')
+        // We told the tutor a new problem was being written; that's no longer
+        // true, so take it back rather than leaving their panel claiming the
+        // model is working for the next 90 seconds.
+        notifyChanged()
+        return
+      }
       setAssessment(data.assessment)
       setFeedback(data.justAnswered)
       setAnswer('')
     } catch {
       setError('Network error — check your connection.')
+      notifyChanged()
     } finally {
       setSubmitting(false)
     }
   }
 
-  const continueOn = () => setFeedback(null)
+  const continueOn = () => {
+    setFeedback(null)
+    if (pendingReloadRef.current) {
+      pendingReloadRef.current = false
+      load()
+    }
+  }
 
   // Quiet by default: render nothing until the tutor actually starts an
   // assessment (matches how the regular practice panel only appears once

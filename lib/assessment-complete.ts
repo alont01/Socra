@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { generateAssessmentSummary, type AssessmentItemRecord } from '@/lib/ai/assessment-summary'
 import { resolveOutcome, levelToMastery } from '@/lib/assessment-engine'
 import { config } from '@/lib/config'
+import { applyMastery } from '@/lib/progress'
 import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('assessment-complete')
@@ -80,27 +81,13 @@ export async function completeAssessment(assessmentId: string): Promise<void> {
     const avgLevel = levels.reduce((s, l) => s + l, 0) / levels.length
     const observed = levelToMastery(avgLevel)
     try {
-      // Read-then-write, atomic — same EMA-blend pattern used for sessions
-      // and practice attempts (lib/progress.ts, session-processing.ts): a
-      // single assessment nudges mastery rather than overwriting prior signal.
-      await prisma.$transaction(async (tx) => {
-        const existing = await tx.studentProgress.findUnique({
-          where: { studentId_topic: { studentId: student.id, topic: subTopic } },
-        })
-        const nextMastery = existing
-          ? config.mastery.alpha * observed + (1 - config.mastery.alpha) * existing.mastery
-          : observed
-
-        if (existing) {
-          await tx.studentProgress.update({ where: { id: existing.id }, data: { mastery: nextMastery } })
-        } else {
-          await tx.studentProgress.create({ data: { studentId: student.id, topic: subTopic, mastery: nextMastery } })
-        }
-
-        await tx.masteryHistory.create({
-          data: { studentId: student.id, topic: subTopic, mastery: nextMastery, source: 'assessment' },
-        })
-      })
+      // Same EMA blend used for sessions and practice attempts: a single
+      // assessment nudges mastery rather than overwriting prior signal.
+      await applyMastery(student.id, subTopic, 'assessment', (current) =>
+        current === null
+          ? observed
+          : config.mastery.alpha * observed + (1 - config.mastery.alpha) * current,
+      )
     } catch (err) {
       logger.error(`Failed to seed mastery for sub-topic "${subTopic}"`, err, { assessmentId })
     }

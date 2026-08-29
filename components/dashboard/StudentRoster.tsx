@@ -24,6 +24,9 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
   const [removing, setRemoving] = useState<string | null>(null)
+  // Two-step confirm, inline: the roster is a compact list and a modal here
+  // would be heavier than the action deserves.
+  const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null)
 
   const addStudent = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,14 +52,33 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
     }
   }
 
+  // Removing a student ends the tutoring relationship — a misclick used to do
+  // that instantly, and a failure did nothing visible at all.
   const removeStudent = async (id: string) => {
-    setRemoving(id)
+    setError('')
     try {
       const res = await fetch(`/api/tutor/students/${id}`, { method: 'DELETE' })
-      if (res.ok) onStudentRemoved(id)
+      if (res.ok) {
+        onStudentRemoved(id)
+        setConfirmingRemove(null)
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || 'Could not remove that student. Please try again.')
+    } catch {
+      setError('Network error. Please try again.')
     } finally {
       setRemoving(null)
     }
+  }
+
+  const handleRemoveClick = (id: string) => {
+    if (confirmingRemove !== id) {
+      setConfirmingRemove(id)
+      return
+    }
+    setRemoving(id)
+    removeStudent(id)
   }
 
   return (
@@ -99,13 +121,31 @@ export function StudentRoster({ students, onStudentAdded, onStudentRemoved }: St
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <InviteParentButton studentId={s.id} label="Invite parent" />
-                <button
-                  onClick={() => removeStudent(s.id)}
-                  disabled={removing === s.id}
-                  className="text-xs text-stone-400 hover:text-red-500 transition-colors"
-                >
-                  {removing === s.id ? '...' : 'Remove'}
-                </button>
+                {confirmingRemove === s.id ? (
+                  <span className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleRemoveClick(s.id)}
+                      disabled={removing === s.id}
+                      className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                    >
+                      {removing === s.id ? 'Removing…' : 'Confirm'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingRemove(null)}
+                      disabled={removing === s.id}
+                      className="text-xs text-stone-400 hover:text-stone-600"
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleRemoveClick(s.id)}
+                    className="text-xs text-stone-400 hover:text-red-500 transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             </div>
           ))}

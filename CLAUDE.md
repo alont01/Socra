@@ -26,7 +26,8 @@ npx prisma generate      # Regenerate Prisma client after schema changes
 
 - **TUTOR**: Creates/manages sessions, maintains student roster, takes notes during video calls, reviews AI analysis
 - **STUDENT**: Joins video sessions, completes AI-generated practice sets, chats with AI assistant, views progress
-- PARENT role exists in schema but has no active UI
+- **PARENT**: Adds and manages children, views each child's progress and session history, receives session notifications, and is the billed party (`app/parent/*`, invite + redeem flow, monthly Stripe invoicing)
+- **ADMIN**: Integration health, metrics, audit log, and billing operations (`app/admin/*`)
 
 ### Auth Flow
 
@@ -147,7 +148,15 @@ Every external credential is declared once in `lib/integrations.ts` with a cheap
 
 ## Testing
 
+**See `TESTING.md` for the full process — which layer to run when, and the traps.**
+
 Jest with jsdom + React Testing Library. Tests live in `__tests__/`. Coverage collects from `components/` and `lib/` only. The `jose` package must not be transformed (configured in `jest.config.ts`).
+
+Beyond the unit suite:
+
+- **Model evals** (`npm run eval:visualize`) test whether the *model* produces good output — unit tests can't see prompt quality. Run one after changing any prompt, model, or `config.ai.*` value. Needs a real `ANTHROPIC_API_KEY`; costs money; not in CI.
+- **E2E and smoke** (`npm run e2e`, `npm run smoke`) run against a live deployment and **default to production** — pass `E2E_BASE_URL` / a URL argument unless you mean it.
+- **Live tutoring sessions are not E2E-tested on purpose.** Reaching the whiteboard needs an `active` session, and the sweeper turns those into billable hours on a real invoice. Test that path through evals and unit tests.
 
 ## Pre-Commit Checks
 

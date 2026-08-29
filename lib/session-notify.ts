@@ -2,6 +2,7 @@
 // route body — mirrors lib/match-notify.ts.
 
 import { prisma } from '@/lib/prisma'
+import { config } from '@/lib/config'
 import { sendEmail, sessionScheduledEmailHtml } from '@/lib/email'
 import { createLogger } from '@/lib/logger'
 
@@ -9,11 +10,19 @@ const logger = createLogger('session-notify')
 
 const isRealEmail = (email?: string | null) => !!email && !email.endsWith('@students.socra.internal')
 
-function formatWhen(scheduledAt: Date | null): string {
+export function formatWhen(scheduledAt: Date | null): string {
   if (!scheduledAt) return 'Time to be confirmed'
-  return scheduledAt.toLocaleString('en-US', {
+  // Runs on the server, where the host clock is UTC — without an explicit zone
+  // this tells a family their 4pm lesson is at 9pm. Name the zone in the string
+  // too, so it's unambiguous for anyone reading it from elsewhere.
+  const when = scheduledAt.toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: config.timeZone,
   })
+  const zone = scheduledAt.toLocaleTimeString('en-US', {
+    timeZone: config.timeZone, timeZoneName: 'short',
+  }).split(' ').pop()
+  return zone ? `${when} ${zone}` : when
 }
 
 /**
@@ -80,3 +89,6 @@ export async function notifySessionScheduled(sessionId: string): Promise<void> {
     logger.error('Failed to send session-scheduled notification', err, { sessionId })
   }
 }
+
+/** Exported for tests — the zone handling here is easy to regress silently. */
+export { formatWhen as formatWhenForTest }

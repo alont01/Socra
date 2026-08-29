@@ -28,13 +28,21 @@ export const GET = route('tutoring-sessions/[id]', async (_request: Request, { p
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
 
+  // A placeholder analysis (status 'failed'/'insufficient') has an apology in
+  // its summary field, not a recap. Nothing renders it from this payload today,
+  // but shipping it here is a trap for whoever displays this field next — the
+  // dedicated /analysis endpoint is the one that reports the state properly.
+  const view = session.analysis && session.analysis.status !== 'ok'
+    ? { ...session, analysis: null }
+    : session
+
   // tutorNotes are private to the tutor — never expose them to the student.
   if (!isTutor) {
-    const { tutorNotes: _tutorNotes, ...studentView } = session
+    const { tutorNotes: _tutorNotes, ...studentView } = view
     return NextResponse.json({ session: studentView, role: 'student' })
   }
 
-  return NextResponse.json({ session, role: 'tutor' })
+  return NextResponse.json({ session: view, role: 'tutor' })
 })
 
 export const PATCH = route('tutoring-sessions/[id]', async (request: Request, { params }: { params: Promise<{ id: string }> }) => {

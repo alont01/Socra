@@ -20,14 +20,28 @@ export const POST = route('student/chat', async (request: Request) => {
   if ('error' in parsed) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
-  const { messages } = parsed.data
+  const { messages, problemContext } = parsed.data
 
   const student = auth.student
+
+  // When the student is working a specific problem, say so explicitly — and
+  // guard the obvious failure mode, which is the assistant simply solving the
+  // homework it can now see.
+  const problemBlock = problemContext
+    ? `
+
+## The problem they are working on right now
+${problemContext}
+
+They can see this problem on screen next to this chat. Assume a bare question like "I'm stuck" or "what do I do" is about THIS problem. Help them make the next step themselves: ask what they've tried, point at the idea they need, work a similar example. Do not state the final answer, even if asked directly — they get one graded attempt at it.`
+    : ''
+
   const systemPrompt = `You are a friendly math tutor AI helping ${student.name}, a ${student.gradeLevel || 'student'}.
 Their math topics: ${student.mathTopics || 'general math'}.
 Their goals: ${student.goals || 'improve math skills'}.
 
 Be encouraging and use the Socratic method when appropriate — guide them toward answers rather than just handing them over. Keep responses concise.
+${problemBlock}
 
 ${VISUAL_PROMPT}`
 

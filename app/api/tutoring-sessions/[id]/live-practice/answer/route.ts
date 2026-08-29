@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireStudent } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { updateMasteryScore } from '@/lib/progress'
 import { rateLimit } from '@/lib/rate-limit'
 import { decryptAnswerToken } from '@/lib/answer-token'
@@ -42,7 +43,48 @@ export const POST = route('tutoring-sessions/[id]/live-practice/answer', async (
 
   const correct = answersMatch(answer, stored.answer)
 
-  // Update mastery in real-time
+  // Record the attempt BEFORE touching mastery, and let the unique index on
+  // (tutoringSessionId, problemId) decide who wins.
+  //
+  // Grading here is stateless — the answer comes out of a signed token, not
+  // from a stored problem — so nothing else stops the same submission being
+  // graded twice. Two in-flight requests (a double Enter) both moved mastery,
+  // and worse, a student could resubmit the *revealed* correct answer against
+  // the same still-valid token to walk mastery up to 1. Checking for an
+  // existing row first doesn't close either case; the constraint does.
+  try {
+    await prisma.livePracticeAttempt.create({
+      data: {
+        tutoringSessionId: id,
+        studentId: auth.student.id,
+        problemId,
+        topic: stored.topic,
+        studentAnswer: answer,
+        correct,
+      },
+    })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      const existing = await prisma.livePracticeAttempt.findUnique({
+        where: { tutoringSessionId_problemId: { tutoringSessionId: id, problemId } },
+      })
+      // Return the first answer's result, not this one's, so a duplicate
+      // submission can't change what the student sees either.
+      const settled = existing?.correct ?? false
+      return NextResponse.json(
+        {
+          error: 'You already answered this problem',
+          alreadyAnswered: true,
+          correct: settled,
+          ...(settled ? {} : { correctAnswer: stored.answer }),
+        },
+        { status: 409 },
+      )
+    }
+    throw err
+  }
+
+  // Reached only by the submission that won the insert, so mastery moves once.
   await updateMasteryScore(auth.student.id, stored.topic, correct)
 
   return NextResponse.json({
