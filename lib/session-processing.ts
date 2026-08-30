@@ -76,16 +76,26 @@ export async function processSessionPostCompletion(sessionId: string) {
   await generateAndSavePracticeSet(sessionId, student.id, student.gradeLevel, session.topic, analysis)
 
   // Step 4: Update mastery scores — only once per session. Re-analysis (retry)
-  // re-runs this pipeline; without this guard each retry would re-apply the
+  // re-runs this pipeline; without a guard each retry would re-apply the
   // concept-coverage increments and inflate mastery. We only mark it applied
   // once real concepts have been counted, so a retry after a failed/empty
   // first analysis still applies mastery exactly once.
-  if (!session.masteryApplied && analysis.conceptsCovered.length > 0) {
-    await updateMasteryForConcepts(student.id, analysis.conceptsCovered)
-    await prisma.tutoringSession.update({
-      where: { id: sessionId },
+  //
+  // The guard has to be an atomic claim, not a read-then-write against the
+  // `session` snapshot taken at the top of this function: a retry fired while
+  // the first pipeline was still mid-flight (transcript polling + the AI call
+  // both take real time) reads that same `masteryApplied: false` snapshot and
+  // would double-apply the bump. The conditional updateMany is the arbiter —
+  // same pattern as /end, the live-practice override, and the billing claim —
+  // so only the invocation that actually flips false→true may apply it.
+  if (analysis.conceptsCovered.length > 0) {
+    const claimed = await prisma.tutoringSession.updateMany({
+      where: { id: sessionId, masteryApplied: false },
       data: { masteryApplied: true },
     })
+    if (claimed.count > 0) {
+      await updateMasteryForConcepts(student.id, analysis.conceptsCovered)
+    }
   }
 
   logger.info('Completed processing', { sessionId })

@@ -33,6 +33,16 @@ const FULL_TRANSCRIPT_MAX_CHARS = 20_000
 // client-side so a stalled Daily API doesn't leave Start/Join spinning forever.
 const DAILY_CALL_TIMEOUT_MS = 20_000
 
+// The whiteboard-image and live-transcript uploads inside endSession() are
+// plain, un-timed-out fetches — a stalled connection (a full whiteboard PNG
+// over a slow uplink) left "End Session" spinning with the same no-way-out
+// problem the calls above already guard against, and it's worse here: while
+// it hangs, /end is never reached, so the session stays open and billable.
+// Both are already best-effort (wrapped in their own try/catch that swallows
+// failure), so a timeout here just turns a hang into that same swallowed,
+// already-handled failure instead of an indefinite spin.
+const END_SESSION_UPLOAD_TIMEOUT_MS = 20_000
+
 export default function SessionPage({
   params,
 }: {
@@ -83,6 +93,7 @@ export default function SessionPage({
   const { sendCanvasState, sendWhiteboardStart, sendWhiteboardStop } = useWhiteboardSync({
     callFrame,
     isTutor,
+    isActive: whiteboardActive,
     onRemoteStateReceived: useCallback((json: string) => setRemoteCanvasState(json), []),
     onWhiteboardStarted: useCallback(() => setWhiteboardActive(true), []),
     onWhiteboardStopped: useCallback(() => setWhiteboardActive(false), []),
@@ -281,23 +292,26 @@ export default function SessionPage({
     if (user && id) fetchSession()
   }, [user, id, router, toast])
 
-  // A student sitting on a scheduled session has no way to know when the tutor
-  // starts it — the status only arrives with a page load. Poll while we're
-  // waiting so the card flips to "Join Session" on its own, and stop as soon as
-  // it does (or once the student is in the call).
+  // A student sitting on this card has no way to know the session's state
+  // changed elsewhere — the status only arrives with a page load. Poll while
+  // that's true so the card updates on its own: 'scheduled' → 'active' (so it
+  // flips to "Join Session"), but also while already 'active' — a student who
+  // opened the page, saw "Join Session", and stepped away before clicking it
+  // otherwise never learned the tutor had ended the call. Without this, the
+  // stale card stayed on screen forever: Join kept hitting a token endpoint
+  // that now permanently 400s ("session is not active"), with a retry that
+  // could never succeed and no path back except reloading the page.
   useEffect(() => {
     if (!user || !id) return
     if (isTutor || inCall) return
-    if (session?.status !== 'scheduled') return
+    if (session?.status !== 'scheduled' && session?.status !== 'active') return
 
     const poll = setInterval(async () => {
       try {
         const res = await fetch(`/api/tutoring-sessions/${id}`)
         if (!res.ok) return
         const data = await res.json()
-        if (data.session?.status && data.session.status !== 'scheduled') {
-          setSession(data.session)
-        }
+        if (data.session) setSession(data.session)
       } catch {
         // Transient — keep polling.
       }
@@ -395,23 +409,27 @@ export default function SessionPage({
       try { callFrame?.sendAppMessage({ type: 'session:ended' }, '*') } catch { /* not joined */ }
 
       // Capture whiteboard snapshot before ending. Best-effort, like the
-      // transcript below: a failed upload must not strand the tutor on an
-      // active session — that blocks the analysis pipeline and leaves the
-      // session open for the stale-session sweeper to close and bill.
+      // transcript below: a failed (or hung) upload must not strand the tutor
+      // on an active session — that blocks the analysis pipeline and leaves
+      // the session open for the stale-session sweeper to close and bill.
       //
       // Gated on `whiteboardMounted`, not `whiteboardActive`: a tutor who drew
       // on the board and then hid the panel before ending still has content
       // worth capturing (the canvas is still alive — see whiteboardMounted).
       if (whiteboardMounted && whiteboardSnapshotRef.current) {
         try {
-          const image = whiteboardSnapshotRef.current()
+          // Downscaled like the Visualize context capture — the canvas is 3×
+          // tall, and an un-capped export could be several MB, sent over
+          // whatever uplink the tutor has, with no ceiling on how long that
+          // takes.
+          const image = whiteboardSnapshotRef.current({ maxDim: 2000 })
           if (image) {
             const base64 = image.replace(/^data:image\/\w+;base64,/, '')
-            await fetch(`/api/tutoring-sessions/${id}/whiteboard`, {
+            await fetchWithTimeout(`/api/tutoring-sessions/${id}/whiteboard`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ imageBase64: base64 }),
-            })
+            }, END_SESSION_UPLOAD_TIMEOUT_MS)
           }
         } catch { /* non-critical — the recap just won't include the board */ }
       }
@@ -423,23 +441,28 @@ export default function SessionPage({
       const liveTranscript = fullTranscriptBufferRef.current.join('\n')
       if (liveTranscript) {
         try {
-          await fetch(`/api/tutoring-sessions/${id}/live-transcript`, {
+          await fetchWithTimeout(`/api/tutoring-sessions/${id}/live-transcript`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transcript: liveTranscript }),
-          })
+          }, END_SESSION_UPLOAD_TIMEOUT_MS)
         } catch { /* non-critical */ }
       }
 
-      const res = await fetch(`/api/tutoring-sessions/${id}/end`, { method: 'POST' })
+      const res = await fetchWithTimeout(`/api/tutoring-sessions/${id}/end`, { method: 'POST' }, END_SESSION_UPLOAD_TIMEOUT_MS)
       if (res.ok) {
         setInCall(false)
         router.push(`/session/${id}/review`)
       } else {
         toast('Could not end the session cleanly. Please try again.', 'error')
       }
-    } catch {
-      toast('Something went wrong ending the session.', 'error')
+    } catch (err) {
+      toast(
+        isTimeoutError(err)
+          ? 'Ending the session is taking longer than expected. Please try again.'
+          : 'Something went wrong ending the session.',
+        'error',
+      )
     } finally {
       setEnding(false)
     }

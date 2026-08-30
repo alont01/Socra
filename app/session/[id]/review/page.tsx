@@ -40,6 +40,7 @@ export default function ReviewPage({
   const [retrying, setRetrying] = useState(false)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const giveUpRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -50,6 +51,7 @@ export default function ReviewPage({
   const stopPolling = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null }
+    if (giveUpRef.current) { clearTimeout(giveUpRef.current); giveUpRef.current = null }
   }, [])
 
   const fetchTranscript = useCallback(async () => {
@@ -91,11 +93,22 @@ export default function ReviewPage({
         // Transient — keep polling.
       }
     }, 5000)
-    // Transcript fetch can take up to ~3 min; give it 5 before giving up.
+    // Transcript fetch can take up to ~3 min; the tutor shouldn't be staring
+    // at a bare spinner past 5, so surface a retryable error at that point.
+    // The 5s poll above is intentionally NOT stopped here: a pipeline that was
+    // just slow (not actually stuck) still lands a little after 5 min, and
+    // without this the page latched on "couldn't generate" permanently —
+    // nothing ever polled again, so a tutor who didn't manually retry never
+    // saw the recap that in fact existed 30 seconds later. This lets that
+    // late arrival flip the page to 'ready' on its own.
     timeoutRef.current = setTimeout(() => {
-      stopPolling()
       setStatus((s) => (s === 'processing' ? 'error' : s))
     }, 300_000)
+    // A genuinely dead pipeline shouldn't poll the tab forever, though —
+    // give up for real well past any realistic finish time.
+    giveUpRef.current = setTimeout(() => {
+      stopPolling()
+    }, 30 * 60_000)
   }, [id, stopPolling, fetchTranscript])
 
   useEffect(() => {
@@ -316,9 +329,9 @@ export default function ReviewPage({
 
         {status === 'error' && (
           <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-8 text-center">
-            <p className="text-red-600 mb-1">We couldn&apos;t generate the analysis for this session.</p>
+            <p className="text-red-600 mb-1">This is taking longer than usual.</p>
             <p className="text-sm text-stone-500 mb-4">
-              The transcript may still be processing, or there wasn&apos;t enough captured to analyze.
+              The analysis may still be processing in the background — this page will update on its own if it finishes. If it&apos;s been a while, try again below.
             </p>
             {isTutor && (
               <button

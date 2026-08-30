@@ -7,6 +7,28 @@ import { createAnswerToken } from '@/lib/answer-token'
 import { livePracticeSchema, parseBody } from '@/lib/validations'
 import { route } from '@/lib/api-handler'
 
+// GET — the student's current mastery snapshot for this session, so the
+// tutor's panel can show real data on open rather than only after a "Generate
+// Practice" call (whose response was previously the only source for it).
+export const GET = route('tutoring-sessions/[id]/live-practice', async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params
+  const auth = await requireTutor()
+  if (!auth.ok) return auth.response
+
+  const session = await prisma.tutoringSession.findUnique({
+    where: { id },
+    include: { tutor: true, student: { include: { studentProgress: true } } },
+  })
+  if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+  if (session.tutor.userId !== auth.payload.userId) {
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
+  if (!session.student) return NextResponse.json({ studentMastery: [] })
+
+  const studentMastery = session.student.studentProgress.map((p) => ({ topic: p.topic, mastery: p.mastery }))
+  return NextResponse.json({ studentMastery })
+})
+
 export const POST = route('tutoring-sessions/[id]/live-practice', async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   const auth = await requireTutor()

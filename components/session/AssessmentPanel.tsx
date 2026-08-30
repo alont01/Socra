@@ -36,6 +36,13 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
   const [gradingId, setGradingId] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
+  // A failure on the very first load left the panel on "Loading…" forever —
+  // there was no previous state to fall back to and nothing else re-triggers
+  // `load()` besides a student broadcast. Only meaningful pre-first-success;
+  // a transient failure on a later background refresh just keeps the current
+  // view rather than replacing it with an error screen.
+  const [loadFailed, setLoadFailed] = useState(false)
+  const hasLoadedRef = useRef(false)
   const generatingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
@@ -44,9 +51,13 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
       if (res.ok) {
         const data = await res.json()
         setAssessment(data.assessment)
+        setLoadFailed(false)
+        hasLoadedRef.current = true
+        return
       }
+      if (!hasLoadedRef.current) setLoadFailed(true)
     } catch {
-      /* keep previous state on a transient failure */
+      if (!hasLoadedRef.current) setLoadFailed(true)
     }
   }, [sessionId])
 
@@ -134,7 +145,15 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
     setEnding(true)
     setError('')
     try {
-      const res = await fetch(`/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/end`, { method: 'POST' })
+      // Ending runs the same AI holistic-summary call as everything else in
+      // this file — this was the one action here still on a plain fetch, so a
+      // stuck provider left the button spinning with no way out while the
+      // student's Submit 409s "already ended" for as long as it hung.
+      const res = await fetchWithTimeout(
+        `/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/end`,
+        { method: 'POST' },
+        ASSESSMENT_TIMEOUT_MS,
+      )
       if (res.ok) {
         const data = await res.json()
         setAssessment(data.assessment)
@@ -143,14 +162,28 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
       }
       const data = await res.json().catch(() => ({}))
       setError(data.error || 'Could not end the assessment. Try again.')
-    } catch {
-      setError('Network error — the assessment is still running.')
+    } catch (err) {
+      setError(
+        isTimeoutError(err)
+          ? 'This is taking longer than expected. Please try again.'
+          : 'Network error — the assessment is still running.',
+      )
     } finally {
       setEnding(false)
     }
   }
 
   if (assessment === undefined) {
+    if (loadFailed) {
+      return (
+        <div className="p-4 space-y-2 text-center">
+          <p className="text-sm text-stone-500">Couldn&apos;t load the assessment.</p>
+          <button onClick={load} className="text-sm font-medium text-orange-600 hover:text-orange-700">
+            Try again
+          </button>
+        </div>
+      )
+    }
     return <div className="p-4 text-sm text-stone-400">Loading…</div>
   }
 

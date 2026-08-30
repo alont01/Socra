@@ -30,23 +30,33 @@ function generateCode(): string {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
 }
 
+export interface IssueCodeResult {
+  /** True only if the email provider accepted the send. */
+  sent: boolean
+  /** True if this call was a no-op because the per-account issuance cap was hit. */
+  limited: boolean
+}
+
 /**
  * Generate a fresh 6-digit code for a user, store it hashed (replacing any
  * existing one), and email it. Returns the code for local-dev logging only.
  *
  * No-ops (leaving any current code and its attempt count untouched) once the
- * per-account issuance limit is hit within the hour — silently, since the
- * caller already returns a generic "check your email" response to avoid
- * confirming account existence, and this must not change that.
+ * per-account issuance limit is hit within the hour. The caller still decides
+ * what to tell the client — a first-issuance path (signup, login-while-
+ * unverified) wants the generic "check your email" framing regardless, but an
+ * explicit resend has no such constraint (the user is already looking at
+ * their own email on the verify screen) and should report a real failure
+ * instead of a false "sent".
  */
-export async function issueVerificationCode(userId: string, email: string): Promise<void> {
+export async function issueVerificationCode(userId: string, email: string): Promise<IssueCodeResult> {
   const rl = rateLimit(`verify-code-issue:${userId}`, {
     maxRequests: MAX_ISSUANCES_PER_HOUR,
     windowMs: 60 * 60_000,
   })
   if (rl.limited) {
     logger.warn('Verification code re-issuance rate-limited for this account', { userId })
-    return
+    return { sent: false, limited: true }
   }
 
   const code = generateCode()
@@ -73,4 +83,5 @@ export async function issueVerificationCode(userId: string, email: string): Prom
       logger.warn(`Verification code for ${email} (no email sent): ${code}`)
     }
   }
+  return { sent, limited: false }
 }

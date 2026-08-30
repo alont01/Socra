@@ -17,10 +17,35 @@ export const POST = route('auth/resend-verification', async (request: Request) =
   const email = parsed.data.email.toLowerCase().trim()
 
   const user = await prisma.user.findUnique({ where: { email } })
-  // Only (re)issue for an existing, still-unverified account. Always return
-  // generic success to avoid leaking which emails exist.
-  if (user && !user.emailVerified) {
-    await issueVerificationCode(user.id, email)
+
+  // No account for this email: stay generic to avoid leaking which emails
+  // exist — the client can't tell this apart from a normal send.
+  if (!user) return NextResponse.json({ success: true })
+
+  // Already verified: nothing to resend, and unlike the "no account" case
+  // there's no enumeration risk in saying so — the caller is looking at their
+  // own email on the verify screen. Mirrors verify-email's `alreadyVerified`.
+  if (user.emailVerified) {
+    return NextResponse.json(
+      { error: 'This email is already verified. Please sign in.', alreadyVerified: true },
+      { status: 409 },
+    )
+  }
+
+  // From here the account is real and unverified, so a failed send is worth
+  // reporting truthfully — the client already knows this address exists.
+  const result = await issueVerificationCode(user.id, email)
+  if (result.limited) {
+    return NextResponse.json(
+      { error: 'Too many codes requested. Please wait a bit and try again.' },
+      { status: 429 },
+    )
+  }
+  if (!result.sent) {
+    return NextResponse.json(
+      { error: 'Could not send the email right now. Please try again in a few minutes.' },
+      { status: 502 },
+    )
   }
 
   return NextResponse.json({ success: true })

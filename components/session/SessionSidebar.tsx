@@ -158,58 +158,60 @@ export function SessionSidebar({
         </button>
       </div>
 
-      {/* Tab content */}
-      {tab === 'notes' ? (
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-stone-900 text-sm">Session Notes</h3>
-            {saveState === 'error' ? (
-              <button
-                onClick={flush}
-                className="text-xs font-medium text-red-600 hover:text-red-700"
-              >
-                Not saved — retry
-              </button>
-            ) : (
-              <span
-                className="text-xs text-stone-400"
-                aria-live="polite"
-              >
-                {saveState === 'saving'
-                  ? 'Saving…'
-                  : saveState === 'unsaved'
-                  ? 'Unsaved'
-                  : saveState === 'saved'
-                  ? 'Saved'
-                  : ''}
-              </span>
-            )}
-          </div>
-          <textarea
-            value={notes}
-            onChange={(e) => handleChange(e.target.value)}
-            onBlur={handleBlur}
-            placeholder="Type your session notes here..."
-            className="flex-1 w-full resize-none text-sm text-stone-700 placeholder:text-stone-300 focus:outline-none"
-          />
+      {/* Tab content — all three stay mounted; only visibility toggles.
+          Practice and Assessment each hold their own in-flight state (edited
+          answers, "Sent to student", mastery, the in-progress assessment) that
+          used to be destroyed and rebuilt from scratch on every tab switch —
+          a tutor who corrected an answer, then checked Notes, then came back
+          to send it, silently lost the correction and sent the AI's original
+          answer instead. */}
+      <div className={tab === 'notes' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-stone-900 text-sm">Session Notes</h3>
+          {saveState === 'error' ? (
+            <button
+              onClick={flush}
+              className="text-xs font-medium text-red-600 hover:text-red-700"
+            >
+              Not saved — retry
+            </button>
+          ) : (
+            <span
+              className="text-xs text-stone-400"
+              aria-live="polite"
+            >
+              {saveState === 'saving'
+                ? 'Saving…'
+                : saveState === 'unsaved'
+                ? 'Unsaved'
+                : saveState === 'saved'
+                ? 'Saved'
+                : ''}
+            </span>
+          )}
         </div>
-      ) : tab === 'practice' ? (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <LivePracticePanel
-            sessionId={sessionId}
-            problems={problems}
-            studentAnswers={studentAnswers}
-            onProblemsGenerated={onProblemsGenerated}
-            onSendToStudent={onSendToStudent}
-            onClear={onClearProblems}
-            onOverride={onOverride}
-          />
-        </div>
-      ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <AssessmentPanel sessionId={sessionId} callFrame={callFrame} defaultTopic={sessionTopic} />
-        </div>
-      )}
+        <textarea
+          value={notes}
+          onChange={(e) => handleChange(e.target.value)}
+          onBlur={handleBlur}
+          placeholder="Type your session notes here..."
+          className="flex-1 w-full resize-none text-sm text-stone-700 placeholder:text-stone-300 focus:outline-none"
+        />
+      </div>
+      <div className={tab === 'practice' ? 'flex-1 min-h-0 overflow-y-auto' : 'hidden'}>
+        <LivePracticePanel
+          sessionId={sessionId}
+          problems={problems}
+          studentAnswers={studentAnswers}
+          onProblemsGenerated={onProblemsGenerated}
+          onSendToStudent={onSendToStudent}
+          onClear={onClearProblems}
+          onOverride={onOverride}
+        />
+      </div>
+      <div className={tab === 'assessment' ? 'flex-1 min-h-0 overflow-y-auto' : 'hidden'}>
+        <AssessmentPanel sessionId={sessionId} callFrame={callFrame} defaultTopic={sessionTopic} />
+      </div>
     </div>
   )
 }

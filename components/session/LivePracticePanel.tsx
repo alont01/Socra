@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { RichContent } from '@/components/visuals/RichContent'
 import { fetchWithTimeout, isTimeoutError } from '@/lib/client-fetch-timeout'
@@ -43,6 +43,21 @@ export function LivePracticePanel({
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [generateError, setGenerateError] = useState('')
+
+  // `mastery` used to be populated only by a successful Generate response, so
+  // every fresh open of this panel showed "No mastery data yet" — even for a
+  // student with a full history — until the tutor had already generated a
+  // set once. Fetch the real snapshot up front instead.
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/tutoring-sessions/${sessionId}/live-practice`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.studentMastery) setMastery(data.studentMastery)
+      })
+      .catch(() => { /* non-fatal — Generate's response still populates this as a fallback */ })
+    return () => { cancelled = true }
+  }, [sessionId])
 
   const generateProblems = async () => {
     setGenerating(true)

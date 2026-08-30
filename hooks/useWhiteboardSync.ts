@@ -35,6 +35,10 @@ const CHUNK_SIZE = 2000
 interface UseWhiteboardSyncOptions {
   callFrame: DailyCall | null
   isTutor: boolean
+  // Whether the tutor currently has the board toggled on. Only meaningful for
+  // the tutor side — used solely to answer 'whiteboard:request-state'
+  // truthfully (see below).
+  isActive?: boolean
   onRemoteStateReceived?: (json: string) => void
   onWhiteboardStarted?: () => void
   onWhiteboardStopped?: () => void
@@ -50,6 +54,7 @@ function chunkString(s: string, size: number): string[] {
 export function useWhiteboardSync({
   callFrame,
   isTutor,
+  isActive = false,
   onRemoteStateReceived,
   onWhiteboardStarted,
   onWhiteboardStopped,
@@ -59,6 +64,11 @@ export function useWhiteboardSync({
   const seqRef = useRef(0)
   // Reassembly buffer for the snapshot currently being received (student side).
   const bufRef = useRef<{ mid: string; n: number; parts: string[]; count: number } | null>(null)
+  // Mirrors `isActive` into a ref so the app-message handler (registered once
+  // per callFrame identity, not re-subscribed on every toggle) always reads
+  // the current value rather than whatever it was when the effect last ran.
+  const isActiveRef = useRef(isActive)
+  useEffect(() => { isActiveRef.current = isActive }, [isActive])
 
   // Split a full-canvas snapshot into chunks and broadcast them (tutor only).
   const sendSnapshot = useCallback(
@@ -139,10 +149,31 @@ export function useWhiteboardSync({
           if (!isTutor) onWhiteboardStopped?.()
           break
         case 'whiteboard:request-state':
-          // A (re)joining student asks for the current board; reply with the
-          // latest full snapshot. Empty board → nothing to send (already blank).
-          if (isTutor && latestCanvasJsonRef.current) {
-            sendSnapshot(latestCanvasJsonRef.current)
+          // A (re)joining student asks for the current board. The reply used
+          // to be purely content-driven — send a snapshot if one exists, say
+          // nothing otherwise — which gets both toggle states wrong:
+          //   - board OFF but drawn-on earlier: latestCanvasJsonRef still
+          //     holds that content, so replaying it made the student's panel
+          //     open with stale drawings while the tutor's own view stayed
+          //     hidden.
+          //   - board ON but still blank: there's no snapshot to send (no
+          //     stroke has happened yet), so the student got no reply at all
+          //     and saw nothing while the tutor talked over a visibly open
+          //     board.
+          // Replying with the actual on/off state first — mirroring the live
+          // toggle broadcast from sendWhiteboardStart/Stop — fixes both: the
+          // student's board opens only when the tutor's really is open, even
+          // if there's nothing drawn on it yet, and never reopens from a
+          // stale snapshot after the tutor has turned it off.
+          if (isTutor) {
+            if (isActiveRef.current) {
+              const startMsg: WhiteboardSignal = { type: 'whiteboard:start' }
+              callFrame.sendAppMessage(startMsg, '*')
+              if (latestCanvasJsonRef.current) sendSnapshot(latestCanvasJsonRef.current)
+            } else {
+              const stopMsg: WhiteboardSignal = { type: 'whiteboard:stop' }
+              callFrame.sendAppMessage(stopMsg, '*')
+            }
           }
           break
       }

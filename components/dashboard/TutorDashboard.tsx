@@ -54,8 +54,13 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
 
   // An outage used to be indistinguishable from a brand-new account: both
   // rendered the "no students yet" empty state.
-  const load = useCallback(() => {
-    setLoading(true)
+  //
+  // `silent` skips the full-page loading state — used for a background
+  // refresh (accepting a student-match offer) where blowing away the whole
+  // tree would also unmount <TutorOffers> mid-render, taking its "You're now
+  // matched with X 🎉" confirmation down with it.
+  const load = useCallback((opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true)
     setLoadError(false)
     Promise.all([
       fetch('/api/tutor/students').then((r) => { if (!r.ok) throw new Error(); return r.json() }),
@@ -68,7 +73,7 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
     }).catch(() => {
       setLoadError(true)
     }).finally(() => {
-      setLoading(false)
+      if (!opts.silent) setLoading(false)
     })
   }, [])
 
@@ -158,12 +163,12 @@ export function TutorDashboard({ tutorName }: TutorDashboardProps) {
               Your students and sessions are still here — this was a connection problem.
             </p>
           </div>
-          <Button size="sm" variant="secondary" onClick={load}>Try again</Button>
+          <Button size="sm" variant="secondary" onClick={() => load()}>Try again</Button>
         </div>
       )}
 
       {/* Pending student-match offers */}
-      <TutorOffers />
+      <TutorOffers onAccepted={() => load({ silent: true })} />
 
       {/* New Session form */}
       {showNewSession && (

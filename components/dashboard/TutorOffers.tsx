@@ -14,9 +14,14 @@ interface Offer {
   expiresAt: string
 }
 
+interface TutorOffersProps {
+  /** Called once accept succeeds, so the roster/session list can pick up the new student. */
+  onAccepted?: () => void
+}
+
 // Pending student-match offers, shown at the top of the tutor dashboard.
 // First tutor to accept wins; this component is self-contained.
-export function TutorOffers() {
+export function TutorOffers({ onAccepted }: TutorOffersProps) {
   const [offers, setOffers] = useState<Offer[] | null>(null)
   const [busy, setBusy] = useState<string>('')
   const [note, setNote] = useState('')
@@ -51,7 +56,13 @@ export function TutorOffers() {
         load()
         return
       }
-      if (action === 'accept') setNote(`You're now matched with ${data.student || 'this student'}. 🎉`)
+      if (action === 'accept') {
+        setNote(`You're now matched with ${data.student || 'this student'}. 🎉`)
+        // The roster and "New session" student picker were left showing the
+        // pre-accept snapshot until a manual reload — the tutor's very next
+        // action (starting a session with this student) had nowhere to go.
+        onAccepted?.()
+      }
       setOffers((prev) => (prev ? prev.filter((o) => o.id !== id) : prev))
     } catch {
       setError('Network error. Please try again.')

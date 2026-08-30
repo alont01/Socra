@@ -84,15 +84,27 @@ function VerifyForm() {
     setError('')
     setResent(false)
     try {
-      await fetch('/api/auth/resend-verification', {
+      const res = await fetch('/api/auth/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (data.alreadyVerified) {
+          router.replace(`/auth${next ? `?next=${encodeURIComponent(next)}` : ''}`)
+          return
+        }
+        // A 429 still starts the cooldown — spamming the button while rate-
+        // limited would just re-trigger the same error every click.
+        setError(data.error || 'Could not resend. Please try again.')
+        startCooldown()
+        return
+      }
       setResent(true)
       startCooldown()
     } catch {
-      setError('Could not resend. Please try again.')
+      setError('Network error. Please try again.')
     }
   }
 
