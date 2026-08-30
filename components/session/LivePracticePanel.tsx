@@ -3,8 +3,14 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { RichContent } from '@/components/visuals/RichContent'
+import { fetchWithTimeout, isTimeoutError } from '@/lib/client-fetch-timeout'
 import type { PracticeProblem } from '@/lib/ai/types'
 import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
+
+// Generation is an AI call with no server-side deadline (lib/ai/client.ts).
+// Without a client-side ceiling a stuck provider leaves the tutor's button
+// spinning indefinitely, live with a student, with no way out.
+const LIVE_PRACTICE_TIMEOUT_MS = 30_000
 
 interface MasteryEntry {
   topic: string
@@ -16,7 +22,7 @@ interface LivePracticePanelProps {
   problems: PracticeProblem[]
   studentAnswers: Map<string, StudentAnswerResult>
   onProblemsGenerated: (problems: PracticeProblem[]) => void
-  onSendToStudent: (problems: PracticeProblem[]) => void
+  onSendToStudent: (problems: PracticeProblem[]) => boolean
   onClear: () => void
   onOverride: (problemId: string, problemTopic: string) => void
 }
@@ -45,11 +51,11 @@ export function LivePracticePanel({
     setGenerateError('')
     setSendError('')
     try {
-      const res = await fetch(`/api/tutoring-sessions/${sessionId}/live-practice`, {
+      const res = await fetchWithTimeout(`/api/tutoring-sessions/${sessionId}/live-practice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'practice', tutorNotes: '' }),
-      })
+      }, LIVE_PRACTICE_TIMEOUT_MS)
       if (res.ok) {
         const data = await res.json()
         onProblemsGenerated(data.problems)
@@ -60,8 +66,12 @@ export function LivePracticePanel({
       // again while the student waits.
       const data = await res.json().catch(() => ({}))
       setGenerateError(data.error || 'Could not generate problems. Try again.')
-    } catch {
-      setGenerateError('Network error — could not generate problems.')
+    } catch (err) {
+      setGenerateError(
+        isTimeoutError(err)
+          ? 'This is taking longer than expected. Please try again.'
+          : 'Network error — could not generate problems.',
+      )
     } finally {
       setGenerating(false)
     }
@@ -117,7 +127,14 @@ export function LivePracticePanel({
         onProblemsGenerated(finalProblems)
       }
 
-      onSendToStudent(finalProblems)
+      // A false here means the call isn't connected — the student got
+      // nothing. Flipping to "Sent" anyway told the tutor the problems were
+      // in front of the student when they weren't.
+      const delivered = onSendToStudent(finalProblems)
+      if (!delivered) {
+        setSendError("Could not reach the student — they may not be connected yet. Try again once they're back.")
+        return
+      }
       setSent(true)
     } catch {
       setSendError('Network error — nothing was sent. Try again.')

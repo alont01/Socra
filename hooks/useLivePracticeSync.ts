@@ -48,14 +48,20 @@ export function useLivePracticeSync({
   const lastSentRef = useRef<string | null>(null)
 
   const sendProblems = useCallback(
-    (problems: PracticeProblem[]) => {
-      if (!callFrame || !isTutor) return
+    // Returns whether the broadcast actually went out (a live callFrame to
+    // send it through) — the caller flips its UI to "Sent to student" off
+    // this, so a false here must not be swallowed. Without it, a tutor whose
+    // Daily join hadn't resolved yet (or had failed) saw "Sent" while the
+    // student's panel received nothing.
+    (problems: PracticeProblem[]): boolean => {
+      if (!callFrame || !isTutor) return false
       // Strip answers before sending to student
       const safe = problems.map(({ answer, ...rest }) => rest)
       const payload = JSON.stringify(safe)
       lastSentRef.current = payload
       const msg: PracticeMessage = { type: 'practice:problems', payload }
       callFrame.sendAppMessage(msg, '*')
+      return true
     },
     [callFrame, isTutor]
   )

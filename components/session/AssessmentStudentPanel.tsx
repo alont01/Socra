@@ -4,8 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { RichContent } from '@/components/visuals/RichContent'
 import { Button } from '@/components/ui/Button'
 import { useAssessmentSync } from '@/hooks/useAssessmentSync'
+import { fetchWithTimeout, isTimeoutError } from '@/lib/client-fetch-timeout'
 import type { AssessmentData } from '@/types'
 import type { DailyCall } from '@daily-co/daily-js'
+
+// Grading calls generateAssessmentItem for the next problem — an AI call with
+// no server-side deadline (lib/ai/client.ts). Without a client-side ceiling a
+// stuck provider leaves Submit spinning indefinitely with no way out.
+const ASSESSMENT_TIMEOUT_MS = 45_000
 
 interface AssessmentStudentPanelProps {
   sessionId: string
@@ -51,6 +57,7 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
 
   const { notifyChanged, notifyGenerating } = useAssessmentSync({
     callFrame,
+    isTutor: false,
     onChanged: useCallback(() => {
       if (feedback) pendingReloadRef.current = true
       else load()
@@ -66,11 +73,11 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
     // rather than leaving their panel claiming the student hasn't answered.
     notifyGenerating()
     try {
-      const res = await fetch(`/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/answer`, {
+      const res = await fetchWithTimeout(`/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId: assessment.currentItem.id, answer: answer.trim() }),
-      })
+      }, ASSESSMENT_TIMEOUT_MS)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.error || 'Could not submit your answer.')
@@ -90,8 +97,12 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
       // forever, even though grading and mastery are already correct
       // server-side.
       notifyChanged()
-    } catch {
-      setError('Network error — check your connection.')
+    } catch (err) {
+      setError(
+        isTimeoutError(err)
+          ? 'This is taking longer than expected. Please try again.'
+          : 'Network error — check your connection.',
+      )
       notifyChanged()
     } finally {
       setSubmitting(false)

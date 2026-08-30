@@ -25,7 +25,7 @@ describe('useAssessmentSync', () => {
     const call = fakeCall()
     const onChanged = jest.fn()
     const onGenerating = jest.fn()
-    renderHook(() => useAssessmentSync({ callFrame: call.frame, onChanged, onGenerating }))
+    renderHook(() => useAssessmentSync({ callFrame: call.frame, isTutor: true, onChanged, onGenerating }))
 
     act(() => { call.deliver({ type: 'assessment:generating' }) })
     expect(onGenerating).toHaveBeenCalledTimes(1)
@@ -38,8 +38,10 @@ describe('useAssessmentSync', () => {
 
   it('broadcasts both signals', () => {
     const call = fakeCall()
+    // isTutor: true so mount doesn't also fire the student's auto
+    // 'assessment:request-state' send into the same `sent` array.
     const { result } = renderHook(() =>
-      useAssessmentSync({ callFrame: call.frame, onChanged: jest.fn() }),
+      useAssessmentSync({ callFrame: call.frame, isTutor: true, onChanged: jest.fn() }),
     )
     act(() => { result.current.notifyGenerating() })
     act(() => { result.current.notifyChanged() })
@@ -53,7 +55,7 @@ describe('useAssessmentSync', () => {
     const call = fakeCall()
     const onChanged = jest.fn()
     const onGenerating = jest.fn()
-    renderHook(() => useAssessmentSync({ callFrame: call.frame, onChanged, onGenerating }))
+    renderHook(() => useAssessmentSync({ callFrame: call.frame, isTutor: true, onChanged, onGenerating }))
     act(() => { call.deliver({ type: 'whiteboard:changed' }) })
     act(() => { call.deliver(undefined) })
     expect(onChanged).not.toHaveBeenCalled()
@@ -62,13 +64,13 @@ describe('useAssessmentSync', () => {
 
   it('tolerates a missing onGenerating handler', () => {
     const call = fakeCall()
-    renderHook(() => useAssessmentSync({ callFrame: call.frame, onChanged: jest.fn() }))
+    renderHook(() => useAssessmentSync({ callFrame: call.frame, isTutor: true, onChanged: jest.fn() }))
     expect(() => act(() => { call.deliver({ type: 'assessment:generating' }) })).not.toThrow()
   })
 
   it('does not send before the call frame exists', () => {
     const { result } = renderHook(() =>
-      useAssessmentSync({ callFrame: null, onChanged: jest.fn() }),
+      useAssessmentSync({ callFrame: null, isTutor: false, onChanged: jest.fn() }),
     )
     expect(() => act(() => { result.current.notifyGenerating() })).not.toThrow()
   })
@@ -76,10 +78,37 @@ describe('useAssessmentSync', () => {
   it('unsubscribes on unmount', () => {
     const call = fakeCall()
     const { unmount } = renderHook(() =>
-      useAssessmentSync({ callFrame: call.frame, onChanged: jest.fn() }),
+      useAssessmentSync({ callFrame: call.frame, isTutor: true, onChanged: jest.fn() }),
     )
     expect(call.listenerCount()).toBe(1)
     unmount()
     expect(call.listenerCount()).toBe(0)
+  })
+
+  // A tutor start/override/end fires notifyChanged() while the student's
+  // callFrame isn't ready yet (still connecting to Daily) — that broadcast
+  // goes nowhere and nothing on either side reports it as failed, since the
+  // tutor's own view already updated from the API response. The student side
+  // asks for the current state on mount so a missed broadcast is caught up.
+  it('student requests state on mount; tutor replies with a fresh changed signal', () => {
+    const student = fakeCall()
+    renderHook(() => useAssessmentSync({ callFrame: student.frame, isTutor: false, onChanged: jest.fn() }))
+    expect(student.sent).toEqual([{ type: 'assessment:request-state' }])
+
+    const tutor = fakeCall()
+    const onChanged = jest.fn()
+    renderHook(() => useAssessmentSync({ callFrame: tutor.frame, isTutor: true, onChanged }))
+    act(() => { tutor.deliver({ type: 'assessment:request-state' }) })
+    expect(tutor.sent).toEqual([{ type: 'assessment:changed' }])
+    // The tutor's own onChanged must not fire off its own reply.
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('a student ignores a request-state message (only the tutor replies)', () => {
+    const call = fakeCall()
+    renderHook(() => useAssessmentSync({ callFrame: call.frame, isTutor: false, onChanged: jest.fn() }))
+    call.sent.length = 0 // clear the mount-time auto-request
+    act(() => { call.deliver({ type: 'assessment:request-state' }) })
+    expect(call.sent).toEqual([])
   })
 })

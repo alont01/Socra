@@ -115,6 +115,8 @@ export default function AdminBillingPage() {
         return
       }
       toast('Invoice sent!', 'success')
+    } catch {
+      toast('Network error — could not send the invoice.', 'error')
     } finally {
       setSendingId(null)
       // Always refresh: a failed send still changes the row's state to `failed`,
@@ -157,6 +159,8 @@ export default function AdminBillingPage() {
           skipped > 0 ? 'error' : 'success',
         )
       }
+    } catch {
+      toast('Network error — the bulk run may be partially complete. Check the rows below.', 'error')
     } finally {
       setBulkSending(false)
       load()
@@ -177,6 +181,8 @@ export default function AdminBillingPage() {
         return
       }
       toast(data.updated > 0 ? `Updated ${data.updated} of ${data.checked}.` : `All ${data.checked} up to date.`, 'success')
+    } catch {
+      toast('Network error — could not sync from Stripe.', 'error')
     } finally {
       setSyncing(false)
       load()

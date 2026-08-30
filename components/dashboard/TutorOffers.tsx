@@ -20,18 +20,25 @@ export function TutorOffers() {
   const [offers, setOffers] = useState<Offer[] | null>(null)
   const [busy, setBusy] = useState<string>('')
   const [note, setNote] = useState('')
+  const [error, setError] = useState('')
+  // A failed offers fetch used to collapse to the same empty-list render as
+  // "nothing pending" — a pending match offer silently vanished from the
+  // dashboard instead of showing a way to retry.
+  const [loadFailed, setLoadFailed] = useState(false)
 
   const load = () => {
+    setLoadFailed(false)
     fetch('/api/tutor/offers')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => setOffers(d.offers))
-      .catch(() => setOffers([]))
+      .catch(() => setLoadFailed(true))
   }
   useEffect(load, [])
 
   const respond = async (id: string, action: 'accept' | 'decline') => {
     setBusy(id)
     setNote('')
+    setError('')
     try {
       const res = await fetch(`/api/tutor/offers/${id}/respond`, {
         method: 'POST',
@@ -40,21 +47,32 @@ export function TutorOffers() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setNote(data.error || 'Something went wrong.')
+        setError(data.error || 'Something went wrong.')
         load()
         return
       }
       if (action === 'accept') setNote(`You're now matched with ${data.student || 'this student'}. 🎉`)
       setOffers((prev) => (prev ? prev.filter((o) => o.id !== id) : prev))
     } catch {
-      setNote('Network error. Please try again.')
+      setError('Network error. Please try again.')
     } finally {
       setBusy('')
     }
   }
 
+  if (loadFailed) {
+    return (
+      <p className="text-sm text-stone-500">
+        Couldn&apos;t load your pending student matches.{' '}
+        <button onClick={load} className="font-medium text-orange-600 hover:text-orange-700">Try again</button>
+      </p>
+    )
+  }
+
   if (!offers || offers.length === 0) {
-    return note ? <p className="text-sm text-green-700">{note}</p> : null
+    if (note) return <p className="text-sm text-green-700">{note}</p>
+    if (error) return <p className="text-sm text-red-600">{error}</p>
+    return null
   }
 
   return (
@@ -66,6 +84,7 @@ export function TutorOffers() {
         <Link href="/tutor/availability" className="text-xs text-orange-600 hover:text-orange-700">Edit availability →</Link>
       </div>
       {note && <p className="text-sm text-green-700 mb-3">{note}</p>}
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
       <div className="space-y-3">
         {offers.map((o) => (
           <div key={o.id} className="rounded-2xl ring-1 ring-stone-100 p-4">

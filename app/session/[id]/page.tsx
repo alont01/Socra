@@ -18,6 +18,7 @@ import type { StudentAnswerResult } from '@/hooks/useLivePracticeSync'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Navbar } from '@/components/Navbar'
 import { useToast } from '@/hooks/useToast'
+import { fetchWithTimeout, isTimeoutError } from '@/lib/client-fetch-timeout'
 import type { DailyCall } from '@daily-co/daily-js'
 import type { PracticeProblem } from '@/lib/ai/types'
 import type { TutoringSessionData } from '@/types'
@@ -26,6 +27,11 @@ import type { TutoringSessionData } from '@/types'
 // app/api/tutoring-sessions/[id]/live-transcript/route.ts) — no point buffering
 // more client-side than the server will ever store.
 const FULL_TRANSCRIPT_MAX_CHARS = 20_000
+
+// Room creation / meeting-token issuance is a single external Daily call with
+// no server-side deadline (lib/daily.ts's fetches carry no signal) — bound it
+// client-side so a stalled Daily API doesn't leave Start/Join spinning forever.
+const DAILY_CALL_TIMEOUT_MS = 20_000
 
 export default function SessionPage({
   params,
@@ -109,8 +115,8 @@ export default function SessionPage({
     }, []),
   })
 
-  const handleSendToStudent = useCallback((problems: PracticeProblem[]) => {
-    sendProblems(problems)
+  const handleSendToStudent = useCallback((problems: PracticeProblem[]): boolean => {
+    return sendProblems(problems)
   }, [sendProblems])
 
   const handleClearProblems = useCallback(() => {
@@ -161,13 +167,17 @@ export default function SessionPage({
     // the current value directly and sending the signal before the update is
     // both correct and no less current: this handler only ever runs from a
     // click, never during a render.
-    if (whiteboardActive) {
-      sendWhiteboardStop()
-    } else {
-      sendWhiteboardStart()
+    //
+    // The send can no-op (callFrame not ready yet) — flipping the tutor's own
+    // toggle anyway used to show the board on their screen while the student's
+    // client never got the start/stop signal at all.
+    const delivered = whiteboardActive ? sendWhiteboardStop() : sendWhiteboardStart()
+    if (!delivered) {
+      toast('Not connected to the call yet — try again in a moment.', 'error')
+      return
     }
     setWhiteboardActive((prev) => !prev)
-  }, [whiteboardActive, sendWhiteboardStart, sendWhiteboardStop])
+  }, [whiteboardActive, sendWhiteboardStart, sendWhiteboardStop, toast])
 
   // Start transcription when the tutor joins the call. If it can't start (e.g.
   // the Daily plan doesn't include transcription), tell the tutor so they know
@@ -297,11 +307,11 @@ export default function SessionPage({
   }, [user, id, isTutor, inCall, session?.status])
 
   const fetchMeetingToken = useCallback(async (): Promise<boolean> => {
-    const tokenRes = await fetch('/api/daily/token', {
+    const tokenRes = await fetchWithTimeout('/api/daily/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: id }),
-    })
+    }, DAILY_CALL_TIMEOUT_MS)
     if (tokenRes.ok) {
       const tokenData = await tokenRes.json()
       setMeetingToken(tokenData.token)
@@ -315,11 +325,11 @@ export default function SessionPage({
     setJoining(true)
     try {
       // Activate session (creates Daily room)
-      const patchRes = await fetch(`/api/tutoring-sessions/${id}`, {
+      const patchRes = await fetchWithTimeout(`/api/tutoring-sessions/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'active' }),
-      })
+      }, DAILY_CALL_TIMEOUT_MS)
       if (!patchRes.ok) {
         toast('Could not start the session. Please try again.', 'error')
         return
@@ -340,8 +350,13 @@ export default function SessionPage({
       } else {
         toast('Could not connect to the video room. Please try again.', 'error')
       }
-    } catch {
-      toast('Something went wrong starting the session.', 'error')
+    } catch (err) {
+      toast(
+        isTimeoutError(err)
+          ? 'Starting the session is taking longer than expected. Please try again.'
+          : 'Something went wrong starting the session.',
+        'error',
+      )
     } finally {
       setJoining(false)
     }
@@ -360,8 +375,13 @@ export default function SessionPage({
       } else {
         toast('Could not connect to the video room. Please try again.', 'error')
       }
-    } catch {
-      toast('Something went wrong joining the session.', 'error')
+    } catch (err) {
+      toast(
+        isTimeoutError(err)
+          ? 'Connecting is taking longer than expected. Please try again.'
+          : 'Something went wrong joining the session.',
+        'error',
+      )
     } finally {
       setJoining(false)
     }
@@ -464,7 +484,9 @@ export default function SessionPage({
             isTutor={isTutor}
             onJoin={joinSession}
             onStart={startSession}
+            onEnd={endSession}
             joining={joining}
+            ending={ending}
           />
         </main>
       </div>

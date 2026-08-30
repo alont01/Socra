@@ -5,6 +5,11 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingDots } from '@/components/ui/LoadingDots'
 import { useToast } from '@/hooks/useToast'
+import { fetchWithTimeout, isTimeoutError } from '@/lib/client-fetch-timeout'
+
+// generatePracticeSet is an AI call with no server-side deadline (lib/ai/client.ts).
+// Without a client-side ceiling a stuck provider leaves "Generate set" spinning forever.
+const GENERATE_SET_TIMEOUT_MS = 45_000
 
 interface Problem {
   id: string
@@ -29,18 +34,25 @@ export function HomeworkManager({ sessionId }: { sessionId: string }) {
   const { toast } = useToast()
   const [sets, setSets] = useState<HomeworkSet[]>([])
   const [fetching, setFetching] = useState(true)
+  // A failed load used to fall through to "No homework yet" — indistinguishable
+  // from a session with nothing generated, and a tutor who clicked "Generate
+  // set" on it created a duplicate of a draft that was already there.
+  const [loadError, setLoadError] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   // Discarding throws away a set the tutor may have spent minutes editing.
   const [confirmingDiscard, setConfirmingDiscard] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    setFetching(true)
+    setLoadError(false)
     try {
       const res = await fetch(`/api/tutor/practice-sets?sessionId=${sessionId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setSets(data.practiceSets || [])
-      }
+      if (!res.ok) { setLoadError(true); return }
+      const data = await res.json()
+      setSets(data.practiceSets || [])
+    } catch {
+      setLoadError(true)
     } finally {
       setFetching(false)
     }
@@ -101,11 +113,11 @@ export function HomeworkManager({ sessionId }: { sessionId: string }) {
   const generate = async () => {
     setGenerating(true)
     try {
-      const res = await fetch('/api/tutor/practice-sets', {
+      const res = await fetchWithTimeout('/api/tutor/practice-sets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId }),
-      })
+      }, GENERATE_SET_TIMEOUT_MS)
       const data = await res.json()
       if (!res.ok) {
         toast(data.error || 'Failed to generate homework', 'error')
@@ -113,8 +125,13 @@ export function HomeworkManager({ sessionId }: { sessionId: string }) {
       }
       setSets((prev) => [data.practiceSet, ...prev])
       toast('Draft homework generated', 'success')
-    } catch {
-      toast('Failed to generate homework', 'error')
+    } catch (err) {
+      toast(
+        isTimeoutError(err)
+          ? 'This is taking longer than expected. Please try again.'
+          : 'Failed to generate homework',
+        'error',
+      )
     } finally {
       setGenerating(false)
     }
@@ -204,6 +221,11 @@ export function HomeworkManager({ sessionId }: { sessionId: string }) {
       {fetching ? (
         <div className="flex justify-center py-8">
           <LoadingDots />
+        </div>
+      ) : loadError ? (
+        <div className="py-4 text-center">
+          <p className="text-sm text-stone-500 mb-2">Couldn&apos;t load homework for this session.</p>
+          <Button size="sm" variant="ghost" onClick={load}>Try again</Button>
         </div>
       ) : sets.length === 0 ? (
         <p className="text-sm text-stone-500 py-4">

@@ -13,7 +13,7 @@ interface SessionSidebarProps {
   problems: PracticeProblem[]
   studentAnswers: Map<string, StudentAnswerResult>
   onProblemsGenerated: (problems: PracticeProblem[]) => void
-  onSendToStudent: (problems: PracticeProblem[]) => void
+  onSendToStudent: (problems: PracticeProblem[]) => boolean
   onClearProblems: () => void
   onOverride: (problemId: string, problemTopic: string) => void
   callFrame: DailyCall | null

@@ -12,10 +12,13 @@ interface JoinCallCardProps {
   isTutor: boolean
   onJoin: () => void
   onStart: () => void
+  /** Ends the session outright, without rejoining the video call first. Tutor only. */
+  onEnd?: () => void
   joining: boolean
+  ending?: boolean
 }
 
-export function JoinCallCard({ sessionId, topic, studentName, tutorName, status, isTutor, onJoin, onStart, joining }: JoinCallCardProps) {
+export function JoinCallCard({ sessionId, topic, studentName, tutorName, status, isTutor, onJoin, onStart, onEnd, joining, ending }: JoinCallCardProps) {
   const isScheduled = status === 'scheduled'
 
   return (
@@ -41,6 +44,32 @@ export function JoinCallCard({ sessionId, topic, studentName, tutorName, status,
           <Button size="lg" className="w-full" onClick={onStart} loading={joining}>
             Start Session
           </Button>
+        ) : status === 'active' && isTutor ? (
+          /* Landing here as the tutor with the session already active means
+             they left the call (the Daily leave button, a dropped connection)
+             without clicking End — the session is still open and still
+             billing. Without an End affordance here, the only way back was
+             rejoining the video call just to reach the End button inside it. */
+          <div className="space-y-3">
+            <p className="text-sm text-amber-700 bg-amber-50 ring-1 ring-amber-200/70 rounded-xl px-3.5 py-2.5">
+              This session is still active. Rejoin if you&apos;re still teaching — otherwise end it below; it keeps billing until it does.
+            </p>
+            <Button size="lg" className="w-full" onClick={onJoin} loading={joining} disabled={ending}>
+              Rejoin Session
+            </Button>
+            {onEnd && (
+              <Button
+                size="lg"
+                variant="ghost"
+                className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                onClick={onEnd}
+                loading={ending}
+                disabled={joining}
+              >
+                End Session
+              </Button>
+            )}
+          </div>
         ) : status === 'active' ? (
           <Button size="lg" className="w-full" onClick={onJoin} loading={joining}>
             Join Session

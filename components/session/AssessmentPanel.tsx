@@ -5,8 +5,14 @@ import { RichContent } from '@/components/visuals/RichContent'
 import { Button } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useAssessmentSync } from '@/hooks/useAssessmentSync'
+import { fetchWithTimeout, isTimeoutError } from '@/lib/client-fetch-timeout'
 import type { AssessmentData } from '@/types'
 import type { DailyCall } from '@daily-co/daily-js'
+
+// Starting generates the first item — an AI call with no server-side deadline
+// (lib/ai/client.ts). Without a client-side ceiling a stuck provider leaves
+// "Start assessment" spinning indefinitely with no way out.
+const ASSESSMENT_TIMEOUT_MS = 45_000
 
 interface AssessmentPanelProps {
   sessionId: string
@@ -58,6 +64,7 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
 
   const { notifyChanged } = useAssessmentSync({
     callFrame,
+    isTutor: true,
     onChanged: useCallback(() => { clearGenerating(); load() }, [load, clearGenerating]),
     onGenerating: useCallback(() => {
       setGenerating(true)
@@ -74,17 +81,21 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
     setStarting(true)
     setError('')
     try {
-      const res = await fetch(`/api/tutoring-sessions/${sessionId}/assessment`, {
+      const res = await fetchWithTimeout(`/api/tutoring-sessions/${sessionId}/assessment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: defaultTopic }),
-      })
+      }, ASSESSMENT_TIMEOUT_MS)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(data.error || 'Could not start the assessment.'); return }
       setAssessment(data.assessment)
       notifyChanged()
-    } catch {
-      setError('Network error — could not start the assessment.')
+    } catch (err) {
+      setError(
+        isTimeoutError(err)
+          ? 'This is taking longer than expected. Please try again.'
+          : 'Network error — could not start the assessment.',
+      )
     } finally {
       setStarting(false)
     }

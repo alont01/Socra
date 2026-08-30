@@ -3,10 +3,15 @@
 import { useState } from 'react'
 import { useCameraCapture } from '@/hooks/useCameraCapture'
 import { useToast } from '@/hooks/useToast'
+import { fetchWithTimeout, isTimeoutError } from '@/lib/client-fetch-timeout'
 
 interface CaptureNotesButtonProps {
   sessionId: string
 }
+
+// A vision AI call with no server-side deadline (lib/ai/client.ts). Without a
+// client-side ceiling a stuck provider leaves "Sending..." spinning forever.
+const CAPTURE_NOTES_TIMEOUT_MS = 30_000
 
 export function CaptureNotesButton({ sessionId }: CaptureNotesButtonProps) {
   const { captureFrame, capturing } = useCameraCapture()
@@ -34,11 +39,11 @@ export function CaptureNotesButton({ sessionId }: CaptureNotesButtonProps) {
     try {
       // Strip data URL prefix to get raw base64
       const base64 = preview.replace(/^data:image\/\w+;base64,/, '')
-      const res = await fetch(`/api/tutoring-sessions/${sessionId}/capture-notes`, {
+      const res = await fetchWithTimeout(`/api/tutoring-sessions/${sessionId}/capture-notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: base64 }),
-      })
+      }, CAPTURE_NOTES_TIMEOUT_MS)
 
       if (res.ok) {
         setCaptureCount((c) => c + 1)
@@ -48,8 +53,13 @@ export function CaptureNotesButton({ sessionId }: CaptureNotesButtonProps) {
         const data = await res.json()
         toast(data.error || 'Failed to capture notes', 'error')
       }
-    } catch {
-      toast('Failed to send captured notes', 'error')
+    } catch (err) {
+      toast(
+        isTimeoutError(err)
+          ? 'This is taking longer than expected. Please try again.'
+          : 'Failed to send captured notes',
+        'error',
+      )
     } finally {
       setSending(false)
     }

@@ -86,16 +86,18 @@ export function useWhiteboardSync({
     [callFrame, isTutor, sendSnapshot],
   )
 
-  const sendWhiteboardStart = useCallback(() => {
-    if (!callFrame || !isTutor) return
+  const sendWhiteboardStart = useCallback((): boolean => {
+    if (!callFrame || !isTutor) return false
     const msg: WhiteboardSignal = { type: 'whiteboard:start' }
     callFrame.sendAppMessage(msg, '*')
+    return true
   }, [callFrame, isTutor])
 
-  const sendWhiteboardStop = useCallback(() => {
-    if (!callFrame || !isTutor) return
+  const sendWhiteboardStop = useCallback((): boolean => {
+    if (!callFrame || !isTutor) return false
     const msg: WhiteboardSignal = { type: 'whiteboard:stop' }
     callFrame.sendAppMessage(msg, '*')
+    return true
   }, [callFrame, isTutor])
 
   useEffect(() => {
