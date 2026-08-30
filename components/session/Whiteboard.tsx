@@ -219,6 +219,16 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
   }, [isTutor, activeTool, activeColor, strokeWidth, canvasReady])
 
   // Student: apply remote canvas state
+  //
+  // `canvasReady` must be a dependency, not just a guard: the canvas is built
+  // asynchronously (dynamic `import('fabric')` in the init effect), so on a
+  // fresh mount this effect can run BEFORE fabricCanvasRef.current exists —
+  // exactly the case for a student who (re)joins mid-session, since the
+  // 'whiteboard:request-state' reply arrives and sets `remoteCanvasState`
+  // right as the component mounts. Without `canvasReady` in the deps, that
+  // first snapshot is silently dropped and never reapplied once the canvas
+  // finishes initializing — the student is left staring at a blank board
+  // until the tutor's next stroke.
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas || isTutor || !remoteCanvasState) return
@@ -230,7 +240,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
     }).catch(() => {
       isUpdatingRef.current = false
     })
-  }, [isTutor, remoteCanvasState])
+  }, [isTutor, remoteCanvasState, canvasReady])
 
   const handleEraseSelected = useCallback(() => {
     const canvas = fabricCanvasRef.current

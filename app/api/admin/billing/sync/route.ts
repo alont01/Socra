@@ -6,16 +6,16 @@ import { monthBounds } from '@/lib/billing'
 import { BillingNotConfiguredError, fetchInvoiceStatus } from '@/lib/stripe-invoicing'
 import { createLogger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
-import { parseBody } from '@/lib/validations'
+import { parseBody, yearMonthSchema } from '@/lib/validations'
 
 const logger = createLogger('admin/billing/sync')
 
 const syncSchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/, 'month must be YYYY-MM'),
+  month: yearMonthSchema,
 })
 
 /** Local statuses that Stripe can still move. */
-const OPEN_STATUSES = ['pending', 'sent', 'failed']
+const OPEN_STATUSES = ['pending', 'sent', 'failed', 'payment_failed']
 
 /**
  * Stripe statuses this route is allowed to write locally, mapped onto the
@@ -80,6 +80,13 @@ export const POST = route('admin/billing/sync', async (request: Request) => {
     }
     if (!remote) continue
 
+    // A `payment_failed` row whose Stripe invoice is still merely 'open'
+    // hasn't resolved either way yet — Stripe's own retry schedule may still
+    // collect it. Mapping 'open' onto plain 'sent' below would downgrade the
+    // decline this row exists to record; leave it until Stripe reports it
+    // paid, uncollectible, or void.
+    if (invoice.status === 'payment_failed' && remote.status === 'open') continue
+
     const localStatus = STATUS_MAP[remote.status]
     if (!localStatus) {
       // `draft` (send never completed) or an unrecognized future Stripe
@@ -102,7 +109,14 @@ export const POST = route('admin/billing/sync', async (request: Request) => {
         // Stamp now, not the payment time: this reflects when we learned of it,
         // and keeps a genuinely older webhook from overwriting what we just read.
         statusUpdatedAt: new Date(),
-        lastError: localStatus === 'failed' ? 'Payment failed — see Stripe for the decline reason.' : null,
+        // `localStatus` only ever holds a value from STATUS_MAP (sent/paid/
+        // uncollectible/void) — 'payment_failed' rows are filtered out above
+        // whenever Stripe still reports 'open', so this route never WRITES
+        // payment_failed itself. Clearing lastError here is therefore correct
+        // for every reachable status: Stripe moving a payment_failed invoice on
+        // to paid/uncollectible/void means the decline is resolved, one way or
+        // the other, and the stale reason shouldn't linger.
+        lastError: null,
       },
     })
     updated++

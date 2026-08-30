@@ -77,6 +77,16 @@ export const GET = route('parent/billing', async () => {
     .map((c) => ({ studentId: c.id, name: c.name, hours: Number((hoursByChild.get(c.id) ?? 0).toFixed(2)) }))
     .filter((c) => c.hours > 0)
   const currentHours = currentChildren.reduce((sum, c) => sum + c.hours, 0)
+  // Priced the same way lib/billing.ts's aggregateBilling prices the real
+  // invoice: summed per-child, each rounded to the nearest cent, rather than
+  // rounding the combined total once. For an integer HOURLY_RATE_USD the two
+  // agree, but a fractional rate can round each child's cents differently
+  // than it rounds the total — and this is an estimate the eventual invoice
+  // must never come in ABOVE.
+  const estimatedAmountCents = currentChildren.reduce(
+    (sum, c) => sum + Math.round(c.hours * config.billing.hourlyRateUsd * 100),
+    0,
+  )
 
   // Not yet invoiced — an estimate, and labelled as one by the UI.
   const alreadyInvoiced = invoices.some(
@@ -89,7 +99,7 @@ export const GET = route('parent/billing', async () => {
       start,
       end,
       hours: Number(currentHours.toFixed(2)),
-      estimatedAmountCents: Math.round(currentHours * config.billing.hourlyRateUsd * 100),
+      estimatedAmountCents,
       children: currentChildren,
       alreadyInvoiced,
     },

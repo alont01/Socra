@@ -25,11 +25,21 @@ export const POST = route('tutoring-sessions/[id]/end', async (request: Request,
   if (session.status === 'completed') {
     return NextResponse.json({ session })
   }
+  // Ending only makes sense for a session actually in progress. PATCH's own
+  // transition table (app/api/tutoring-sessions/[id]/route.ts) treats
+  // `scheduled` and `cancelled` as not endable — `{ status: { not: 'completed' } }`
+  // below didn't enforce that here, so a stale tab or a mistimed client call
+  // could flip a `cancelled` (or never-started `scheduled`) session straight to
+  // `completed` and fire the full AI analysis pipeline on a session that never
+  // happened.
+  if (session.status !== 'active') {
+    return NextResponse.json({ error: `Cannot end a session that is '${session.status}'` }, { status: 400 })
+  }
 
-  // Atomic conditional update: only transition to completed if not already completed.
+  // Atomic conditional update: only transition to completed if still active.
   // This prevents double-processing from concurrent end requests.
   const result = await prisma.tutoringSession.updateMany({
-    where: { id, status: { not: 'completed' } },
+    where: { id, status: 'active' },
     data: {
       status: 'completed',
       endedAt: new Date(),

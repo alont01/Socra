@@ -195,11 +195,29 @@ export type CompiledExpr = (scope: Record<string, number>) => number
  * can't be parsed. The returned function evaluates against a scope of variable
  * values (e.g. { x: 2, a: 1 }) and returns NaN for out-of-domain results.
  */
+// No legitimate answer or plot expression needs anywhere near this many
+// characters. `parse` recurses once per nesting level (a run of `(((...`),
+// so an unbounded string is an unbounded call stack — a deeply nested input
+// (tens of thousands of parens) overflows it with a RangeError before this
+// function gets a chance to return null. Rejecting up front is cheaper than
+// parsing, and catching the overflow below is the backstop for anything that
+// still gets through under this length.
+const MAX_EXPR_LENGTH = 500
+
 export function compileExpr(src: string): CompiledExpr | null {
-  if (typeof src !== 'string' || !src.trim()) return null
-  const toks = tokenize(src)
-  if (!toks || toks.length === 0) return null
-  const ast = parse(toks)
+  if (typeof src !== 'string' || !src.trim() || src.length > MAX_EXPR_LENGTH) return null
+  let toks: Tok[] | null
+  let ast: Node | null
+  try {
+    toks = tokenize(src)
+    if (!toks || toks.length === 0) return null
+    ast = parse(toks)
+  } catch {
+    // Pathological nesting can overflow the call stack (RangeError) before
+    // hitting the length guard above in some shapes — never let a crafted
+    // answer string crash the request that's grading it.
+    return null
+  }
   if (!ast) return null
   return (scope: Record<string, number>) => {
     try {

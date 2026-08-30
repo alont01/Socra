@@ -5,11 +5,11 @@ import { route } from '@/lib/api-handler'
 import { getMonthlyBilling, monthBounds } from '@/lib/billing'
 import { claimAndSendInvoice, type SendFailureCode } from '@/lib/billing-send'
 import { recordAudit, auditContext } from '@/lib/audit'
-import { parseBody } from '@/lib/validations'
+import { parseBody, yearMonthSchema } from '@/lib/validations'
 
 const sendSchema = z.object({
   parentId: z.string().min(1),
-  month: z.string().regex(/^\d{4}-\d{2}$/, 'month must be YYYY-MM'),
+  month: yearMonthSchema,
 })
 
 /** HTTP status for each expected send failure. */

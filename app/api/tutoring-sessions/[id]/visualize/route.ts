@@ -36,7 +36,13 @@ export const POST = route(
     const whiteboardImage = rawImage.length <= 1_500_000 ? rawImage : ''
     // Modify loop: the tutor previews a draft and types a change to refine it.
     const instruction = typeof body.instruction === 'string' ? body.instruction.slice(0, 500) : ''
-    const currentSpec = body.currentSpec && typeof body.currentSpec === 'object' ? body.currentSpec : null
+    // Every other field on this body is bounded before it reaches the prompt;
+    // this one wasn't — an arbitrarily large object serialized straight in at
+    // line 64 below, unlike its siblings. It's normally a spec this same route
+    // just returned, so it's small in practice; cap it defensively rather than
+    // trusting that always holds.
+    const rawCurrentSpec = body.currentSpec && typeof body.currentSpec === 'object' ? body.currentSpec : null
+    const currentSpec = rawCurrentSpec && JSON.stringify(rawCurrentSpec).length <= 20_000 ? rawCurrentSpec : null
 
     const session = await prisma.tutoringSession.findUnique({
       where: { id },

@@ -112,9 +112,17 @@ model Invoice {
   amountCents     Int
   stripeInvoiceId String?       @unique
   stripeInvoiceUrl String?
-  // pending  — claimed locally, Stripe call not yet confirmed
-  // sent     — finalized and emailed to the parent
-  // paid | failed | uncollectible | void — driven by Stripe webhooks
+  // pending        — claimed locally, Stripe call not yet confirmed
+  // failed         — OUR send attempt errored before reaching Stripe (or was
+  //                  never confirmed) — retryable; claimPeriod reclaims it.
+  // sent           — finalized and emailed to the parent, driven by webhooks
+  // payment_failed — the invoice reached the family and Stripe reports the
+  //                  payment itself was declined. Distinct from `failed`:
+  //                  the Stripe invoice already exists and is still open, so
+  //                  this must NOT be retried through claimPeriod (that would
+  //                  create a second invoice for the same hours) — see
+  //                  lib/billing-send.ts TERMINAL_STATUSES.
+  // paid | uncollectible | void — driven by Stripe webhooks
   status          String        @default("pending")
   sentAt          DateTime?
   paidAt          DateTime?
@@ -242,7 +250,19 @@ model Assessment {
   tutoringSession   TutoringSession @relation(fields: [tutoringSessionId], references: [id], onDelete: Cascade)
   studentId         String
   topic             String
-  status            String   @default("in_progress") // in_progress | completed
+  // in_progress -> completing -> completed. "completing" is a short-lived claim
+  // (see completeAssessment) held while the holistic summary/mastery seeding
+  // runs, so a concurrent completion attempt (tutor "End" racing the student's
+  // last answer) can't double-run that work.
+  status            String   @default("in_progress")
+  // When the current `completing` claim was taken. A thrown error during
+  // completion rolls the claim back to `in_progress` immediately (see
+  // completeAssessment's try/catch), but nothing can catch a process that
+  // dies mid-flight (a deploy, an OOM) — this is what lets a later attempt
+  // detect and take over a claim old enough to be abandoned, the same
+  // pattern lib/billing-send.ts uses for a stuck `pending` invoice claim.
+  // Null once not claimed (never claimed, or completed/rolled back).
+  completingAt      DateTime?
   currentLevel      Int      @default(5) // 1-10 ladder position
   itemCount         Int      @default(0)
   startedAt         DateTime @default(now())

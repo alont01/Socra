@@ -238,14 +238,19 @@ export function integrationAlertEmailHtml(rows: IntegrationAlertRow[], recovered
     .map((r) => {
       const color = STATUS_COLOR[r.status] ?? '#78716c'
       const transition = r.from ? `${r.from} → ${r.status}` : r.status
+      // `detail` isn't always a fixed string — some probes fold a caught
+      // error's message into it (lib/integrations.ts), which can carry
+      // whatever an upstream provider's response happened to contain. Escape
+      // it (and `impact`, `label` for consistency) like every other
+      // interpolated value in this file that isn't fixed or server-computed.
       return `
       <div style="border:1px solid #ffedd5;border-radius:12px;padding:14px 16px;margin-bottom:10px;background:#fffdf9;">
         <div style="font-size:15px;font-weight:700;color:#1c1917;">
-          ${r.label}${r.required ? ' <span style="font-size:11px;font-weight:600;color:#b91c1c;">· required</span>' : ''}
+          ${escapeHtml(r.label)}${r.required ? ' <span style="font-size:11px;font-weight:600;color:#b91c1c;">· required</span>' : ''}
         </div>
-        <div style="font-size:13px;font-weight:600;color:${color};margin-top:4px;">${transition}</div>
-        <div style="font-size:13px;color:#57534e;margin-top:6px;line-height:1.5;">${r.detail}</div>
-        ${r.status !== 'ok' ? `<div style="font-size:12px;color:#78716c;margin-top:6px;line-height:1.5;">${r.impact}</div>` : ''}
+        <div style="font-size:13px;font-weight:600;color:${color};margin-top:4px;">${escapeHtml(transition)}</div>
+        <div style="font-size:13px;color:#57534e;margin-top:6px;line-height:1.5;">${escapeHtml(r.detail)}</div>
+        ${r.status !== 'ok' ? `<div style="font-size:12px;color:#78716c;margin-top:6px;line-height:1.5;">${escapeHtml(r.impact)}</div>` : ''}
       </div>`
     })
     .join('')

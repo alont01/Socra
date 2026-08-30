@@ -115,14 +115,19 @@ describe('POST /api/stripe/webhook', () => {
     )
   })
 
-  it('marks a failed payment', async () => {
+  it('marks a failed payment distinctly from a failed send', async () => {
+    // `payment_failed` is its own status, distinct from the local `failed`
+    // lib/billing-send.ts writes when OUR send attempt never reached Stripe —
+    // conflating them let a bulk re-run "retry" a declined payment by opening
+    // a second Stripe invoice for the same hours (see lib/billing-send.ts
+    // TERMINAL_STATUSES).
     withStripe(invoiceEvent({ id: 'evt_2', type: 'invoice.payment_failed' }))
     p.invoice.findUnique.mockResolvedValue(localInvoice())
 
     await call()
 
     expect(p.invoice.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ status: 'payment_failed' }) }),
     )
   })
 

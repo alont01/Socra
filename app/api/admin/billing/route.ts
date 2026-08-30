@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getMonthlyBilling, monthBounds } from '@/lib/billing'
 import { route } from '@/lib/api-handler'
 import { config } from '@/lib/config'
+import { yearMonthSchema } from '@/lib/validations'
 
 // This month's (or a requested month's) billable hours per family, cross-
 // referenced against already-sent invoices so the admin view can show status
@@ -14,7 +15,11 @@ export const GET = route('admin/billing', async (request: Request) => {
 
   const { searchParams } = new URL(request.url)
   const monthParam = searchParams.get('month') // "2026-08"
-  if (monthParam && !/^\d{4}-\d{2}$/.test(monthParam)) {
+  // A month with an out-of-range MM (e.g. "2026-13") parses to Invalid Date
+  // below and fails deep inside the Prisma query with an opaque 500 instead
+  // of the 400 this check exists to give — validate the month is real, not
+  // just shaped like one.
+  if (monthParam && !yearMonthSchema.safeParse(monthParam).success) {
     return NextResponse.json({ error: 'month must be YYYY-MM' }, { status: 400 })
   }
   const reference = monthParam ? new Date(`${monthParam}-01T00:00:00Z`) : new Date()

@@ -6,12 +6,12 @@ import { getMonthlyBilling, monthBounds } from '@/lib/billing'
 import { claimAndSendInvoice } from '@/lib/billing-send'
 import { recordAudit, auditContext } from '@/lib/audit'
 import { createLogger } from '@/lib/logger'
-import { parseBody } from '@/lib/validations'
+import { parseBody, yearMonthSchema } from '@/lib/validations'
 
 const logger = createLogger('admin/billing/send-all')
 
 const sendAllSchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/, 'month must be YYYY-MM'),
+  month: yearMonthSchema,
 })
 
 /**

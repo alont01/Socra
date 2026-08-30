@@ -35,19 +35,41 @@ export const POST = route('parent-invites/redeem', async (request: Request) => {
     return NextResponse.json({ error: 'This student is already linked to a parent' }, { status: 409 })
   }
 
-  // Atomically claim the invite so concurrent redemptions can't double-link.
-  const claim = await prisma.parentInvite.updateMany({
-    where: { id: invite.id, status: 'pending' },
-    data: { status: 'redeemed', redeemedByParentId: parent.id, redeemedAt: new Date() },
-  })
-  if (claim.count === 0) {
-    return NextResponse.json({ error: 'This invite has already been used' }, { status: 409 })
-  }
+  // Claiming the invite and linking the student must succeed or fail together.
+  // Two different pending invites for the SAME student (e.g. issued by two
+  // different tutors, or reissued) can be redeemed by two different parents at
+  // once — each claims its own invite row (they don't collide with each other)
+  // and then both proceeded to unconditionally overwrite `parentId`, so the
+  // second write silently reparented the child regardless of the check above,
+  // which only reads a stale snapshot. Scoping the student update to
+  // `parentId: null` inside the same transaction as the invite claim makes the
+  // whole thing atomic: whichever request's transaction commits first wins
+  // both writes, and the loser's student update matches zero rows, throws, and
+  // rolls its invite claim back to `pending` rather than leaving a redeemed
+  // invite that never actually linked anyone.
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claim = await tx.parentInvite.updateMany({
+        where: { id: invite.id, status: 'pending' },
+        data: { status: 'redeemed', redeemedByParentId: parent.id, redeemedAt: new Date() },
+      })
+      if (claim.count === 0) throw new Error('INVITE_TAKEN')
 
-  await prisma.studentProfile.update({
-    where: { id: student.id },
-    data: { parentId: parent.id },
-  })
+      const linked = await tx.studentProfile.updateMany({
+        where: { id: student.id, OR: [{ parentId: null }, { parentId: parent.id }] },
+        data: { parentId: parent.id },
+      })
+      if (linked.count === 0) throw new Error('STUDENT_ALREADY_LINKED')
+    })
+  } catch (err) {
+    if (err instanceof Error && err.message === 'INVITE_TAKEN') {
+      return NextResponse.json({ error: 'This invite has already been used' }, { status: 409 })
+    }
+    if (err instanceof Error && err.message === 'STUDENT_ALREADY_LINKED') {
+      return NextResponse.json({ error: 'This student is already linked to a parent' }, { status: 409 })
+    }
+    throw err
+  }
 
   recordAudit({
     action: 'parent.link',

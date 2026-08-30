@@ -15,11 +15,21 @@ export const dynamic = 'force-dynamic'
 /**
  * Invoice lifecycle events we act on, mapped to the local status they set.
  * Anything else Stripe sends is acknowledged and ignored.
+ *
+ * `invoice.payment_failed` maps to its own `payment_failed` status, distinct
+ * from the local `failed` that `lib/billing-send.ts` writes when OUR OWN send
+ * attempt errored out before reaching Stripe. Those used to share one string,
+ * and `claimPeriod`'s takeover logic treats `failed` as "the send never went
+ * through, retry it" — which is true for a send-side failure but not for a
+ * declined payment on an invoice that already reached the family. Collapsing
+ * them let a bulk re-run "retry" a payment decline by creating a brand-new
+ * Stripe invoice for the same hours: a second bill, and the decline itself
+ * silently overwritten back to `sent` once the retry landed.
  */
 const STATUS_BY_EVENT: Record<string, string> = {
   'invoice.paid': 'paid',
   'invoice.payment_succeeded': 'paid',
-  'invoice.payment_failed': 'failed',
+  'invoice.payment_failed': 'payment_failed',
   'invoice.marked_uncollectible': 'uncollectible',
   'invoice.voided': 'void',
 }
@@ -115,7 +125,7 @@ export const POST = route('stripe/webhook', async (request: Request) => {
       stripeEventId: event.id,
       paidAt: status === 'paid' ? (paidAtSeconds ? new Date(paidAtSeconds * 1000) : eventAt) : local.paidAt,
       stripeInvoiceUrl: invoice.hosted_invoice_url ?? local.stripeInvoiceUrl,
-      lastError: status === 'failed' ? 'Payment failed — see Stripe for the decline reason.' : null,
+      lastError: status === 'payment_failed' ? 'Payment failed — see Stripe for the decline reason.' : null,
     },
   })
 

@@ -38,8 +38,19 @@ export type SendFailureCode =
  */
 const PENDING_TAKEOVER_MS = 10 * 60_000
 
-/** Statuses that mean "this period is settled — don't touch it again". */
-const TERMINAL_STATUSES = new Set(['sent', 'paid', 'void', 'uncollectible'])
+/**
+ * Statuses that mean "don't touch this period again through claimPeriod".
+ *
+ * Most of these mean settled (paid/void/uncollectible) or already delivered
+ * (sent). `payment_failed` isn't settled — the Stripe invoice is still open
+ * and may yet be paid or written off — but it must be just as untouchable
+ * here: the invoice already reached the family, so claiming this row for a
+ * fresh send would create a SECOND Stripe invoice for the same hours instead
+ * of resuming the one that's just awaiting payment. It is not in the OR list
+ * `claimPeriod` reclaims a row on below, so this is defense in depth for that
+ * intent rather than the primary guard.
+ */
+const TERMINAL_STATUSES = new Set(['sent', 'paid', 'void', 'uncollectible', 'payment_failed'])
 
 function isUniqueViolation(err: unknown): boolean {
   return !!err && typeof err === 'object' && (err as { code?: string }).code === 'P2002'

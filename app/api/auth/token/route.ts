@@ -25,16 +25,21 @@ export const POST = route('auth/token', async (request: Request) => {
   if ('error' in parsed) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
-  const { email: rawEmail, password } = parsed.data
-  const email = rawEmail.toLowerCase().trim()
+  // Identifier is an email OR a username (parent-created student accounts).
+  // /api/auth/login accepts both; this route only checked email, which meant
+  // a parent-created child — who signs in with a username and has no real
+  // email at all — could never sign in from the mobile app.
+  const { email: rawIdentifier, password } = parsed.data
+  const identifier = rawIdentifier.toLowerCase().trim()
+  const isEmail = identifier.includes('@')
 
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: isEmail ? { email: identifier } : { username: identifier },
     include: { studentProfile: true, parentProfile: true, tutorProfile: true },
   })
 
   if (!user || !user.passwordHash || !(await comparePassword(password, user.passwordHash))) {
-    recordAudit({ action: 'auth.token', status: 'failure', actor: { email }, ...ctx, metadata: { client: 'mobile' } })
+    recordAudit({ action: 'auth.token', status: 'failure', actor: { email: identifier }, ...ctx, metadata: { client: 'mobile' } })
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
   }
 

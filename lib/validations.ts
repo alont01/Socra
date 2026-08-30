@@ -98,11 +98,13 @@ export const onboardingCompleteSchema = z.object({
 
 export const chatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
-  content: z.string().min(1),
+  content: z.string().min(1).max(8000),
 })
 
 export const chatSchema = z.object({
-  messages: z.array(chatMessageSchema).min(1, 'At least one message is required'),
+  // Capped so a client can't grow the request (and the model's context/cost)
+  // without bound by replaying an ever-longer history.
+  messages: z.array(chatMessageSchema).min(1, 'At least one message is required').max(100),
   // The problem the student is looking at while they ask, so the assistant can
   // help with THIS question instead of guessing from "I'm stuck". Question text
   // only — the answer key never leaves the server.
@@ -139,7 +141,9 @@ export const dailyTokenSchema = z.object({
 
 export const practiceAttemptSchema = z.object({
   problemIndex: z.number().int().min(0),
-  studentAnswer: z.string().min(1, 'Answer is required'),
+  // No real answer needs anywhere near this much text; capped so a crafted
+  // answer can't reach the math evaluator's parser with a pathological input.
+  studentAnswer: z.string().min(1, 'Answer is required').max(500),
 })
 
 // ── Live Practice ──
@@ -151,7 +155,7 @@ export const livePracticeSchema = z.object({
 
 export const livePracticeAnswerSchema = z.object({
   problemId: z.string().min(1),
-  answer: z.string().min(1),
+  answer: z.string().min(1).max(500),
   answerToken: z.string().min(1),
 })
 
@@ -163,7 +167,7 @@ export const assessmentStartSchema = z.object({
 
 export const assessmentAnswerSchema = z.object({
   itemId: z.string().min(1),
-  answer: z.string().min(1),
+  answer: z.string().min(1).max(500),
 })
 
 export const assessmentOverrideSchema = z.object({
@@ -187,6 +191,21 @@ export const consultationSchema = z.object({
   message: z.string().trim().max(2000).optional().or(z.literal('')),
   source: z.string().trim().max(60).optional().or(z.literal('')),
 })
+
+// ── Admin billing ──
+
+/**
+ * "YYYY-MM" naming a billing period, with a real calendar month (01–12).
+ *
+ * A plain `\d{4}-\d{2}` shape accepted "2026-13" and "2026-00" — syntactically
+ * fine, but `new Date('2026-13-01T00:00:00Z')` is an Invalid Date (JS does not
+ * clamp out-of-range ISO fields), which propagates into `monthBounds` as NaN
+ * bounds and fails deep inside the Prisma query with an opaque 500, instead of
+ * the 400 the validation at this boundary exists to give.
+ */
+export const yearMonthSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'month must be YYYY-MM')
 
 // ── Utility for parsing and returning errors ──
 

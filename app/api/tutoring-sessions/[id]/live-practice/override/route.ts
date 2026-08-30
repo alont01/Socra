@@ -62,9 +62,24 @@ export const POST = route('tutoring-sessions/[id]/live-practice/override', async
       // the tutor over.
       return NextResponse.json({ success: true, alreadyApplied: true })
     }
+
+    // The claim just proved this row exists and names a real problem the
+    // student was graded on — read its topic back and apply the compensating
+    // bump to THAT, not to `problemTopic` from the request body. Applying the
+    // client-supplied topic instead of the claimed row's own would let a
+    // tutor (or a stale/buggy client) move mastery on a topic never actually
+    // practiced in this exchange.
+    const attempt = await prisma.livePracticeAttempt.findUnique({
+      where: { tutoringSessionId_problemId: { tutoringSessionId: id, problemId } },
+      select: { topic: true },
+    })
+    await updateMasteryScore(session.student.id, attempt?.topic || problemTopic, true)
+    return NextResponse.json({ success: true })
   }
 
-  // Apply a correct score to compensate for the earlier incorrect one
+  // No problemId: an older client sent only a topic, with no stored attempt to
+  // verify it against. Kept for backward compatibility, but unlike the path
+  // above this isn't idempotent and can't be checked against a real record.
   await updateMasteryScore(session.student.id, problemTopic, true)
 
   return NextResponse.json({ success: true })

@@ -39,6 +39,11 @@ function money(cents: number) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
+// `failed` means OUR send attempt never reached Stripe — retryable, so it
+// still needs invoicing. `payment_failed` means the invoice DID reach the
+// family and Stripe reports the payment itself was declined — that invoice
+// is still open and awaiting resolution, so it must NOT show a Send/Retry
+// button (which would create a second Stripe invoice for the same hours).
 /** A family still needs invoicing unless a live invoice already covers them. */
 function needsInvoice(row: BillingRow) {
   return !row.invoice || row.invoice.status === 'failed'
@@ -49,6 +54,7 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   sent: { label: 'Awaiting payment', className: 'bg-blue-100 text-blue-700' },
   pending: { label: 'In progress…', className: 'bg-stone-100 text-stone-600' },
   failed: { label: '⚠ Failed', className: 'bg-red-100 text-red-700' },
+  payment_failed: { label: '⚠ Payment declined', className: 'bg-red-100 text-red-700' },
   uncollectible: { label: 'Uncollectible', className: 'bg-red-100 text-red-700' },
   void: { label: 'Voided', className: 'bg-stone-100 text-stone-500' },
 }
