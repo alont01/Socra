@@ -78,12 +78,15 @@ export const POST = route('tutoring-sessions', async (request: Request) => {
   }
   const { studentId, topic, scheduledAt, scheduledMinutes } = parsed.data
 
-  // Validate student is in tutor's roster
+  // Validate student is in tutor's roster. A row with status 'ended' (the
+  // tutor previously dropped this student) still matches the composite key
+  // lookup — without the status check here, a tutor could keep creating
+  // billable sessions for a student they no longer have on their roster.
   if (studentId) {
     const rosterEntry = await prisma.tutorStudent.findUnique({
       where: { tutorId_studentId: { tutorId: auth.tutor.id, studentId } },
     })
-    if (!rosterEntry) {
+    if (!rosterEntry || rosterEntry.status !== 'active') {
       return NextResponse.json({ error: 'Student is not in your roster' }, { status: 403 })
     }
   }

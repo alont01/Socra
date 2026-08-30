@@ -44,12 +44,12 @@ export async function runIntegrationMonitor(): Promise<MonitorResult> {
   // Reading and writing state must never sink the whole check. The database is
   // one of the things being monitored, so an outage here has to still produce a
   // usable report and an alert — not a 500 that says nothing about why.
-  let previousByKey = new Map<string, { key: string; status: string; lastOkAt: Date | null }>()
+  let previousByKey = new Map<string, { key: string; status: string; lastOkAt: Date | null; alertedAt: Date | null }>()
   let stateUnavailable = false
   try {
     const previous = await prisma.integrationCheck.findMany({
       where: { key: { in: results.map((r) => r.key) } },
-      select: { key: true, status: true, lastOkAt: true },
+      select: { key: true, status: true, lastOkAt: true, alertedAt: true },
     })
     previousByKey = new Map(previous.map((p) => [p.key, p]))
   } catch (err) {
@@ -61,7 +61,15 @@ export async function runIntegrationMonitor(): Promise<MonitorResult> {
 
   for (const result of results) {
     const before = previousByKey.get(result.key)
-    if (!before || before.status !== result.status) {
+    const statusChanged = !before || before.status !== result.status
+    // Status hasn't moved, but the LAST attempt to tell anyone about it never
+    // actually landed (the send failed, or the state write itself failed) —
+    // `alertedAt` stayed null. Without this, a persistent outage that fails to
+    // alert once is never retried, because nothing about `status` moves again
+    // to trigger the check above. This matters most for exactly the case
+    // where it's easy to miss: Resend itself being the broken integration.
+    const stillBrokenUnalerted = !!before && !statusChanged && result.status !== 'ok' && !before.alertedAt
+    if (statusChanged || stillBrokenUnalerted) {
       // A first-ever observation counts as a transition only when it's already
       // broken — otherwise the very first deploy would alert that everything
       // "changed" to healthy.

@@ -83,6 +83,8 @@ export function AssessmentPanel({ sessionId, callFrame, defaultTopic }: Assessme
       if (!res.ok) { setError(data.error || 'Could not start the assessment.'); return }
       setAssessment(data.assessment)
       notifyChanged()
+    } catch {
+      setError('Network error — could not start the assessment.')
     } finally {
       setStarting(false)
     }

@@ -17,9 +17,12 @@ async function creatorRoleFor(userId: string, studentId: string): Promise<'TUTOR
   if (!tutor) return null
   const link = await prisma.tutorStudent.findUnique({
     where: { tutorId_studentId: { tutorId: tutor.id, studentId } },
-    select: { id: true },
+    select: { status: true },
   })
-  return link ? 'TUTOR' : null
+  // A row with status 'ended' (this tutor previously dropped the student)
+  // still matches — without this check a tutor could keep minting parent-link
+  // invites for a student no longer on their roster.
+  return link?.status === 'active' ? 'TUTOR' : null
 }
 
 export const POST = route('parent-invites', async (request: Request) => {

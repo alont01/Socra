@@ -9,18 +9,22 @@ interface CaptureNotesButtonProps {
 }
 
 export function CaptureNotesButton({ sessionId }: CaptureNotesButtonProps) {
-  const { captureFrame, capturing, error: cameraError } = useCameraCapture()
+  const { captureFrame, capturing } = useCameraCapture()
   const { toast } = useToast()
   const [preview, setPreview] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [captureCount, setCaptureCount] = useState(0)
 
   const handleCapture = async () => {
-    const dataUrl = await captureFrame()
+    // Read the error off this call's result, not the hook's `error` state —
+    // that state lags a render behind, so the FIRST denial (state still at
+    // its initial null) showed no toast at all; only a second tap surfaced
+    // the previous attempt's message.
+    const { dataUrl, error } = await captureFrame()
     if (dataUrl) {
       setPreview(dataUrl)
-    } else if (cameraError) {
-      toast(cameraError, 'error')
+    } else if (error) {
+      toast(error, 'error')
     }
   }
 

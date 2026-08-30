@@ -21,6 +21,12 @@ function svgToDataUrl(svg: string) {
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
 }
 
+// The heaviest AI call in the app (visualizeMaxTokens: 16000, plus a
+// whiteboard image in the payload) with nothing else here able to time out
+// on its own. Without a ceiling, a slow or stuck call leaves the tutor
+// staring at "Reading the conversation…" indefinitely, live with a student.
+const GENERATE_TIMEOUT_MS = 45_000
+
 // Tutor-only. Generates an AI visualization, previews it privately (the student
 // does NOT see it yet), lets the tutor refine it by typing, and only places it
 // on the shared whiteboard on confirm.
@@ -35,9 +41,21 @@ export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: Visu
   const [loading, setLoading] = useState(false)
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState('')
+  // Disambiguates a stale response (a superseded call, or one that lands
+  // after the panel unmounts) from the one the user is currently waiting on
+  // — without this, closing the panel mid-generation and reopening it (or
+  // typing a second instruction before the first reply lands) could apply an
+  // old response's spec on top of newer state.
+  const requestIdRef = useRef(0)
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
 
   const generate = useCallback(
     async (opts: { instruction?: string; currentSpec?: DrawSpec | null }) => {
+      const myRequestId = ++requestIdRef.current
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS)
+
       setLoading(true)
       setError('')
       try {
@@ -53,7 +71,10 @@ export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: Visu
             instruction: opts.currentSpec ? opts.instruction : undefined,
             currentSpec: opts.currentSpec || undefined,
           }),
+          signal: controller.signal,
         })
+        if (!mountedRef.current || requestIdRef.current !== myRequestId) return
+
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
           setError(data.error || 'Could not generate a visualization.')
@@ -70,9 +91,15 @@ export function VisualizePanel({ sessionId, getContext, onPlace, onClose }: Visu
         }
         setInstruction('')
       } catch {
-        setError('Network error. Please try again.')
+        if (!mountedRef.current || requestIdRef.current !== myRequestId) return
+        setError(
+          controller.signal.aborted
+            ? 'This is taking longer than expected. Try again, or try a simpler instruction.'
+            : 'Network error. Please try again.',
+        )
       } finally {
-        setLoading(false)
+        clearTimeout(timeout)
+        if (mountedRef.current && requestIdRef.current === myRequestId) setLoading(false)
       }
     },
     [sessionId, getContext],

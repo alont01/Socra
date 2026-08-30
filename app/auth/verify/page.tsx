@@ -5,10 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
-
-function safeNext(next: string | null): string | null {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : null
-}
+import { safeRedirectPath } from '@/lib/utils'
 
 function VerifyForm() {
   const router = useRouter()
@@ -16,7 +13,7 @@ function VerifyForm() {
   const { refresh } = useAuth()
 
   const email = searchParams.get('email') || ''
-  const next = safeNext(searchParams.get('next'))
+  const next = safeRedirectPath(searchParams.get('next'))
 
   const [code, setCode] = useState('')
   const [error, setError] = useState('')

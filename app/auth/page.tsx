@@ -7,20 +7,16 @@ import { signIn } from 'next-auth/react'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
+import { safeRedirectPath } from '@/lib/utils'
 
 type Tab = 'login' | 'signup'
 // Public signup is Student or Parent only. Tutor accounts are created by
 // redeeming an admin-issued invite (/tutor/join).
 type Role = 'STUDENT' | 'PARENT'
 
-// Only allow same-origin relative redirects to avoid open-redirect abuse.
-function safeNext(next: string | null): string | null {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : null
-}
-
 function AuthForm() {
   const searchParams = useSearchParams()
-  const next = safeNext(searchParams.get('next'))
+  const next = safeRedirectPath(searchParams.get('next'))
   // An invite link routes here as ?next=/parent/join... — default to the parent
   // role in that case so a new parent lands in the right flow.
   const parentHint = searchParams.get('role') === 'parent' || (next?.startsWith('/parent') ?? false)

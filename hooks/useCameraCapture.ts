@@ -2,11 +2,21 @@
 
 import { useState, useCallback } from 'react'
 
+interface CaptureResult {
+  dataUrl: string | null
+  /** Set alongside a null dataUrl — read this directly, not the hook's
+   * stale `error` state, which reflects the PREVIOUS call until this
+   * component re-renders (a caller reading it in the same tick after
+   * `await captureFrame()` sees last call's value, or null on the first
+   * attempt, so a first-time denial produced no toast at all). */
+  error: string | null
+}
+
 export function useCameraCapture() {
   const [capturing, setCapturing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const captureFrame = useCallback(async (): Promise<string | null> => {
+  const captureFrame = useCallback(async (): Promise<CaptureResult> => {
     setCapturing(true)
     setError(null)
 
@@ -37,20 +47,22 @@ export function useCameraCapture() {
       ctx.drawImage(video, 0, 0)
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
 
-      return dataUrl
+      return { dataUrl, error: null }
     } catch (err) {
+      let message: string
       if (err instanceof DOMException) {
         if (err.name === 'NotAllowedError') {
-          setError('Camera access denied. Please allow camera permissions.')
+          message = 'Camera access denied. Please allow camera permissions.'
         } else if (err.name === 'NotFoundError') {
-          setError('No camera found on this device.')
+          message = 'No camera found on this device.'
         } else {
-          setError(`Camera error: ${err.message}`)
+          message = `Camera error: ${err.message}`
         }
       } else {
-        setError('Failed to capture image.')
+        message = 'Failed to capture image.'
       }
-      return null
+      setError(message)
+      return { dataUrl: null, error: message }
     } finally {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop())

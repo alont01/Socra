@@ -134,5 +134,38 @@ describe('runMatching', () => {
       expect(result.status).toBe('offered')
       expect(p.tutorStudent.upsert).not.toHaveBeenCalled()
     })
+
+    it('excludeTutorId is passed to the accepting-tutors query, so a solo tutor cannot be immediately re-selected after being dropped', async () => {
+      // A tutor just ended the pairing (see DELETE /api/tutor/students/[id]).
+      // Without the exclusion, "the sole accepting tutor" is still that same
+      // tutor, and auto-pair silently reinstates the pairing it was called to
+      // remove. The mock doesn't apply Prisma `where` filters itself, so the
+      // real assertion is on the query args — a real DB filtering `id: {not:
+      // 'solo'}` out is exactly what turns this into an empty result.
+      student([]) // no availability — matches the solo auto-pair path
+      p.tutorProfile.findMany.mockResolvedValue([{ id: 'solo' }])
+      await runMatching('stu1', { excludeTutorId: 'solo' })
+      expect(p.tutorProfile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: { not: 'solo' } }) }),
+      )
+    })
+
+    it('excludeTutorId falls through to no_eligible once the DB has excluded the only candidate', async () => {
+      student([]) // no availability — matches the solo auto-pair path
+      // What a real DB returns once `id: { not: 'solo' }` has done its job.
+      p.tutorProfile.findMany.mockResolvedValue([])
+      const result = await runMatching('stu1', { excludeTutorId: 'solo' })
+      expect(result.status).toBe('no_eligible')
+      expect(p.tutorStudent.upsert).not.toHaveBeenCalled()
+    })
+
+    it('excludeTutorId does not block DEFAULT_TUTOR_EMAIL when it names a different tutor', async () => {
+      process.env.DEFAULT_TUTOR_EMAIL = 'alon@socratutoring.com'
+      p.user.findUnique.mockResolvedValue({ tutorProfile: { id: 'primary' } })
+      student([MON('15:00', '18:00')])
+      const result = await runMatching('stu1', { excludeTutorId: 'someone-else' })
+      expect(result.status).toBe('auto_matched')
+      expect(result.tutorId).toBe('primary')
+    })
   })
 })

@@ -60,13 +60,44 @@ describe('runIntegrationMonitor', () => {
     )
   })
 
-  it('does NOT alert again while the same failure persists', async () => {
+  it('does NOT alert again while the same failure persists (already alerted)', async () => {
     // The whole reason the state table exists: an hourly probe that mailed on
     // every failing run would be filtered within a week.
     p.integrationCheck.findMany.mockResolvedValue([
-      { key: 'anthropic', status: 'unauthorized', lastOkAt: new Date('2026-08-01') },
+      { key: 'anthropic', status: 'unauthorized', lastOkAt: new Date('2026-08-01'), alertedAt: new Date('2026-08-01') },
     ])
     mockCheck.mockResolvedValue([result({ status: 'unauthorized' })])
+
+    const out = await runIntegrationMonitor()
+
+    expect(out.transitions).toEqual([])
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('retries the alert while the same failure persists if the last attempt never sent', async () => {
+    // alertedAt is only stamped after a successful send (see
+    // sendTransitionAlert) — null here means the previous run's email never
+    // went out. Without a retry path this outage would never be reported
+    // again, since `status` itself doesn't change on subsequent runs.
+    p.integrationCheck.findMany.mockResolvedValue([
+      { key: 'anthropic', status: 'unauthorized', lastOkAt: new Date('2026-08-01'), alertedAt: null },
+    ])
+    mockCheck.mockResolvedValue([result({ status: 'unauthorized' })])
+
+    const out = await runIntegrationMonitor()
+
+    expect(out.transitions).toEqual([{ key: 'anthropic', from: 'unauthorized', to: 'unauthorized' }])
+    expect(out.alertSent).toBe(true)
+    expect(mockSend).toHaveBeenCalled()
+  })
+
+  it('does not retry a persisting HEALTHY status just because alertedAt is null', async () => {
+    // alertedAt is never set while status is 'ok' (nothing to alert about), so
+    // it's null on every healthy row — the retry condition must not fire here.
+    p.integrationCheck.findMany.mockResolvedValue([
+      { key: 'anthropic', status: 'ok', lastOkAt: new Date('2026-08-01'), alertedAt: null },
+    ])
+    mockCheck.mockResolvedValue([result({ status: 'ok' })])
 
     const out = await runIntegrationMonitor()
 

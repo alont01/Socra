@@ -155,15 +155,19 @@ export default function SessionPage({
   }, [id, sendOverride, toast])
 
   const toggleWhiteboard = useCallback(() => {
-    setWhiteboardActive((prev) => {
-      if (prev) {
-        sendWhiteboardStop()
-      } else {
-        sendWhiteboardStart()
-      }
-      return !prev
-    })
-  }, [sendWhiteboardStart, sendWhiteboardStop])
+    // The side effect used to live inside the setState updater, which React
+    // may invoke more than once per call (StrictMode double-invokes updaters
+    // in dev) — the whiteboard start/stop signal could double-fire. Reading
+    // the current value directly and sending the signal before the update is
+    // both correct and no less current: this handler only ever runs from a
+    // click, never during a render.
+    if (whiteboardActive) {
+      sendWhiteboardStop()
+    } else {
+      sendWhiteboardStart()
+    }
+    setWhiteboardActive((prev) => !prev)
+  }, [whiteboardActive, sendWhiteboardStart, sendWhiteboardStop])
 
   // Start transcription when the tutor joins the call. If it can't start (e.g.
   // the Daily plan doesn't include transcription), tell the tutor so they know

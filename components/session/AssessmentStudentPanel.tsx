@@ -83,6 +83,13 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
       setAssessment(data.assessment)
       setFeedback(data.justAnswered)
       setAnswer('')
+      // The next problem (or the holistic result, if this was the last one)
+      // now exists — tell the tutor's panel to re-fetch. Without this the
+      // tutor's view is stuck on "writing the next problem…" until the
+      // 90s timeout clears the bar, then reverts to "waiting to answer"
+      // forever, even though grading and mastery are already correct
+      // server-side.
+      notifyChanged()
     } catch {
       setError('Network error — check your connection.')
       notifyChanged()

@@ -33,8 +33,13 @@ export const DELETE = route('tutor/students/[id]', async (_request: Request, { p
   // A student a tutor drops needs to be re-matched, not left with no tutor
   // and no path back into the matching flow. Best-effort — the roster change
   // itself already succeeded.
+  //
+  // excludeTutorId keeps the solo/DEFAULT_TUTOR_EMAIL auto-pair path from
+  // immediately re-selecting the tutor who just dropped this student — without
+  // it, on a single-tutor deployment "Remove" silently re-added the same
+  // pairing on the very next request, and the UI still reported success.
   try {
-    const result = await runMatching(studentId)
+    const result = await runMatching(studentId, { excludeTutorId: auth.tutor.id })
     if (result.status === 'offered') await notifyTutorsOfOffers(studentId)
   } catch (err) {
     logger.error('Re-match after tutor removed student failed', err, { studentId })

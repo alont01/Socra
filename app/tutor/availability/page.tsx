@@ -8,10 +8,12 @@ import { Navbar } from '@/components/Navbar'
 import { Button } from '@/components/ui/Button'
 import { AvailabilityPicker } from '@/components/AvailabilityPicker'
 import type { AvailabilityBlock } from '@/lib/availability'
+import { useToast } from '@/hooks/useToast'
 
 export default function TutorAvailabilityPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const { toast } = useToast()
   const [maxHours, setMaxHours] = useState<string>('')
   const [availability, setAvailability] = useState<AvailabilityBlock[]>([])
   const [accepting, setAccepting] = useState(true)
@@ -55,7 +57,15 @@ export default function TutorAvailabilityPage() {
       if (res.ok) {
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
+        return
       }
+      // A rejected save (e.g. maxHoursPerWeek out of range) used to leave the
+      // button silently doing nothing — the spinner stopped and no "Saved ✓"
+      // appeared, but nothing told the tutor their change was never recorded.
+      const data = await res.json().catch(() => ({}))
+      toast(data.error || 'Could not save your availability. Please try again.', 'error')
+    } catch {
+      toast('Network error saving your availability.', 'error')
     } finally {
       setSaving(false)
     }

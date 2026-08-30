@@ -30,6 +30,14 @@ const PROBLEM_SUGGESTIONS = [
 
 const MAX_STORED = 50
 
+// Nothing else in this loop can time out on its own: a connection that dies
+// without a clean close (laptop sleep, a network switch, an idle proxy)
+// leaves `reader.read()` neither resolving nor rejecting, which pins
+// `streaming` true forever — Send stays disabled, input stays disabled, and
+// "New chat" is disabled too, with no way back short of a reload. Reset on
+// every chunk so a slow-but-live stream is never cut off mid-answer.
+const STREAM_IDLE_TIMEOUT_MS = 30_000
+
 interface StudentChatPanelProps {
   /**
    * The question the student is currently looking at, when the panel sits
@@ -97,11 +105,20 @@ export function StudentChatPanel({ problemContext }: StudentChatPanelProps = {})
     setStreaming(true)
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
 
+    const controller = new AbortController()
+    let idleTimer: ReturnType<typeof setTimeout> | null = null
+    const armIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => controller.abort(), STREAM_IDLE_TIMEOUT_MS)
+    }
+
     try {
+      armIdleTimer()
       const res = await fetch('/api/student/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages, problemContext }),
+        signal: controller.signal,
       })
 
       if (!res.ok || !res.body) {
@@ -117,6 +134,7 @@ export function StudentChatPanel({ problemContext }: StudentChatPanelProps = {})
 
       while (true) {
         const { done, value } = await reader.read()
+        armIdleTimer()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
@@ -143,10 +161,16 @@ export function StudentChatPanel({ problemContext }: StudentChatPanelProps = {})
           }
         }
       }
-    } catch {
+    } catch (err) {
       setMessages((prev) => prev.slice(0, -1))
-      toast('Failed to send message', 'error')
+      toast(
+        err instanceof DOMException && err.name === 'AbortError'
+          ? 'The response stalled. Please try again.'
+          : 'Failed to send message',
+        'error',
+      )
     } finally {
+      if (idleTimer) clearTimeout(idleTimer)
       setStreaming(false)
     }
   }

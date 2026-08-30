@@ -36,15 +36,23 @@ export interface MatchResult {
  * is the solo-shop path: with one tutor there's no matching decision to make.
  * Returns the tutor when DEFAULT_TUTOR_EMAIL resolves, or when exactly one tutor
  * is accepting students; otherwise null (→ use the offer/matching flow).
+ *
+ * `excludeTutorId` is set right after a tutor drops a student (see
+ * runMatching below) — without it, re-matching a solo shop's only tutor
+ * immediately re-selects the very tutor who just ended the pairing, so
+ * "Remove" silently undid itself on the next request.
  */
-async function resolveAutoPairTutorId(): Promise<string | null> {
+async function resolveAutoPairTutorId(excludeTutorId?: string): Promise<string | null> {
   const email = process.env.DEFAULT_TUTOR_EMAIL?.toLowerCase().trim()
   if (email) {
     const u = await prisma.user.findUnique({ where: { email }, include: { tutorProfile: true } })
-    if (u?.tutorProfile) return u.tutorProfile.id
+    if (u?.tutorProfile && u.tutorProfile.id !== excludeTutorId) return u.tutorProfile.id
   }
   const tutors = await prisma.tutorProfile.findMany({
-    where: { acceptingStudents: true },
+    where: {
+      acceptingStudents: true,
+      ...(excludeTutorId ? { id: { not: excludeTutorId } } : {}),
+    },
     take: 2,
     select: { id: true },
   })
@@ -69,8 +77,13 @@ async function expireStale(studentId: string): Promise<void> {
  * Evaluate a student and, if they need a tutor, create the next batch of offers.
  * Idempotent and safe to call repeatedly (after decline/expire, on child
  * creation, from an admin re-run).
+ *
+ * `excludeTutorId`: pass the tutor who just ended a pairing with this student
+ * so they aren't immediately re-selected by the solo/DEFAULT_TUTOR_EMAIL
+ * auto-pair path. Not applied to the multi-tutor offer flow — an explicit
+ * offer that tutor must accept again is a real decision, not a silent revert.
  */
-export async function runMatching(studentId: string): Promise<MatchResult> {
+export async function runMatching(studentId: string, opts: { excludeTutorId?: string } = {}): Promise<MatchResult> {
   const student = await prisma.studentProfile.findUnique({
     where: { id: studentId },
     select: { id: true, desiredHoursPerWeek: true, availability: true, gradeLevel: true },
@@ -92,7 +105,7 @@ export async function runMatching(studentId: string): Promise<MatchResult> {
 
   // Solo shop: pair directly with the one/primary tutor — no offer, and no
   // availability required (there's no alternative to choose between).
-  const autoTutorId = await resolveAutoPairTutorId()
+  const autoTutorId = await resolveAutoPairTutorId(opts.excludeTutorId)
   if (autoTutorId) {
     try {
       await prisma.tutorStudent.upsert({
