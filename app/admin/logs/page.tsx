@@ -216,7 +216,12 @@ export default function AdminLogsPage() {
                   ))}
                 </div>
               ) : state === 'error' ? (
-                <div className="py-16 text-center text-stone-500">Failed to load logs.</div>
+                <div className="py-16 text-center">
+                  <p className="text-stone-500 mb-3">Failed to load logs.</p>
+                  <button onClick={load} className="text-sm font-medium text-orange-600 hover:text-orange-700">
+                    Try again
+                  </button>
+                </div>
               ) : rows.length === 0 ? (
                 <div className="py-16 text-center text-stone-400 text-sm">No entries match these filters.</div>
               ) : (

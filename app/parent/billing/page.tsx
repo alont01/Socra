@@ -46,7 +46,12 @@ function statusChip(status: string) {
     paid: 'bg-green-100 text-green-700 ring-green-200/70',
     sent: 'bg-amber-100 text-amber-700 ring-amber-200/70',
     pending: 'bg-stone-100 text-stone-600 ring-stone-200/70',
-    failed: 'bg-red-100 text-red-700 ring-red-200/70',
+    // `failed` is a delivery hiccup on our side — the invoice never reached
+    // you and no payment was attempted. Keep it neutral, not alarming.
+    failed: 'bg-stone-100 text-stone-600 ring-stone-200/70',
+    // `payment_failed` is the one that actually needs the parent to act: the
+    // invoice was sent and the card was declined.
+    payment_failed: 'bg-red-100 text-red-700 ring-red-200/70',
     uncollectible: 'bg-red-100 text-red-700 ring-red-200/70',
     void: 'bg-stone-100 text-stone-500 ring-stone-200/70',
   }
@@ -54,7 +59,8 @@ function statusChip(status: string) {
     paid: 'Paid',
     sent: 'Due',
     pending: 'Being prepared',
-    failed: 'Payment failed',
+    failed: 'Not sent yet',
+    payment_failed: 'Payment failed',
     uncollectible: 'Needs attention',
     void: 'Cancelled',
   }

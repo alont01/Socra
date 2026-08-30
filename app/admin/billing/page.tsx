@@ -240,7 +240,12 @@ export default function AdminBillingPage() {
         ) : state === 'forbidden' ? (
           <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6 text-stone-600">Not authorized.</div>
         ) : state === 'error' ? (
-          <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6 text-stone-600">Couldn&apos;t load billing data.</div>
+          <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-6 text-center">
+            <p className="text-stone-600 mb-3">Couldn&apos;t load billing data.</p>
+            <button onClick={load} className="text-sm font-medium text-orange-600 hover:text-orange-700">
+              Try again
+            </button>
+          </div>
         ) : !rows || rows.length === 0 ? (
           <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center text-stone-500">
             No billable sessions for {monthLabel(month)}.

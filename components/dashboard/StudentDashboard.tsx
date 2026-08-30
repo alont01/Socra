@@ -64,21 +64,25 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
       .finally(() => setLoading(false))
   }, [toast])
 
-  // A student sitting on the dashboard has no way to know when the tutor
-  // starts a scheduled session — the "Join your live session" banner and the
-  // "Live now" status only ever appear after a manual reload. The session
-  // page itself already polls for exactly this (see app/session/[id]/page.tsx);
-  // this mirrors that here, and stops once a session is already live so it
-  // doesn't keep refetching once there's nothing left to catch.
+  // A student sitting on the dashboard has no way to know when a session's
+  // state changes elsewhere — the "Join your live session" banner and the
+  // "Live now" status only ever update on a manual reload. The session page
+  // itself already polls for exactly this (see app/session/[id]/page.tsx);
+  // this mirrors that here.
+  //
+  // It keeps polling even once a session IS live: the session *ending* is just
+  // as important to catch as it starting. A guard that stopped on the first
+  // active session left the dead "Join your live session" CTA and a "Live now"
+  // row on screen indefinitely after the tutor clicked End.
   useEffect(() => {
-    if (loading || sessions.some((s) => s.status === 'active')) return
+    if (loading) return
     const interval = setInterval(() => {
       fetchAllTutoringSessions<TutoringSession>()
         .then((all) => setSessions(all))
         .catch(() => { /* transient — keep polling, last good state stays on screen */ })
     }, 30_000)
     return () => clearInterval(interval)
-  }, [loading, sessions])
+  }, [loading])
 
   useEffect(() => {
     fetch('/api/student/practice')

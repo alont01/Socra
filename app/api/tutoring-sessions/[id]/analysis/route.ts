@@ -30,6 +30,14 @@ export const GET = route('tutoring-sessions/[id]/analysis', async (_request: Req
   }
 
   if (!session.analysis) {
+    // An open session (no student on the roster) never produces a recap:
+    // processSessionPostCompletion returns before writing any analysis row,
+    // so `processing` here would spin forever and every "Retry analysis"
+    // would silently re-hit the same early return. Report a terminal state
+    // the review page can render without offering a retry that can't work.
+    if (!session.studentId && session.status === 'completed') {
+      return NextResponse.json({ analysis: null, status: 'no_student' })
+    }
     return NextResponse.json({ analysis: null, status: 'processing' })
   }
 

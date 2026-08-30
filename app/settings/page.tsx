@@ -79,6 +79,7 @@ export default function SettingsPage() {
   }, [user, loading, router])
 
   const loadProfile = () => {
+    setError(false)
     fetch('/api/profile')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: ProfileData) => {
@@ -161,7 +162,15 @@ export default function SettingsPage() {
     return (
       <div className="min-h-screen bg-[#FFFBF5]">
         <Navbar />
-        <div className="max-w-2xl mx-auto px-4 py-12 text-center text-stone-500">Couldn&apos;t load your settings.</div>
+        <div className="max-w-2xl mx-auto px-4 py-12 text-center">
+          <p className="text-stone-500 mb-3">Couldn&apos;t load your settings.</p>
+          <button
+            onClick={loadProfile}
+            className="text-sm font-medium text-orange-600 hover:text-orange-700"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     )
   }

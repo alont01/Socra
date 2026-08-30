@@ -35,7 +35,7 @@ export default function ReviewPage({
   // client's guess: the pipeline writes a placeholder analysis row and the API
   // reports why. They used to arrive as status 'ready' with apology text in the
   // summary field, which rendered as though it were the recap.
-  const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'failed' | 'insufficient' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'failed' | 'insufficient' | 'no_student' | 'error'>('loading')
   const [sessionRole, setSessionRole] = useState<'tutor' | 'student'>('student')
   const [retrying, setRetrying] = useState(false)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
@@ -145,7 +145,7 @@ export default function ReviewPage({
           pollForAnalysis()
           return
         }
-        if (data.status === 'failed' || data.status === 'insufficient') {
+        if (data.status === 'failed' || data.status === 'insufficient' || data.status === 'no_student') {
           setAnalysis(null)
           setStatus(data.status)
           return
@@ -342,6 +342,34 @@ export default function ReviewPage({
                 {retrying ? 'Retrying…' : 'Retry analysis'}
               </button>
             )}
+          </div>
+        )}
+
+        {/* Open session with no student on the roster — there is nothing to
+            analyze (no mastery to update, no homework to target), so this is a
+            genuine end state, not a failure the tutor can retry their way out
+            of. */}
+        {status === 'no_student' && (
+          <div className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-8 text-center">
+            <div className="mx-auto mb-3 grid place-items-center h-12 w-12 rounded-2xl bg-stone-100 text-stone-500">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+              </svg>
+            </div>
+            <p className="text-stone-900 font-semibold mb-1">No recap for this session</p>
+            <p className="text-sm text-stone-500 max-w-md mx-auto mb-4">
+              This was an open session with no student assigned, so there&apos;s no recap or homework to generate.
+              {hasTranscript ? ' The transcript below is still available.' : ''}
+            </p>
+            <Link href="/dashboard" className="inline-block text-sm font-semibold text-orange-600 hover:text-orange-700">
+              Back to dashboard →
+            </Link>
+          </div>
+        )}
+
+        {status === 'no_student' && hasTranscript && (
+          <div className="mt-6">
+            <TranscriptViewer content={transcript!.content} speakers={transcript!.speakers} />
           </div>
         )}
 

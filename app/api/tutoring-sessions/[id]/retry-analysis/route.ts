@@ -34,6 +34,15 @@ export const POST = route('tutoring-sessions/[id]/retry-analysis', async (_reque
   if (session.status !== 'completed') {
     return NextResponse.json({ error: 'Session must be completed first' }, { status: 400 })
   }
+  // An open session has no student, so the pipeline returns before it writes
+  // anything — a retry here would report success and produce nothing. Refuse
+  // it outright rather than silently no-op.
+  if (!session.studentId) {
+    return NextResponse.json(
+      { error: 'This session had no student assigned, so there is no recap to generate.' },
+      { status: 400 },
+    )
+  }
 
   // Delete existing analysis and any DRAFT practice sets so the pipeline can
   // re-run cleanly. Assigned homework is preserved — it may already have
