@@ -47,6 +47,27 @@ export function useLivePracticeSync({
   // same way the whiteboard answers 'whiteboard:request-state'.
   const lastSentRef = useRef<string | null>(null)
 
+  // Messages emitted before `callFrame` is ready (or during a brief reconnect):
+  // a student answering seconds after joining, or a tutor whose override fetch
+  // resolves before their frame finishes connecting. These used to silently
+  // no-op, so the other side never caught up — the tutor's panel missed the
+  // answer, or the student's screen never showed "marked correct" though
+  // mastery had already moved server-side. Queue and flush in order on connect.
+  // (sendProblems is deliberately excluded — its caller surfaces the "couldn't
+  // reach the student" state rather than queuing a send the tutor may have
+  // moved on from.)
+  const pendingRef = useRef<PracticeMessage[]>([])
+  const enqueueOrSend = useCallback(
+    (msg: PracticeMessage) => {
+      if (!callFrame) {
+        pendingRef.current.push(msg)
+        return
+      }
+      callFrame.sendAppMessage(msg, '*')
+    },
+    [callFrame],
+  )
+
   const sendProblems = useCallback(
     // Returns whether the broadcast actually went out (a live callFrame to
     // send it through) — the caller flips its UI to "Sent to student" off
@@ -68,37 +89,35 @@ export function useLivePracticeSync({
 
   const sendAnswer = useCallback(
     (result: StudentAnswerResult) => {
-      if (!callFrame || isTutor) return
-      const msg: PracticeMessage = {
-        type: 'practice:answer',
-        payload: JSON.stringify(result),
-      }
-      callFrame.sendAppMessage(msg, '*')
+      if (isTutor) return
+      enqueueOrSend({ type: 'practice:answer', payload: JSON.stringify(result) })
     },
-    [callFrame, isTutor]
+    [isTutor, enqueueOrSend]
   )
 
   const sendClear = useCallback(() => {
-    if (!callFrame || !isTutor) return
+    if (!isTutor) return
     lastSentRef.current = null
-    const msg: PracticeMessage = { type: 'practice:clear' }
-    callFrame.sendAppMessage(msg, '*')
-  }, [callFrame, isTutor])
+    enqueueOrSend({ type: 'practice:clear' })
+  }, [isTutor, enqueueOrSend])
 
   const sendOverride = useCallback(
     (problemId: string) => {
-      if (!callFrame || !isTutor) return
-      const msg: PracticeMessage = {
-        type: 'practice:override',
-        payload: problemId,
-      }
-      callFrame.sendAppMessage(msg, '*')
+      if (!isTutor) return
+      enqueueOrSend({ type: 'practice:override', payload: problemId })
     },
-    [callFrame, isTutor]
+    [isTutor, enqueueOrSend]
   )
 
   useEffect(() => {
     if (!callFrame) return
+
+    // Flush anything queued while the frame was connecting, in order.
+    if (pendingRef.current.length > 0) {
+      const queued = pendingRef.current
+      pendingRef.current = []
+      for (const msg of queued) callFrame.sendAppMessage(msg, '*')
+    }
 
     const handleAppMessage = (event: DailyEventObjectAppMessage | undefined) => {
       if (!event) return

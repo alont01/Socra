@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
+
 export type DrawingTool = 'pen' | 'eraser' | 'line' | 'rect' | 'circle' | 'text' | 'select'
 
 interface WhiteboardToolbarProps {
@@ -41,6 +43,24 @@ export function WhiteboardToolbar({
   onRedo,
   onClear,
 }: WhiteboardToolbarProps) {
+  // Clear wipes the shared board for both people and, in practice, can't be
+  // fully undone once the board is large. Make it a two-step click rather than
+  // a single hair-trigger next to Undo/Redo.
+  const [confirmingClear, setConfirmingClear] = useState(false)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current) }, [])
+
+  const handleClearClick = () => {
+    if (!confirmingClear) {
+      setConfirmingClear(true)
+      confirmTimer.current = setTimeout(() => setConfirmingClear(false), 4000)
+      return
+    }
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    setConfirmingClear(false)
+    onClear()
+  }
+
   return (
     <div className="flex items-center gap-1 bg-white rounded-xl ring-1 ring-stone-900/5 shadow-soft px-2 py-1.5 flex-wrap">
       {/* Drawing tools */}
@@ -117,15 +137,25 @@ export function WhiteboardToolbar({
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
         </svg>
       </button>
-      <button
-        title="Clear"
-        onClick={onClear}
-        className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-      </button>
+      {confirmingClear ? (
+        <button
+          title="Clear the whole board"
+          onClick={handleClearClick}
+          className="px-2 py-1 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100"
+        >
+          Clear board?
+        </button>
+      ) : (
+        <button
+          title="Clear"
+          onClick={handleClearClick}
+          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }

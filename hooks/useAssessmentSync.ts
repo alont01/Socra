@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import type { DailyCall, DailyEventObjectAppMessage } from '@daily-co/daily-js'
 
 // Assessment state (level ladder, AI-generated items, holistic result) is
@@ -39,10 +39,23 @@ export function useAssessmentSync({
   onChanged: () => void
   onGenerating?: () => void
 }) {
+  // Signals emitted before `callFrame` is ready — a student who hits Submit in
+  // the first seconds after joining, while Daily's iframe is still connecting.
+  // `send` used to silently no-op there, so the tutor's panel stayed on
+  // "waiting for the student to answer…" forever: it re-fetches only on mount
+  // and on an incoming 'assessment:changed', and the student never asks for
+  // state (only the tutor replies to 'request-state'). Queue and flush when the
+  // frame connects instead, so nothing is dropped.
+  const pendingRef = useRef<AssessmentSignal['type'][]>([])
+
   const send = useCallback(
-    (type: AssessmentSignal['type']) => {
-      if (!callFrame) return
+    (type: AssessmentSignal['type']): boolean => {
+      if (!callFrame) {
+        pendingRef.current.push(type)
+        return false
+      }
       callFrame.sendAppMessage({ type } satisfies AssessmentSignal, '*')
+      return true
     },
     [callFrame],
   )
@@ -52,6 +65,16 @@ export function useAssessmentSync({
 
   useEffect(() => {
     if (!callFrame) return
+
+    // Flush anything queued while the frame was still connecting, in order.
+    if (pendingRef.current.length > 0) {
+      const queued = pendingRef.current
+      pendingRef.current = []
+      for (const type of queued) {
+        callFrame.sendAppMessage({ type } satisfies AssessmentSignal, '*')
+      }
+    }
+
     const handleAppMessage = (event: DailyEventObjectAppMessage | undefined) => {
       const msg = event?.data as AssessmentSignal | undefined
       if (msg?.type === 'assessment:changed') onChanged()

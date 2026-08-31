@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/src/context/auth'
-import { apiFetch } from '@/src/lib/api'
+import { apiFetch, ApiError } from '@/src/lib/api'
 import { colors, radius, space } from '@/src/theme'
 
 interface ProgressItem { topic: string; mastery: number; updatedAt: string }
@@ -42,6 +42,13 @@ export default function ChildDetailScreen() {
   const sessions = sessionsQ.data?.sessions ?? []
   const loading = progressQ.isLoading || sessionsQ.isLoading
   const error = progressQ.isError || sessionsQ.isError
+  const fetching = progressQ.isFetching || sessionsQ.isFetching
+  // A 404 genuinely means this child isn't linked to the account; anything else
+  // (network blip, 5xx) is transient and worth a Retry — collapsing both into
+  // "not linked" told parents their child had been unlinked over a hiccup.
+  const err = (progressQ.error ?? sessionsQ.error) as unknown
+  const isNotLinked = err instanceof ApiError && err.status === 404
+  const retry = () => { progressQ.refetch(); sessionsQ.refetch() }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -54,7 +61,20 @@ export default function ChildDetailScreen() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : error ? (
-        <View style={styles.center}><Text style={styles.muted}>This child isn&apos;t linked to your account.</Text></View>
+        <View style={styles.center}>
+          {isNotLinked ? (
+            <Text style={styles.muted}>This child isn&apos;t linked to your account.</Text>
+          ) : (
+            <>
+              <Text style={styles.muted}>
+                Couldn&apos;t load this page. This was a connection problem — nothing about your child&apos;s account has changed.
+              </Text>
+              <TouchableOpacity onPress={retry} style={styles.retry} disabled={fetching}>
+                <Text style={styles.retryText}>{fetching ? 'Retrying…' : 'Retry'}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: space(4), gap: space(6) }}>
           <Text style={styles.title}>{name}&apos;s progress</Text>
@@ -129,8 +149,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { paddingHorizontal: space(4), paddingTop: space(2), paddingBottom: space(1) },
   back: { fontSize: 15, color: colors.primaryDark, fontWeight: '600' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space(8) },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space(8), gap: space(3) },
   muted: { fontSize: 15, color: colors.textMuted, textAlign: 'center' },
+  retry: { backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: space(5), paddingVertical: space(2.5) },
+  retryText: { color: colors.white, fontWeight: '700' },
   title: { fontSize: 24, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
   section: { fontSize: 16, fontWeight: '700', color: colors.text },
   card: { backgroundColor: colors.card, borderRadius: radius.md, padding: space(4), borderWidth: 1, borderColor: colors.border, gap: space(2) },

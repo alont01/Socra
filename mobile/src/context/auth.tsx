@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import * as SecureStore from 'expo-secure-store'
-import { apiFetch } from '@/src/lib/api'
+import { apiFetch, setUnauthorizedHandler } from '@/src/lib/api'
 
 const TOKEN_KEY = 'socra.token'
 const USER_KEY = 'socra.user'
@@ -68,12 +68,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res.user
   }
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setToken(null)
     setUser(null)
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {})
     await SecureStore.deleteItemAsync(USER_KEY).catch(() => {})
-  }
+  }, [])
+
+  // Any 401 from apiFetch means the stored token expired or was revoked — drop
+  // the session so the app's auth gate bounces to /login, instead of every
+  // screen showing a Retry that can't work.
+  useEffect(() => {
+    setUnauthorizedHandler(() => { void logout() })
+    return () => setUnauthorizedHandler(null)
+  }, [logout])
 
   return (
     <AuthContext.Provider value={{ token, user, loading, login, logout }}>

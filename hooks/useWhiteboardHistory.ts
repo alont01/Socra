@@ -104,11 +104,21 @@ export function useWhiteboardHistory(
   const clear = useCallback(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas) return
+    // Fabric's clear() is remove(...getObjects()), which fires 'object:removed'
+    // once PER object — and Whiteboard wires that event to saveHistory(). On a
+    // full board that pushed N+1 entries in one click and shifted the pre-clear
+    // snapshot out past MAX_HISTORY, so Undo could never get back to it. Every
+    // other mutator here (undo/redo, the AI draw) already guards with
+    // isUpdatingRef; this one didn't. Suppress the per-object saves and let the
+    // single explicit saveHistory() below record the cleared state, leaving the
+    // pre-clear board exactly one Undo away.
+    isUpdatingRef.current = true
     canvas.clear()
     canvas.backgroundColor = '#ffffff'
     canvas.requestRenderAll()
+    isUpdatingRef.current = false
     saveHistory()
-  }, [fabricCanvasRef, saveHistory])
+  }, [fabricCanvasRef, isUpdatingRef, saveHistory])
 
   return { canUndo, canRedo, saveHistory, initHistory, undo, redo, clear }
 }

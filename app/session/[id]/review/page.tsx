@@ -81,9 +81,9 @@ export default function ReviewPage({
           stopPolling()
           // The transcript often finishes alongside the analysis — refresh it.
           fetchTranscript()
-        } else if (data.status === 'failed' || data.status === 'insufficient') {
-          // The pipeline finished and reached a placeholder. Polling on would
-          // just spin for five minutes before showing the same thing.
+        } else if (data.status === 'failed' || data.status === 'insufficient' || data.status === 'no_student') {
+          // The pipeline finished and reached a terminal state (placeholder, or
+          // an open session with no student). Polling on would just spin.
           setAnalysis(null)
           setStatus(data.status)
           stopPolling()
@@ -136,7 +136,12 @@ export default function ReviewPage({
         // Fetch analysis
         const analysisRes = await fetch(`/api/tutoring-sessions/${id}/analysis`)
         if (!analysisRes.ok) {
+          // The 'error' view tells the reader "this page will update on its own
+          // if it finishes" and only the tutor gets a Retry button — so it has
+          // to actually keep polling. Without this, a failed first fetch left a
+          // student on a dead end with a promise the page didn't keep.
           setStatus('error')
+          pollForAnalysis()
           return
         }
         const data = await analysisRes.json()
@@ -154,6 +159,7 @@ export default function ReviewPage({
         setStatus('ready')
       } catch {
         setStatus('error')
+        pollForAnalysis()
       }
     }
 

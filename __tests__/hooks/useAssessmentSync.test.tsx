@@ -111,4 +111,30 @@ describe('useAssessmentSync', () => {
     act(() => { call.deliver({ type: 'assessment:request-state' }) })
     expect(call.sent).toEqual([])
   })
+
+  // The student can hit Submit in the seconds after joining, while Daily's
+  // iframe is still connecting and callFrame is null. notifyGenerating() /
+  // notifyChanged() used to silently no-op there, leaving the tutor's panel
+  // stuck on "waiting for the student to answer…" forever. The signals must be
+  // queued and flushed once the frame connects.
+  it('queues signals sent before the frame is ready and flushes them on connect', () => {
+    const call = fakeCall()
+    const { result, rerender } = renderHook(
+      ({ frame }: { frame: DailyCall | null }) =>
+        useAssessmentSync({ callFrame: frame, isTutor: false, onChanged: jest.fn() }),
+      { initialProps: { frame: null as DailyCall | null } },
+    )
+
+    act(() => { result.current.notifyGenerating() })
+    act(() => { result.current.notifyChanged() })
+    expect(call.sent).toEqual([]) // nothing sent yet — no frame
+
+    rerender({ frame: call.frame })
+
+    expect(call.sent).toEqual([
+      { type: 'assessment:generating' },
+      { type: 'assessment:changed' },
+      { type: 'assessment:request-state' }, // student's own mount-time ask
+    ])
+  })
 })
