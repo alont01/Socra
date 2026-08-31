@@ -37,6 +37,11 @@ export const GET = route('admin/billing', async (request: Request) => {
         paidAt: true,
         amountCents: true,
         lastError: true,
+        // Lets the admin page tell a genuinely in-flight send apart from one
+        // stuck at `pending` because the process died mid-send — the same
+        // distinction lib/billing-send.ts's claimPeriod() already makes
+        // server-side before it will take over the row.
+        statusUpdatedAt: true,
       },
     }),
   ])

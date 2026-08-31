@@ -20,6 +20,7 @@ function VerifyForm() {
   const [busy, setBusy] = useState(false)
   const [cooldown, setCooldown] = useState(0)
   const [resent, setResent] = useState(false)
+  const [resending, setResending] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // No email in the URL — nothing to verify.
@@ -80,9 +81,13 @@ function VerifyForm() {
   }
 
   const resend = async () => {
-    if (cooldown > 0) return
+    // Without this, a slow round trip left the button looking dead — nothing
+    // disabled it and nothing showed a wait, so a student who didn't see an
+    // instant response just clicked again, sending a second (or third) code.
+    if (cooldown > 0 || resending) return
     setError('')
     setResent(false)
+    setResending(true)
     try {
       const res = await fetch('/api/auth/resend-verification', {
         method: 'POST',
@@ -105,6 +110,8 @@ function VerifyForm() {
       startCooldown()
     } catch {
       setError('Network error. Please try again.')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -138,10 +145,10 @@ function VerifyForm() {
         Didn&apos;t get it?{' '}
         <button
           onClick={resend}
-          disabled={cooldown > 0}
+          disabled={cooldown > 0 || resending}
           className="font-medium text-orange-600 hover:text-orange-700 disabled:text-stone-400"
         >
-          {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+          {resending ? 'Sending…' : cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
         </button>
       </div>
       <p className="text-center mt-3">

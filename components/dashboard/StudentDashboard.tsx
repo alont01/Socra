@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { UpcomingSessionsPanel } from './UpcomingSessionsPanel'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -64,6 +64,31 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
       .finally(() => setLoading(false))
   }, [toast])
 
+  const loadPracticeSets = useCallback(() => {
+    return fetch('/api/student/practice')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setPracticeSets(data.practiceSets || []))
+      .catch(() => { /* transient — keep polling, last good state stays on screen */ })
+  }, [])
+
+  const loadTutor = useCallback(() => {
+    return fetch('/api/student/tutor')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setTutor(data.tutor))
+      .catch(() => {
+        // Distinguish "no tutor assigned yet" from a network hiccup only on
+        // the very first load — a transient failure on a later poll must not
+        // flip an already-known tutor back to null and re-show "We're finding
+        // your tutor" underneath one that's actually just fine.
+        setTutor((prev) => (prev === undefined ? null : prev))
+      })
+  }, [])
+
+  useEffect(() => {
+    loadPracticeSets()
+    loadTutor()
+  }, [loadPracticeSets, loadTutor])
+
   // A student sitting on the dashboard has no way to know when a session's
   // state changes elsewhere — the "Join your live session" banner and the
   // "Live now" status only ever update on a manual reload. The session page
@@ -74,29 +99,21 @@ export function StudentDashboard({ studentName, goals }: StudentDashboardProps) 
   // as important to catch as it starting. A guard that stopped on the first
   // active session left the dead "Join your live session" CTA and a "Live now"
   // row on screen indefinitely after the tutor clicked End.
+  //
+  // practiceSets and tutor ride the same interval — they used to load once on
+  // mount and never again, so a homework set assigned (or a tutor match made)
+  // mid-visit sat stale beside a sessions list that was already live-updating.
   useEffect(() => {
     if (loading) return
     const interval = setInterval(() => {
       fetchAllTutoringSessions<TutoringSession>()
         .then((all) => setSessions(all))
         .catch(() => { /* transient — keep polling, last good state stays on screen */ })
+      loadPracticeSets()
+      loadTutor()
     }, 30_000)
     return () => clearInterval(interval)
-  }, [loading])
-
-  useEffect(() => {
-    fetch('/api/student/practice')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => setPracticeSets(data.practiceSets || []))
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    fetch('/api/student/tutor')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => setTutor(data.tutor))
-      .catch(() => setTutor(null))
-  }, [])
+  }, [loading, loadPracticeSets, loadTutor])
 
   const activeSessions = sessions.filter((s) => s.status === 'active')
   const pendingPractice = practiceSets.filter((s) => s.completedCount < s.problemCount).length

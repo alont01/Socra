@@ -13,13 +13,14 @@ interface VideoCallProps {
   token: string
   onLeave?: () => void
   onCallFrame?: (frame: DailyCall | null) => void
+  isTutor?: boolean
 }
 
 // If the other participant drops and doesn't come back within this window, we
 // treat it as a real departure and leave. Short blips no longer eject anyone.
 const RECONNECT_GRACE_MS = 60_000
 
-export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallProps) {
+export function VideoCall({ roomUrl, token, onLeave, onCallFrame, isTutor = false }: VideoCallProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const callRef = useRef<DailyCall | null>(null)
   const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -75,10 +76,22 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
     // A remote participant leaving may be a transient network drop, not an
     // intentional exit. Show a "reconnecting" overlay and only actually leave
     // if they don't return within the grace window.
+    //
+    // The auto-leave only applies to the student. Ending a session is a real,
+    // consequential action the tutor takes explicitly (it stops billing and
+    // fires the analysis pipeline) — they must not be silently ejected just
+    // because the student's connection dropped or, in the ordinary end-of-
+    // lesson case, the student leaves first. Forcing `onLeave` for the tutor
+    // used to unmount the whole in-call tree (including the whiteboard, which
+    // disposes its canvas on unmount) out from under a tutor who was still
+    // writing notes — losing the board before they ever got to click End.
+    // The "waiting to reconnect" banner below still shows for the tutor, and
+    // they can End Session themselves whenever they're ready.
     const handleParticipantLeft = (event: DailyEventObjectParticipantLeft | undefined) => {
       if (event?.participant?.local) return
       setRemoteGone(true)
       clearGrace()
+      if (isTutor) return
       graceTimerRef.current = setTimeout(() => {
         if (!destroyed) handleLeave()
       }, RECONNECT_GRACE_MS)
@@ -111,7 +124,7 @@ export function VideoCall({ roomUrl, token, onLeave, onCallFrame }: VideoCallPro
       frame.destroy()
       callRef.current = null
     }
-  }, [roomUrl, token, handleLeave])
+  }, [roomUrl, token, handleLeave, isTutor])
 
   return (
     <div className="relative w-full h-full">

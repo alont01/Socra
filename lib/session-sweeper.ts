@@ -105,3 +105,69 @@ export async function sweepStaleSessions(now: Date = new Date()): Promise<SweepR
 
   return result
 }
+
+export interface AnalysisRetrySweepResult {
+  scanned: number
+  retried: string[]
+  /** True when more stuck sessions remain for the next run. */
+  more: boolean
+}
+
+/**
+ * Re-fire the post-session pipeline for a `completed` session that never got
+ * one at all — no SessionAnalysis row, placeholder or otherwise.
+ *
+ * `processSessionPostCompletion` is started fire-and-forget from POST /end (and
+ * from the sweeper above); a process restart or crash mid-pipeline drops it on
+ * the floor with nothing written, and nothing else ever re-drives it — no
+ * `active` row for sweepStaleSessions to find, no placeholder analysis for the
+ * tutor's "Retry analysis" button to act on. The tutor and parent are left on
+ * "still being written" / "processing" forever with no way to know a retry is
+ * even possible.
+ *
+ * Idempotent for the same reason retry-analysis's manual path is: the pipeline
+ * itself checks for an existing analysis before doing any work, so re-running
+ * it against a session another invocation is mid-way through (or one that
+ * finished between the scan and this call) is a safe no-op, not a double-run.
+ */
+export async function retryStuckAnalyses(now: Date = new Date()): Promise<AnalysisRetrySweepResult> {
+  const cutoff = new Date(now.getTime() - config.session.staleAnalysisAfterMinutes * 60_000)
+
+  const stuck = await prisma.tutoringSession.findMany({
+    where: {
+      status: 'completed',
+      studentId: { not: null }, // an open session with no student never gets analyzed — see session-processing.ts
+      endedAt: { not: null, lt: cutoff },
+      analysis: null,
+    },
+    select: { id: true },
+    orderBy: { endedAt: 'asc' },
+    take: MAX_PER_RUN + 1,
+  })
+
+  const batch = stuck.slice(0, MAX_PER_RUN)
+  const result: AnalysisRetrySweepResult = { scanned: batch.length, retried: [], more: stuck.length > MAX_PER_RUN }
+
+  for (const session of batch) {
+    logger.warn('Re-triggering post-session pipeline for a session with no analysis at all', { sessionId: session.id })
+    result.retried.push(session.id)
+    // Fire-and-forget, same as the sweeper above — one stuck pipeline failing
+    // again must not stop the rest, and a session left over is picked up on
+    // the next run either way.
+    processSessionPostCompletion(session.id).catch((err) =>
+      logger.error('Retrying a stuck analysis failed', err, { sessionId: session.id }),
+    )
+  }
+
+  if (result.retried.length > 0) {
+    recordEvent({
+      category: 'session',
+      name: 'session.analysis_retry_sweep',
+      success: true,
+      level: 'warn',
+      metadata: { scanned: result.scanned, retried: result.retried.length, more: result.more },
+    })
+  }
+
+  return result
+}

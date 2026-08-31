@@ -5,6 +5,11 @@ name: Sweep stale sessions
 # they are never billed. The endpoint caps each one at its scheduled duration,
 # so how late this runs never changes what a family pays.
 #
+# Also re-fires the post-session pipeline for a completed session that never
+# got an analysis row at all (a deploy or crash mid-pipeline) — otherwise the
+# tutor and parent are stuck reading "still processing" indefinitely with no
+# way to know a retry is even possible.
+#
 # Render's starter plan has no cron service, so the schedule lives here and
 # calls the deployed app over HTTP.
 #

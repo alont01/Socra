@@ -14,6 +14,15 @@ export function useWhiteboardShapeDrawing(
   activeColor: string,
   strokeWidth: number,
   canvasReady: boolean,
+  // Suppresses Whiteboard's object:added listener (wired to saveHistory) while
+  // a shape is mid-drag — `canvas.add()` on mouse-down fires 'object:added'
+  // immediately, which would otherwise serialize the shape at its zero-size
+  // starting point. Every resize during the drag is a plain `.set()` that
+  // fires no event at all, so without suppressing the mouse-down snapshot and
+  // saving explicitly once at mouse-up, the student's board (and Undo) only
+  // ever see the zero-size shape, never the one the tutor actually drew.
+  isUpdatingRef: React.MutableRefObject<boolean>,
+  onShapeFinalized: () => void,
 ) {
   const drawingObjRef = useRef<unknown>(null)
   const startPointRef = useRef<{ x: number; y: number } | null>(null)
@@ -27,8 +36,18 @@ export function useWhiteboardShapeDrawing(
     canvas.isDrawingMode = false
     canvas.selection = false
 
-    const handleMouseDown = async (opt: { e: MouseEvent }) => {
+    const handleMouseDown = async (opt: { e: MouseEvent; target?: unknown }) => {
       if (activeTool === 'text') {
+        // Fabric already resolved the click against existing objects before
+        // this listener runs (canvas.on fires after its own internal
+        // __onMouseDown). A click that landed on an object — in particular
+        // the text box currently being edited — should let Fabric's own
+        // selection/deselection handling stand, not stamp a fresh "Type
+        // here" box on top of it. Without this check, clicking anywhere to
+        // finish typing (or to place a second label) created another
+        // placeholder text object instead.
+        if (opt.target) return
+
         const fabricModule = await import('fabric')
         const pointer = canvas.getScenePoint(opt.e)
         const text = new fabricModule.IText('Type here', {
@@ -38,9 +57,17 @@ export function useWhiteboardShapeDrawing(
           fill: activeColor,
           fontFamily: 'sans-serif',
         })
+        // Suppress the object:added → saveHistory this triggers — the text is
+        // still the "Type here" placeholder at this point. The real save (and
+        // the sync to the student) happens once editing actually ends, via
+        // 'editing:exited' below, so the board never broadcasts the
+        // placeholder or an in-progress keystroke.
+        isUpdatingRef.current = true
         canvas.add(text)
+        isUpdatingRef.current = false
         canvas.setActiveObject(text)
         text.enterEditing()
+        text.once('editing:exited', () => onShapeFinalized())
         return
       }
 
@@ -81,8 +108,12 @@ export function useWhiteboardShapeDrawing(
       }
 
       if (obj) {
+        // Suppress the object:added → saveHistory this triggers — the shape is
+        // zero-size at this point; the real save happens once at mouse-up.
+        isUpdatingRef.current = true
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         canvas.add(obj as any)
+        isUpdatingRef.current = false
         drawingObjRef.current = obj
       }
     }
@@ -123,6 +154,7 @@ export function useWhiteboardShapeDrawing(
         (drawingObjRef.current as any).selectable = true
         drawingObjRef.current = null
         startPointRef.current = null
+        onShapeFinalized()
       }
     }
 
@@ -135,5 +167,5 @@ export function useWhiteboardShapeDrawing(
       canvas.off('mouse:move', handleMouseMove)
       canvas.off('mouse:up', handleMouseUp)
     }
-  }, [fabricCanvasRef, isTutor, activeTool, activeColor, strokeWidth, canvasReady])
+  }, [fabricCanvasRef, isTutor, activeTool, activeColor, strokeWidth, canvasReady, isUpdatingRef, onShapeFinalized])
 }

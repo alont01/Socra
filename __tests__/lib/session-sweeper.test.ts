@@ -11,7 +11,7 @@ jest.mock('@/lib/session-processing', () => ({ processSessionPostCompletion: jes
 
 import { prisma } from '@/lib/prisma'
 import { processSessionPostCompletion } from '@/lib/session-processing'
-import { sweepStaleSessions } from '@/lib/session-sweeper'
+import { sweepStaleSessions, retryStuckAnalyses } from '@/lib/session-sweeper'
 import { config } from '@/lib/config'
 
 const p = prisma as unknown as {
@@ -185,5 +185,62 @@ describe('sweepStaleSessions batching', () => {
     p.tutoringSession.findMany.mockResolvedValue([])
     await sweepStaleSessions(NOW)
     expect(p.tutoringSession.findMany.mock.calls[0][0].orderBy).toEqual({ startedAt: 'asc' })
+  })
+})
+
+describe('retryStuckAnalyses', () => {
+  it('does nothing when there are no stuck sessions', async () => {
+    p.tutoringSession.findMany.mockResolvedValue([])
+
+    const result = await retryStuckAnalyses(NOW)
+
+    expect(result).toEqual({ scanned: 0, retried: [], more: false })
+    expect(mockProcess).not.toHaveBeenCalled()
+  })
+
+  it('only scans completed sessions with a student, no analysis, past the stale cutoff', async () => {
+    p.tutoringSession.findMany.mockResolvedValue([])
+
+    await retryStuckAnalyses(NOW)
+
+    const where = p.tutoringSession.findMany.mock.calls[0][0].where
+    expect(where.status).toBe('completed')
+    expect(where.studentId).toEqual({ not: null })
+    expect(where.analysis).toBeNull()
+    const cutoff = where.endedAt.lt as Date
+    expect(cutoff.getTime()).toBe(NOW.getTime() - config.session.staleAnalysisAfterMinutes * 60_000)
+  })
+
+  it('re-fires the pipeline for every stuck session found', async () => {
+    p.tutoringSession.findMany.mockResolvedValue([{ id: 'sess1' }, { id: 'sess2' }])
+
+    const result = await retryStuckAnalyses(NOW)
+
+    expect(result.retried).toEqual(['sess1', 'sess2'])
+    expect(mockProcess).toHaveBeenCalledWith('sess1')
+    expect(mockProcess).toHaveBeenCalledWith('sess2')
+  })
+
+  it('does not let one failed retry stop the rest', async () => {
+    p.tutoringSession.findMany.mockResolvedValue([{ id: 'bad' }, { id: 'good' }])
+    mockProcess.mockRejectedValueOnce(new Error('still broken')).mockResolvedValueOnce(undefined)
+
+    const result = await retryStuckAnalyses(NOW)
+
+    // Reported as attempted even though the pipeline itself later rejects —
+    // this call is fire-and-forget, same as the sweeper above, so both are
+    // recorded as retried and a genuinely still-broken one is picked up again
+    // next run.
+    expect(result.retried).toEqual(['bad', 'good'])
+  })
+
+  it('caps how many sessions one run retries and reports that more remain', async () => {
+    const many = Array.from({ length: 26 }, (_, i) => ({ id: `sess${i}` }))
+    p.tutoringSession.findMany.mockResolvedValue(many)
+
+    const result = await retryStuckAnalyses(NOW)
+
+    expect(result.retried).toHaveLength(25)
+    expect(result.more).toBe(true)
   })
 })

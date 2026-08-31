@@ -15,6 +15,7 @@ interface InvoiceSummary {
   paidAt: string | null
   amountCents: number
   lastError: string | null
+  statusUpdatedAt: string | null
 }
 interface BillingRow {
   parentId: string
@@ -39,14 +40,34 @@ function money(cents: number) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
+// Mirrors lib/billing-send.ts's PENDING_TAKEOVER_MS — a `pending` row this
+// old means the send that claimed it died mid-flight (the process was killed
+// between the local claim and the Stripe call landing), not that a send is
+// genuinely in progress. Keep these two values in sync.
+const PENDING_TAKEOVER_MS = 10 * 60_000
+
+function isStalePending(row: BillingRow): boolean {
+  if (row.invoice?.status !== 'pending') return false
+  if (!row.invoice.statusUpdatedAt) return true // pre-existing row with no timestamp
+  return Date.now() - new Date(row.invoice.statusUpdatedAt).getTime() > PENDING_TAKEOVER_MS
+}
+
 // `failed` means OUR send attempt never reached Stripe — retryable, so it
 // still needs invoicing. `payment_failed` means the invoice DID reach the
 // family and Stripe reports the payment itself was declined — that invoice
 // is still open and awaiting resolution, so it must NOT show a Send/Retry
 // button (which would create a second Stripe invoice for the same hours).
+// A `pending` row past the takeover window is exactly as stuck as `failed` —
+// its send died before ever reaching a terminal status — and without
+// including it here, that family could never be invoiced again short of
+// manual DB surgery: the row already exists, so it isn't `!row.invoice`, and
+// `pending` isn't `failed`, so no button ever rendered. The server's
+// claimAndSendInvoice already knows how to take over a stale pending claim
+// (lib/billing-send.ts); this just stops the UI from hiding the button that
+// reaches it.
 /** A family still needs invoicing unless a live invoice already covers them. */
 function needsInvoice(row: BillingRow) {
-  return !row.invoice || row.invoice.status === 'failed'
+  return !row.invoice || row.invoice.status === 'failed' || isStalePending(row)
 }
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
@@ -270,7 +291,16 @@ export default function AdminBillingPage() {
 
             <div className="space-y-3">
               {rows.map((r) => {
-                const status = r.invoice ? STATUS_STYLES[r.invoice.status] ?? { label: r.invoice.status, className: 'bg-stone-100 text-stone-600' } : null
+                const stalePending = isStalePending(r)
+                const status = r.invoice
+                  ? stalePending
+                    // A fresh `pending` is a send in progress; one this old is
+                    // stuck (the process that claimed it died mid-send) — say
+                    // so, since it's what tells the admin the Retry button
+                    // below isn't racing a real in-flight send.
+                    ? { label: '⚠ Stuck — never completed', className: 'bg-amber-100 text-amber-700' }
+                    : STATUS_STYLES[r.invoice.status] ?? { label: r.invoice.status, className: 'bg-stone-100 text-stone-600' }
+                  : null
                 return (
                   <div key={r.parentId} className="bg-white rounded-3xl ring-1 ring-stone-900/5 shadow-soft p-5">
                     <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -309,7 +339,11 @@ export default function AdminBillingPage() {
                           disabled={sendingId === r.parentId || bulkSending || !stripeConfigured}
                           className="text-sm font-medium px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          {sendingId === r.parentId ? 'Sending…' : r.invoice?.status === 'failed' ? 'Retry invoice' : 'Send invoice'}
+                          {sendingId === r.parentId
+                            ? 'Sending…'
+                            : r.invoice?.status === 'failed' || stalePending
+                            ? 'Retry invoice'
+                            : 'Send invoice'}
                         </button>
                       )}
 

@@ -1,5 +1,11 @@
 import { API_URL } from './config'
 
+// A stalled connection (dead wifi, a captive portal, a cell handoff) has no
+// ceiling without this — the calling screen's spinner never resolves and the
+// only way out is force-quitting the app. Mirrors the same guard the web
+// client applies to its slower calls (lib/client-fetch-timeout.ts).
+const REQUEST_TIMEOUT_MS = 20_000
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -34,15 +40,24 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`
 
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
   let res: Response
   try {
     res = await fetch(`${API_URL}${path}`, {
       method: opts.method || 'GET',
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: controller.signal,
     })
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new ApiError(0, 'This is taking longer than expected. Check your connection and try again.')
+    }
     throw new ApiError(0, 'Network error — check your connection.')
+  } finally {
+    clearTimeout(timer)
   }
 
   const data = await res.json().catch(() => ({}))

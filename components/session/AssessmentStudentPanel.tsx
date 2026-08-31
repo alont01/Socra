@@ -30,16 +30,21 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
   // so the reveal isn't skipped past when the next question is already ready.
   const [feedback, setFeedback] = useState<{ correct: boolean; correctAnswer?: string } | null>(null)
 
-  const load = useCallback(async () => {
+  // Returns the freshly-loaded assessment (or undefined on failure) so a
+  // caller reconciling after a failed submit can tell whether the item it
+  // just tried to answer actually moved on server-side.
+  const load = useCallback(async (): Promise<AssessmentData | null | undefined> => {
     try {
       const res = await fetch(`/api/tutoring-sessions/${sessionId}/assessment`)
       if (res.ok) {
         const data = await res.json()
         setAssessment(data.assessment)
+        return data.assessment
       }
     } catch {
       /* keep previous state on a transient failure */
     }
+    return undefined
   }, [sessionId])
 
   useEffect(() => { load() }, [load])
@@ -67,24 +72,38 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!assessment?.currentItem || !answer.trim() || submitting) return
+    const attemptedItemId = assessment.currentItem.id
     setSubmitting(true)
     setError('')
     // The tutor can't see this request. Tell them the wait has started now,
     // rather than leaving their panel claiming the student hasn't answered.
     notifyGenerating()
+
+    // Re-fetch after a failure and reconcile against what actually landed
+    // server-side. The item is claimed atomically BEFORE the route replies, so
+    // a lost response (a timeout, a network blip, a duplicate submit racing a
+    // retry) can mean the answer was graded and the assessment moved on even
+    // though this request errored. Without this, the student was stuck on the
+    // already-answered question forever: retrying always 409s, and nothing
+    // else re-fetches while an error is showing.
+    const reconcile = async (message: string) => {
+      notifyChanged()
+      const fresh = await load()
+      // Only keep the error on screen if the item we tried to answer is still
+      // the current one — otherwise the submission actually succeeded and
+      // showing "could not submit" under the NEW question would be a lie.
+      if (fresh?.currentItem?.id === attemptedItemId) setError(message)
+    }
+
     try {
       const res = await fetchWithTimeout(`/api/tutoring-sessions/${sessionId}/assessment/${assessment.id}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: assessment.currentItem.id, answer: answer.trim() }),
+        body: JSON.stringify({ itemId: attemptedItemId, answer: answer.trim() }),
       }, ASSESSMENT_TIMEOUT_MS)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || 'Could not submit your answer.')
-        // We told the tutor a new problem was being written; that's no longer
-        // true, so take it back rather than leaving their panel claiming the
-        // model is working for the next 90 seconds.
-        notifyChanged()
+        await reconcile(data.error || 'Could not submit your answer.')
         return
       }
       setAssessment(data.assessment)
@@ -98,12 +117,11 @@ export function AssessmentStudentPanel({ sessionId, callFrame, onActiveChange }:
       // server-side.
       notifyChanged()
     } catch (err) {
-      setError(
+      await reconcile(
         isTimeoutError(err)
           ? 'This is taking longer than expected. Please try again.'
           : 'Network error — check your connection.',
       )
-      notifyChanged()
     } finally {
       setSubmitting(false)
     }

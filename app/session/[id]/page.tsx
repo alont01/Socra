@@ -404,10 +404,6 @@ export default function SessionPage({
   const endSession = useCallback(async () => {
     setEnding(true)
     try {
-      // Let the student's call leave immediately rather than sitting through the
-      // reconnect grace window once the tutor's frame is torn down.
-      try { callFrame?.sendAppMessage({ type: 'session:ended' }, '*') } catch { /* not joined */ }
-
       // Capture whiteboard snapshot before ending. Best-effort, like the
       // transcript below: a failed (or hung) upload must not strand the tutor
       // on an active session — that blocks the analysis pipeline and leaves
@@ -451,6 +447,15 @@ export default function SessionPage({
 
       const res = await fetchWithTimeout(`/api/tutoring-sessions/${id}/end`, { method: 'POST' }, END_SESSION_UPLOAD_TIMEOUT_MS)
       if (res.ok) {
+        // Only now — the session is actually over server-side. Broadcasting
+        // this before /end succeeded let the student leave (to /dashboard, via
+        // VideoCall's app-message handler) while the tutor's own /end could
+        // still fail and leave the session open, with the tutor stuck retrying
+        // a call the other side had already been told was finished.
+        //
+        // Let the student's call leave immediately rather than sitting through
+        // the reconnect grace window once the tutor's frame is torn down.
+        try { callFrame?.sendAppMessage({ type: 'session:ended' }, '*') } catch { /* not joined */ }
         setInCall(false)
         router.push(`/session/${id}/review`)
       } else {
@@ -539,6 +544,7 @@ export default function SessionPage({
             token={meetingToken}
             onLeave={handleLeave}
             onCallFrame={setCallFrame}
+            isTutor={isTutor}
           />
           {!isTutor && <CaptureNotesButton sessionId={id} />}
         </div>

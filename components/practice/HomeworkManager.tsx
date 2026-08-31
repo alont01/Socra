@@ -30,7 +30,15 @@ interface HomeworkSet {
   createdAt: string
 }
 
-export function HomeworkManager({ sessionId }: { sessionId: string }) {
+interface HomeworkManagerProps {
+  sessionId: string
+  /** Reports whether any draft (unassigned) set currently exists for this
+   *  session, so a caller planning a destructive action — retrying analysis
+   *  deletes every draft — can warn before it wipes an in-progress edit. */
+  onDraftsChange?: (hasDrafts: boolean) => void
+}
+
+export function HomeworkManager({ sessionId, onDraftsChange }: HomeworkManagerProps) {
   const { toast } = useToast()
   const [sets, setSets] = useState<HomeworkSet[]>([])
   const [fetching, setFetching] = useState(true)
@@ -61,6 +69,10 @@ export function HomeworkManager({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    onDraftsChange?.(sets.some((s) => s.status === 'draft'))
+  }, [sets, onDraftsChange])
 
   const patchLocal = (setId: string, patch: Partial<HomeworkSet>) => {
     setSets((prev) => prev.map((s) => (s.id === setId ? { ...s, ...patch } : s)))

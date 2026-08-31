@@ -105,6 +105,14 @@ export const config = {
     // the sweeper. Daily's room already expires at 3h (daily.roomExpirySeconds),
     // so nothing legitimate is still running past this.
     staleAfterHours: 4,
+    // A `completed` session with a student but no SessionAnalysis row this long
+    // after `endedAt` means the fire-and-forget post-session pipeline (started
+    // by POST /end) died before writing anything at all — not a placeholder
+    // ('failed'/'insufficient', which the review page can already retry), just
+    // nothing. Comfortably past the transcript retry ceiling
+    // (transcriptMaxRetries × transcriptRetryIntervalMs = 3 min) plus the AI
+    // calls, so a merely-slow pipeline is never mistaken for a dead one.
+    staleAnalysisAfterMinutes: 30,
   },
 
   // Auth

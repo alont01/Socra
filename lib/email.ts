@@ -9,6 +9,29 @@ interface SendEmailInput {
   html: string
 }
 
+// sendEmail is awaited inside several request paths a user is blocked on
+// (signup, forgot-password, adding a child, accepting a match) with no
+// server-side deadline of its own — the Resend SDK doesn't expose a
+// timeout/signal option. A stalled call (not a rejected one; Resend's own
+// errors already surface via `error` above) left the button spinning
+// indefinitely. This only detaches from the call — like fetchWithTimeout on
+// the client, it doesn't cancel the underlying send, so a slow send can still
+// land after the caller has moved on.
+const SEND_TIMEOUT_MS = 15_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(Object.assign(new Error(`Resend send timed out after ${ms}ms`), { name: 'TimeoutError' })),
+      ms,
+    )
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (err) => { clearTimeout(timer); reject(err) },
+    )
+  })
+}
+
 /**
  * Send an email via Resend. If RESEND_API_KEY isn't configured (local dev),
  * logs instead of sending and returns false. Never throws into the caller.
@@ -27,12 +50,15 @@ export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<
       // looks exactly like a successful one unless `error` is inspected.
       // Throwing here is deliberate: it is what makes trackedCall record the
       // failure instead of filing it under successful sends.
-      const { data, error } = await resend.emails.send({
-        from: 'noreply@socratutoring.com',
-        to,
-        subject,
-        html,
-      })
+      const { data, error } = await withTimeout(
+        resend.emails.send({
+          from: 'noreply@socratutoring.com',
+          to,
+          subject,
+          html,
+        }),
+        SEND_TIMEOUT_MS,
+      )
       if (error) {
         throw Object.assign(new Error(error.message || 'Resend rejected the message'), {
           name: error.name ?? 'ResendError',

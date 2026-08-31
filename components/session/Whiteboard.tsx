@@ -40,7 +40,7 @@ export function Whiteboard({ isTutor, onCanvasStateChange, remoteCanvasState, sn
     undo, redo, clear,
   } = useWhiteboardHistory(fabricCanvasRef, isUpdatingRef, onCanvasStateChange)
 
-  useWhiteboardShapeDrawing(fabricCanvasRef, isTutor, activeTool, activeColor, strokeWidth, canvasReady)
+  useWhiteboardShapeDrawing(fabricCanvasRef, isTutor, activeTool, activeColor, strokeWidth, canvasReady, isUpdatingRef, saveHistory)
 
   // Initialize Fabric.js canvas
   useEffect(() => {

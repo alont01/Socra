@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -35,13 +35,16 @@ export default function ParentDashboardPage() {
     else if (!loading && user && user.role !== 'PARENT') router.replace('/dashboard')
   }, [user, loading, router])
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (loading || user?.role !== 'PARENT') return
+    setError(false)
     fetch('/api/parent/children')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => setChildren(data.children || []))
       .catch(() => setError(true))
   }, [loading, user])
+
+  useEffect(() => { load() }, [load])
 
   const parentName = user?.parentProfile?.name || 'there'
 
@@ -80,8 +83,11 @@ export default function ParentDashboardPage() {
             ))}
           </div>
         ) : error ? (
-          <div className="rounded-3xl ring-1 ring-stone-900/5 bg-white shadow-soft p-8 text-center text-stone-500">
-            Couldn&apos;t load your children. Please try again.
+          <div className="rounded-3xl ring-1 ring-stone-900/5 bg-white shadow-soft p-8 text-center">
+            <p className="text-stone-500 mb-3">Couldn&apos;t load your children.</p>
+            <button onClick={load} className="text-sm font-medium text-orange-600 hover:text-orange-700">
+              Try again
+            </button>
           </div>
         ) : children && children.length === 0 ? (
           <div className="rounded-3xl ring-1 ring-stone-900/5 bg-white shadow-soft p-10 text-center">

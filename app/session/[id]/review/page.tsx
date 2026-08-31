@@ -38,6 +38,12 @@ export default function ReviewPage({
   const [status, setStatus] = useState<'loading' | 'processing' | 'ready' | 'failed' | 'insufficient' | 'no_student' | 'error'>('loading')
   const [sessionRole, setSessionRole] = useState<'tutor' | 'student'>('student')
   const [retrying, setRetrying] = useState(false)
+  // Retrying deletes every DRAFT homework set for this session (see
+  // retry-analysis/route.ts) so the pipeline can generate a clean one — but a
+  // draft can be a tutor's hand-edited questions and answer keys, not just an
+  // untouched AI output. Reported by HomeworkManager so retryAnalysis can warn
+  // before it throws that work away.
+  const [hasDraftHomework, setHasDraftHomework] = useState(false)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const giveUpRef = useRef<NodeJS.Timeout | null>(null)
@@ -193,6 +199,18 @@ export default function ReviewPage({
   const hasTranscript = transcript && transcript.content && transcript.content.trim().length > 0
 
   const retryAnalysis = async () => {
+    // The server deletes every draft homework set as part of a retry — ask
+    // first rather than silently discarding a draft the tutor may have spent
+    // minutes editing (questions, answer keys). Assigned homework is
+    // unaffected and this only fires when a draft actually exists.
+    if (
+      hasDraftHomework &&
+      !window.confirm(
+        'Retrying will discard any unassigned (draft) homework for this session, including edits you’ve made. Already-assigned homework is not affected. Continue?',
+      )
+    ) {
+      return
+    }
     setRetrying(true)
     try {
       const res = await fetch(`/api/tutoring-sessions/${id}/retry-analysis`, { method: 'POST' })
@@ -431,7 +449,7 @@ export default function ReviewPage({
               {isTutor && (
                 <div className="space-y-6">
                   <TutorFeedbackCard feedback={analysis.tutorFeedback} />
-                  <HomeworkManager sessionId={id} />
+                  <HomeworkManager sessionId={id} onDraftsChange={setHasDraftHomework} />
                 </div>
               )}
             </div>
